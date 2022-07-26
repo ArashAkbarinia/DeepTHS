@@ -27,7 +27,7 @@ def csf_train_arg_parser(argvs, extra_args_fun=None):
         extra_args_fun(parser)
 
     args = parser.parse_args(argvs)
-    args.colour_space = _check_dataset_space(args)
+    args = _check_csf_params(args)
     return args
 
 
@@ -50,6 +50,14 @@ def csf_test_arg_parser(argvs, extra_args_fun=None):
         extra_args_fun(parser)
 
     args = parser.parse_args(argvs)
+    args = _check_csf_params(args)
+    return args
+
+
+def _check_csf_params(args):
+    args.grating_detector = args.paradigm == 'grating_detector'
+    if args.colour_space is None:
+        args.colour_space = 'rgb'
     args.colour_space = _check_dataset_space(args)
     return args
 
@@ -132,12 +140,6 @@ def _add_misc_group(parser):
         default=20,
         type=int,
         help='Number of attempts to test between reference and target (default: 20)'
-    )
-    misc_group.add_argument(
-        '--mac_adam',
-        action='store_true',
-        default=False,
-        help='MacAdam experiment (default: False)'
     )
 
 
@@ -321,10 +323,10 @@ def _add_input_group(parser):
         help='Type of mask image (default: None)'
     )
     input_group.add_argument(
-        '--grating_detector',
-        action='store_true',
-        default=False,
-        help='Performing the task of grating detector (default: False)'
+        '--paradigm',
+        default=None,
+        type=str,
+        help='Type of paradigm (default: task dependent)'
     )
     input_group.add_argument(
         '--contrasts',

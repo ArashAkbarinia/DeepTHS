@@ -27,9 +27,6 @@ def main(argv):
     args = argument_handler.csf_train_arg_parser(argv)
     system_utils.set_random_environment(args.random_seed)
 
-    if args.colour_space is None:
-        args.colour_space = 'rgb'
-
     # it's a binary classification
     args.num_classes = 2
 

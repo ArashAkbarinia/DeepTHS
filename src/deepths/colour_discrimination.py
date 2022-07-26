@@ -51,12 +51,10 @@ def _main_worker(args):
     mean, std = model_utils.get_mean_std(args.colour_space, args.vision_type)
     args.preprocess = (mean, std)
 
-    if args.mac_adam:
+    if args.paradigm == '2afc':
         net_class = networks.ColourDiscrimination2AFC
-        task = '2afc'
     else:
         net_class = networks.ColourDiscriminationOddOneOut
-        task = 'odd4'
 
     if args.test_net:
         model = net_class(args.test_net, args.target_size)
@@ -131,7 +129,8 @@ def _main_worker(args):
             target_colour = ref_pts['bfun'](np.expand_dims(ext_pts[:3], axis=(0, 1)))
             val_colours = {'target_colour': target_colour, 'others_colour': others_colour}
             val_dataset.append(dataloader_colour.val_set(
-                args.validation_dir, args.target_size, args.preprocess, task=task, **val_colours
+                args.validation_dir, args.target_size, args.preprocess, task=args.paradigm,
+                **val_colours
             ))
     val_dataset = torch.utils.data.ConcatDataset(val_dataset)
 
@@ -146,7 +145,7 @@ def _main_worker(args):
     # loading the training set
     train_kwargs = {'colour_dist': args.train_colours, **_common_db_params(args)}
     train_dataset = dataloader_colour.train_set(
-        args.train_dir, args.target_size, args.preprocess, task=task, **train_kwargs
+        args.train_dir, args.target_size, args.preprocess, task=args.paradigm, **train_kwargs
     )
 
     train_loader = torch.utils.data.DataLoader(
@@ -249,7 +248,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             # measure data loading time
             data_time.update(time.time() - end)
 
-            if args.mac_adam:
+            if args.paradigm == '2afc':
                 (img0, img1, target) = cu_batch
                 img0 = img0.cuda(args.gpu, non_blocking=True)
                 img1 = img1.cuda(args.gpu, non_blocking=True)
@@ -269,7 +268,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
-            if args.mac_adam:
+            if args.paradigm == '2afc':
                 output = model(img0, img1)
                 odd_ind = target
             else:
@@ -293,7 +292,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             end = time.time()
 
             # to use for correlations
-            if args.mac_adam:
+            if args.paradigm == '2afc':
                 pred_outs = np.concatenate(
                     [output.detach().cpu().numpy(), odd_ind.cpu().numpy()],
                     axis=1
@@ -368,11 +367,10 @@ def _accuracy_test_points(args, model):
 
 
 def _make_test_loader(args, target_colour, others_colour):
-    task = '2afc' if args.mac_adam else 'odd4'
     kwargs = {'target_colour': target_colour, 'others_colour': others_colour,
               **_common_db_params(args)}
     db = dataloader_colour.val_set(args.validation_dir, args.target_size, args.preprocess,
-                                   task=task, **kwargs)
+                                   task=args.paradigm, **kwargs)
 
     return torch.utils.data.DataLoader(
         db, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True
@@ -412,7 +410,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     j = 0
     header = 'acc,%s,%s,%s,R,G,B' % (chns_name[0], chns_name[1], chns_name[2])
 
-    th = 0.75 if args.mac_adam else 0.625
+    th = 0.75 if args.paradigm == '2afc' else 0.625
     while True:
         target_colour = qval['ffun'](mid)
         db_loader = _make_test_loader(args, target_colour, others_colour)
