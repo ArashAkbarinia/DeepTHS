@@ -14,8 +14,11 @@ def colour_discrimination_arg_parser(argvs, extra_args_fun=None):
         extra_args_fun(parser)
 
     args = parser.parse_args(argvs)
-    args.colour_space = _check_dataset_space(args)
+
     args.paradigm = args.paradigm if args.paradigm == '2afc' else 'odd4'
+    if args.colour_space is None:
+        args.colour_space = 'imagenet_rgb'
+    args.colour_space = _check_dataset_space(args)
     return args
 
 

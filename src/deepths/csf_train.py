@@ -25,27 +25,8 @@ from .utils import common_routines
 
 def main(argv):
     args = argument_handler.csf_train_arg_parser(argv)
-    system_utils.set_random_environment(args.random_seed)
 
-    if args.classifier != 'nn':
-        args.epochs = 1
-        args.print_freq = np.inf
-
-    # preparing the output folder
-    layer = args.transfer_weights[1]
-    args.output_dir = '%s/csf/%s/%s/%s/%s/' % (
-        args.output_dir, args.dataset, args.architecture, args.experiment_name, layer
-    )
-    system_utils.create_dir(args.output_dir)
-
-    # this is just a hack for when the training script has crashed
-    filename = 'e%.3d_%s' % (8, 'checkpoint.pth.tar')
-    file_path = os.path.join(args.output_dir, filename)
-    if os.path.exists(file_path):
-        return
-
-    # dumping all passed arguments to a json file
-    system_utils.save_arguments(args)
+    args = common_routines.prepare_starting(args, 'csf')
 
     _main_worker(args)
 

@@ -11,6 +11,26 @@ from torch.utils.tensorboard import SummaryWriter
 from . import system_utils
 
 
+def prepare_starting(args, task_folder):
+    system_utils.set_random_environment(args.random_seed)
+
+    if args.classifier != 'nn':
+        args.epochs = 1
+        args.print_freq = np.inf
+
+    # preparing the output folder
+    layer = args.transfer_weights[1]
+    args.output_dir = '%s/%s/%s/%s/%s/%s/' % (
+        args.output_dir, task_folder, args.dataset, args.architecture, args.experiment_name, layer
+    )
+    system_utils.create_dir(args.output_dir)
+
+    # dumping all passed arguments to a json file
+    if not args.test_net:
+        system_utils.save_arguments(args)
+    return args
+
+
 def do_epochs(args, epoch_fun, optimizer, train_loader, val_loader, model,
               model_progress, model_progress_path):
     args.tb_writers = dict()

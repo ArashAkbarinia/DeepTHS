@@ -10,33 +10,14 @@ import torch
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks, model_utils
-from .utils import report_utils, system_utils, argument_handler, colour_spaces
+from .utils import report_utils, argument_handler, colour_spaces
 from .utils import common_routines
 
 
 def main(argv):
     args = argument_handler.colour_discrimination_arg_parser(argv)
-    system_utils.set_random_environment(args.random_seed)
 
-    if args.colour_space is None:
-        args.colour_space = 'imagenet_rgb'
-
-    # preparing the output folder
-    layer = args.transfer_weights[1]
-    args.output_dir = '%s/colour_discrimination/%s/%s/%s/%s/' % (
-        args.output_dir, args.dataset, args.architecture, args.experiment_name, layer
-    )
-    system_utils.create_dir(args.output_dir)
-
-    # this is just a hack for when the training script has crashed
-    filename = 'e%.3d_%s' % (8, 'checkpoint.pth.tar')
-    file_path = os.path.join(args.output_dir, filename)
-    if os.path.exists(file_path):
-        return
-
-    # dumping all passed arguments to a json file
-    if not args.test_net:
-        system_utils.save_arguments(args)
+    args = common_routines.prepare_starting(args, 'colour_discrimination')
 
     _main_worker(args)
 
