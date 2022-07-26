@@ -10,6 +10,10 @@ from torch.nn import functional as t_functional
 from . import pretrained_models
 
 
+def network_class(paradigm):
+    return ColourDiscrimination2AFC if paradigm == '2afc' else ColourDiscriminationOddOneOut
+
+
 class ColourDiscrimination(nn.Module):
     def __init__(self, architecture, target_size, num_classes, transfer_weights=None):
         super(ColourDiscrimination, self).__init__()
@@ -38,7 +42,8 @@ class ColourDiscrimination(nn.Module):
                 or 'resnet' in architecture or 'resnext' in architecture
                 or 'taskonomy_' in architecture
         ):
-            features, org_classes = pretrained_models.resnet_features(model, architecture, layer, target_size)
+            features, org_classes = pretrained_models.resnet_features(model, architecture, layer,
+                                                                      target_size)
         else:
             sys.exit('Unsupported network %s' % architecture)
         self.features = features

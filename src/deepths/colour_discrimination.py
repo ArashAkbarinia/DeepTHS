@@ -51,10 +51,7 @@ def _main_worker(args):
     mean, std = model_utils.get_mean_std(args.colour_space, args.vision_type)
     args.preprocess = (mean, std)
 
-    if args.paradigm == '2afc':
-        net_class = networks.ColourDiscrimination2AFC
-    else:
-        net_class = networks.ColourDiscriminationOddOneOut
+    net_class = networks.network_class(args.paradigm)
 
     if args.test_net:
         model = net_class(args.test_net, args.target_size)
