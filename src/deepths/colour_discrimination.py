@@ -7,14 +7,11 @@ import numpy as np
 import time
 
 import torch
-import torch.nn.parallel
-import torch.optim
-import torch.utils.data
-import torch.utils.data.distributed
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks, model_utils
 from .utils import report_utils, system_utils, argument_handler, colour_spaces
+from .utils import common_routines
 
 
 def main(argv):
@@ -23,9 +20,6 @@ def main(argv):
 
     if args.colour_space is None:
         args.colour_space = 'imagenet_rgb'
-
-    # it's a 4AFC
-    args.num_classes = 4
 
     # preparing the output folder
     layer = args.transfer_weights[1]
@@ -148,41 +142,10 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
 
-    # training on epoch
-    for epoch in range(args.initial_epoch, args.epochs):
-        _adjust_learning_rate(optimizer, epoch, args)
-
-        # train for one epoch
-        train_log = _train_val(train_loader, model, optimizer, epoch, args)
-
-        # evaluate on validation set
-        validation_log = _train_val(val_loader, model, None, epoch, args)
-
-        model_progress.append([*train_log, *validation_log[1:]])
-
-        # remember best acc@1 and save checkpoint
-        acc1 = validation_log[2]
-        is_best = acc1 > best_acc1
-        best_acc1 = max(acc1, best_acc1)
-
-        # save the checkpoints
-        system_utils.save_checkpoint(
-            {
-                'epoch': epoch,
-                'arch': args.architecture,
-                'transfer_weights': args.transfer_weights,
-                'preprocessing': {'mean': mean, 'std': std},
-                'state_dict': model.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer': optimizer.state_dict(),
-                'target_size': args.target_size,
-            },
-            is_best, args
-        )
-        header = 'epoch,t_time,t_loss,t_top1,v_time,v_loss,v_top1'
-        np.savetxt(
-            model_progress_path, np.array(model_progress), delimiter=',', header=header
-        )
+    common_routines.do_epochs(
+        args, _train_val, optimizer, train_loader, val_loader, model,
+        model_progress, model_progress_path
+    )
 
 
 def _organise_test_points(test_pts):
