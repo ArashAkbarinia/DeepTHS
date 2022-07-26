@@ -32,8 +32,6 @@ def main(argv):
 
 
 def _main_worker(args):
-    args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
-
     # create model
     net_t = model_csf.GratingDetector if args.grating_detector else model_csf.ContrastDiscrimination
     model = net_t(args.architecture, args.target_size, args.transfer_weights, args.classifier)
@@ -41,21 +39,7 @@ def _main_worker(args):
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
 
-    if args.classifier == 'nn':
-        # if transfer_weights, only train the fc layer, otherwise all parameters
-        if args.transfer_weights is None:
-            params_to_optimize = [{'params': [p for p in model.parameters()]}]
-        else:
-            for p in model.features.parameters():
-                p.requires_grad = False
-            params_to_optimize = [{'params': [p for p in model.fc.parameters()]}]
-        # optimiser
-        optimizer = torch.optim.SGD(
-            params_to_optimize, lr=args.learning_rate,
-            momentum=args.momentum, weight_decay=args.weight_decay
-        )
-    else:
-        optimizer = []
+    optimizer = common_routines.make_optimizer(args, model)
 
     model_progress = []
     model_progress_path = os.path.join(args.output_dir, 'model_progress.csv')

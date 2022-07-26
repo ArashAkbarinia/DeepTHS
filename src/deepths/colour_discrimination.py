@@ -23,9 +23,6 @@ def main(argv):
 
 
 def _main_worker(args):
-    mean, std = model_utils.get_mean_std(args.colour_space, args.vision_type)
-    args.preprocess = (mean, std)
-
     model = networks.colour_discrimination_net(
         args.paradigm, args.test_net, args.architecture, args.target_size,
         args.transfer_weights, args.classifier
@@ -52,18 +49,7 @@ def _main_worker(args):
             _accuracy_test_points(args, model)
         return
 
-    # if transfer_weights, only train the fc layer, otherwise all parameters
-    if args.transfer_weights is None or '_scratch' in args.architecture:
-        params_to_optimize = [{'params': [p for p in model.parameters()]}]
-    else:
-        for p in model.features.parameters():
-            p.requires_grad = False
-        params_to_optimize = [{'params': [p for p in model.fc.parameters()]}]
-    # optimiser
-    optimizer = torch.optim.SGD(
-        params_to_optimize, lr=args.learning_rate,
-        momentum=args.momentum, weight_decay=args.weight_decay
-    )
+    optimizer = common_routines.make_optimizer(args, model)
 
     model_progress = []
     model_progress_path = os.path.join(args.output_dir, 'model_progress.csv')

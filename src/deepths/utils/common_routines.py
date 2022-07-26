@@ -6,9 +6,30 @@ import os
 import numpy as np
 import collections
 
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from . import system_utils
+from ..models import model_utils
+
+
+def make_optimizer(args, model):
+    if args.classifier == 'nn':
+        # if transfer_weights, only train the fc layer, otherwise all parameters
+        if args.transfer_weights is None:
+            params_to_optimize = [{'params': [p for p in model.parameters()]}]
+        else:
+            for p in model.features.parameters():
+                p.requires_grad = False
+            params_to_optimize = [{'params': [p for p in model.fc.parameters()]}]
+        # optimiser
+        optimizer = torch.optim.SGD(
+            params_to_optimize, lr=args.learning_rate,
+            momentum=args.momentum, weight_decay=args.weight_decay
+        )
+    else:
+        optimizer = []
+    return optimizer
 
 
 def prepare_starting(args, task_folder):
@@ -24,6 +45,9 @@ def prepare_starting(args, task_folder):
         args.output_dir, task_folder, args.dataset, args.architecture, args.experiment_name, layer
     )
     system_utils.create_dir(args.output_dir)
+
+    args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
+    args.preprocess = (args.mean, args.std)
 
     # dumping all passed arguments to a json file
     if not args.test_net:
