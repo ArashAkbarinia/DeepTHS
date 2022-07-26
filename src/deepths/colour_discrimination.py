@@ -397,7 +397,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
 
     low = np.expand_dims(qval['ref'][:3], axis=(0, 1))
     high = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
-    mid = _compute_mean(low, high, circ_chns)
+    mid = report_utils.mid_point(low, high, circ_chns)
 
     others_colour = qval['ffun'](low)
 
@@ -431,25 +431,8 @@ def _midpoint_colour(accuracy, low, mid, high, th, circ_chns=None):
     if abs(diff_acc) < 0.005:
         return None, None, None
     elif diff_acc > 0:
-        new_mid = _compute_mean(low, mid, circ_chns)
+        new_mid = report_utils.mid_point(low, mid, circ_chns)
         return low, new_mid, mid
     else:
-        new_mid = _compute_mean(high, mid, circ_chns)
+        new_mid = report_utils.mid_point(high, mid, circ_chns)
         return mid, new_mid, high
-
-
-def _compute_mean(a, b, circ_chns):
-    c = (a + b) / 2
-    for i in circ_chns:
-        c[0, 0, i] = _circular_mean(a[0, 0, i], b[0, 0, i])
-    return c
-
-
-def _circular_mean(a, b):
-    if abs(a - b) > 0.5:
-        mu = (a + b + 1) / 2
-    else:
-        mu = (a + b) / 2
-    if mu >= 1:
-        mu = mu - 1
-    return mu

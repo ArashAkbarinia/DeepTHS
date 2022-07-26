@@ -104,3 +104,19 @@ def min_max_normalise(x, low=0, high=1, minv=None, maxv=None):
         maxv = x.max()
     output = low + (x - minv) * (high - low) / (maxv - minv)
     return output
+
+
+def mid_point(a, b, circular_chns=None):
+    if circular_chns is None:
+        circular_chns = []
+    c = (a + b) / 2
+    for i in circular_chns:
+        c[0, 0, i] = circular_mid_point(a[0, 0, i], b[0, 0, i])
+    return c
+
+
+def circular_mid_point(a, b):
+    mu = (a + b + 1) / 2 if abs(a - b) > 0.5 else (a + b) / 2
+    if mu >= 1:
+        mu = mu - 1
+    return mu

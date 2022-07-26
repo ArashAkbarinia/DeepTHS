@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader
 from .models import model_csf, model_utils, lesion_utils
-from .utils import system_utils, argument_handler
+from .utils import system_utils, report_utils, argument_handler
 from .csf_train import _train_val
 
 
@@ -33,19 +33,15 @@ def sensitivity_sf(result_mat, sf, th=0.75, low=0, high=1):
         return (high + contrast_i) / 2, contrast_i, high
 
 
-def _compute_mean(a, b):
-    return (a + b) / 2
-
-
 def _midpoint_sf(accuracy, low, mid, high, th, ep=1e-4):
     diff_acc = accuracy - th
     if abs(diff_acc) < ep:
         return None, None, None
     elif diff_acc > 0:
-        new_mid = _compute_mean(low, mid)
+        new_mid = report_utils.mid_point(low, mid)
         return low, new_mid, mid
     else:
-        new_mid = _compute_mean(high, mid)
+        new_mid = report_utils.mid_point(high, mid)
         return mid, new_mid, high
 
 
