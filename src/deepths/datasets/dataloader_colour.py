@@ -313,7 +313,7 @@ class Shape2AFCTrain(ShapeTrain):
         if self.same_rotation:
             other_paths = target_path
         else:
-            other_paths = self._prepare_angle_paths(target_path, 1)
+            other_paths = self._prepare_angle_paths(target_path, 1)[0]
 
         masks = [io.imread(target_path), io.imread(other_paths)]
 
