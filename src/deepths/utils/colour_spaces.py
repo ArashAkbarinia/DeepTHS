@@ -4,6 +4,8 @@ Different colour spaces.
 
 import numpy as np
 
+import cv2
+
 rgb_from_dkl = np.array(
     [[+0.49995000, +0.50001495, +0.49999914],
      [+0.99998394, -0.29898596, +0.01714922],
@@ -107,6 +109,25 @@ def rgb2double(x):
     else:
         assert x.max() <= 1, 'rgb must be either uint8 or in the range of [0 1]'
     return x
+
+
+def rgb2hsv01(x):
+    x = x.copy()
+    x = rgb2double(x)
+    x = np.float32(cv2.cvtColor(x.astype('float32'), cv2.COLOR_RGB2HSV))
+    x[:, :, 0] /= 360
+    return x
+
+
+def hsv012rgb(x):
+    return uint8im(hsv012rgb01(x))
+
+
+def hsv012rgb01(x):
+    x = x.copy()
+    x[:, :, 0] *= 360
+    x = cv2.cvtColor(x.astype('float32'), cv2.COLOR_HSV2RGB)
+    return clip01(x)
 
 
 def clip01(x):
