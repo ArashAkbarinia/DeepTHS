@@ -5,31 +5,10 @@ Supported arguments for train and evaluation.
 import argparse
 
 
-def train_arg_parser(argvs, extra_args_fun=None):
-    parser = _common_arg_parser(description='Contrast discrimination training')
+def colour_discrimination_arg_parser(argvs, extra_args_fun=None):
+    parser = _common_arg_parser(description='Colour discrimination training')
 
     _add_optimisation_group(parser)
-
-    misc_group = parser.add_argument_group('miscellaneous')
-    misc_group.add_argument(
-        '--random_seed',
-        default=None,
-        type=int,
-        help='To make the results more reproducible (default: None)'
-    )
-    misc_group.add_argument(
-        '--train_params',
-        default=None,
-        type=str,
-        help='Path to a predefined set of parameters (default: None)'
-    )
-    misc_group.add_argument(
-        '--sf_filter',
-        default=None,
-        nargs='+',
-        type=float,
-        help='Filtering images with <high,low> spatial freq (default: None)'
-    )
 
     if extra_args_fun is not None:
         extra_args_fun(parser)
@@ -39,7 +18,20 @@ def train_arg_parser(argvs, extra_args_fun=None):
     return args
 
 
-def test_arg_parser(argvs, extra_args_fun=None):
+def csf_train_arg_parser(argvs, extra_args_fun=None):
+    parser = _common_arg_parser(description='Contrast discrimination training')
+
+    _add_optimisation_group(parser)
+
+    if extra_args_fun is not None:
+        extra_args_fun(parser)
+
+    args = parser.parse_args(argvs)
+    args.colour_space = _check_dataset_space(args)
+    return args
+
+
+def csf_test_arg_parser(argvs, extra_args_fun=None):
     parser = _common_arg_parser(description='Contrast discrimination testing')
 
     _add_optimisation_group(parser)
@@ -103,8 +95,50 @@ def _common_arg_parser(description='No description!'):
     _add_logging_group(parser)
     _add_routine_group(parser)
     _add_input_group(parser)
+    _add_misc_group(parser)
 
     return parser
+
+
+def _add_misc_group(parser):
+    misc_group = parser.add_argument_group('miscellaneous')
+    misc_group.add_argument(
+        '--random_seed',
+        default=None,
+        type=int,
+        help='To make the results more reproducible (default: None)'
+    )
+    misc_group.add_argument(
+        '--train_params',
+        default=None,
+        type=str,
+        help='Path to a predefined set of parameters (default: None)'
+    )
+    misc_group.add_argument(
+        '--sf_filter',
+        default=None,
+        nargs='+',
+        type=float,
+        help='Filtering images with <high,low> spatial freq (default: None)'
+    )
+    misc_group.add_argument(
+        '--test_net',
+        default=None,
+        type=str,
+        help='Path of the model to be tested (default: None)'
+    )
+    misc_group.add_argument(
+        '--test_attempts',
+        default=20,
+        type=int,
+        help='Number of attempts to test between reference and target (default: 20)'
+    )
+    misc_group.add_argument(
+        '--mac_adam',
+        action='store_true',
+        default=False,
+        help='MacAdam experiment (default: False)'
+    )
 
 
 def _add_logging_group(parser):
@@ -153,7 +187,7 @@ def _add_routine_group(parser):
     )
     routine_group.add_argument(
         '-j', '--workers',
-        default=1,
+        default=4,
         type=int,
         help='Number of workers for image generator (default: 1)'
     )
@@ -240,14 +274,14 @@ def _add_input_group(parser):
 
     input_group.add_argument(
         '--colour_space',
-        default='rgb',
+        default=None,
         type=str,
         choices=[
             'rgb', 'imagenet_rgb', 'taskonomy_rgb',
             'lab',
             'grey', 'grey3'
         ],
-        help='The colour space of network (default: rgb)'
+        help='The colour space of network (default: experiment dependent)'
     )
     input_group.add_argument(
         '--vision_type',
@@ -306,6 +340,25 @@ def _add_input_group(parser):
         type=float,
         help='Illuminant value in the range of -0.5 to 0.5 (default: None)'
     )
+    input_group.add_argument(
+        '--background',
+        default=None,
+        type=str,
+        help='Type of background (default: rnd for train and uniform 128 for test)'
+    )
+    rotation_parser = input_group.add_mutually_exclusive_group(required=False)
+    rotation_parser.add_argument(
+        '--same_rotation',
+        default=None,
+        action='store_true',
+        help='Type of shape rotation (default: random for train and identical for test)'
+    )
+    rotation_parser.add_argument(
+        '--diff_rotation', dest='same_rotation',
+        default=None,
+        action='store_false',
+        help='Type of shape rotation (default: random for train and identical for test)'
+    )
 
 
 def _add_dataset_group(parser):
@@ -346,6 +399,18 @@ def _add_dataset_group(parser):
         default=None,
         help='Number of validation samples (default: All)'
     )
+    dataset_group.add_argument(
+        '--pts_path',
+        type=str,
+        default=None,
+        help='The path to the quadrant points (default: None)'
+    )
+    dataset_group.add_argument(
+        '--train_colours',
+        type=str,
+        default=None,
+        help='The path to the train colour distribution (default: None)'
+    )
 
 
 def _add_lesion_group(parser):
@@ -382,15 +447,9 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def add_argument_group(self, *args, **kwargs):
         ignore = ['positional arguments', 'optional arguments']
-        if (
-                args[0] in ignore or
-                ('title' in kwargs.keys() and kwargs['title'] in ignore)
-        ):
+        if args[0] in ignore or ('title' in kwargs.keys() and kwargs['title'] in ignore):
             return super().add_argument_group(*args, **kwargs)
         for group in self._action_groups:
-            if (
-                    group.title == args[0] or
-                    ('title' in kwargs and group.title == kwargs['title'])
-            ):
+            if group.title == args[0] or ('title' in kwargs and group.title == kwargs['title']):
                 return group
         return super().add_argument_group(*args, **kwargs)

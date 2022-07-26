@@ -24,8 +24,11 @@ from .utils import report_utils, system_utils, argument_handler
 
 
 def main(argv):
-    args = argument_handler.train_arg_parser(argv)
+    args = argument_handler.csf_train_arg_parser(argv)
     system_utils.set_random_environment(args.random_seed)
+
+    if args.colour_space is None:
+        args.colour_space = 'rgb'
 
     # it's a binary classification
     args.num_classes = 2
@@ -36,7 +39,7 @@ def main(argv):
 
     # preparing the output folder
     layer = args.transfer_weights[1]
-    args.output_dir = '%s/networks/%s/%s/%s/%s/' % (
+    args.output_dir = '%s/csf/%s/%s/%s/%s/' % (
         args.output_dir, args.dataset, args.architecture, args.experiment_name, layer
     )
     system_utils.create_dir(args.output_dir)

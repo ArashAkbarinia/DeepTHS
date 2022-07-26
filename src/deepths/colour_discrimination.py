@@ -14,23 +14,23 @@ import torch.utils.data.distributed
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks, model_utils
-from .utils import report_utils, system_utils, argument_handler_colour, colour_spaces
+from .utils import report_utils, system_utils, argument_handler, colour_spaces
 
 
 def main(argv):
-    args = argument_handler_colour.train_arg_parser(argv)
+    args = argument_handler.colour_discrimination_arg_parser(argv)
     system_utils.set_random_environment(args.random_seed)
 
-    # NOTE: a hack to handle taskonomy preprocessing
-    if 'taskonomy' in args.architecture:
-        args.colour_space = 'taskonomy_rgb'
+    if args.colour_space is None:
+        args.colour_space = 'imagenet_rgb'
 
     # it's a 4AFC
     args.num_classes = 4
 
     # preparing the output folder
-    args.output_dir = '%s/networks/t%.3d/%s%s/%s/' % (
-        args.output_dir, args.target_size, args.architecture, args.arch_suf, args.experiment_name
+    layer = args.transfer_weights[1]
+    args.output_dir = '%s/colour_discrimination/%s/%s/%s/%s/' % (
+        args.output_dir, args.dataset, args.architecture, args.experiment_name, layer
     )
     system_utils.create_dir(args.output_dir)
 
@@ -68,14 +68,14 @@ def _main_worker(args):
 
     # setting the quadrant points
     if args.pts_path is None:
-        args.pts_path = args.val_dir + '/rgb_points.csv'
+        args.pts_path = args.validation_dir + '/rgb_points.csv'
     test_pts = np.loadtxt(args.pts_path, delimiter=',', dtype=str)
 
     args.test_pts = _organise_test_points(test_pts)
 
     # defining validation set here so if only test don't do the rest
-    if args.val_dir is None:
-        args.val_dir = args.data_dir + '/validation_set/'
+    if args.validation_dir is None:
+        args.validation_dir = args.data_dir + '/validation_set/'
 
     if args.test_net:
         if args.test_attempts > 0:
@@ -131,7 +131,7 @@ def _main_worker(args):
             target_colour = ref_pts['bfun'](np.expand_dims(ext_pts[:3], axis=(0, 1)))
             val_colours = {'target_colour': target_colour, 'others_colour': others_colour}
             val_dataset.append(dataloader_colour.val_set(
-                args.val_dir, args.target_size, args.preprocess, task=task, **val_colours
+                args.validation_dir, args.target_size, args.preprocess, task=task, **val_colours
             ))
     val_dataset = torch.utils.data.ConcatDataset(val_dataset)
 
@@ -371,8 +371,8 @@ def _make_test_loader(args, target_colour, others_colour):
     task = '2afc' if args.mac_adam else 'odd4'
     kwargs = {'target_colour': target_colour, 'others_colour': others_colour,
               **_common_db_params(args)}
-    db = dataloader_colour.val_set(args.val_dir, args.target_size, args.preprocess, task=task,
-                                   **kwargs)
+    db = dataloader_colour.val_set(args.validation_dir, args.target_size, args.preprocess,
+                                   task=task, **kwargs)
 
     return torch.utils.data.DataLoader(
         db, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True

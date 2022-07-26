@@ -50,7 +50,7 @@ def _midpoint_sf(accuracy, low, mid, high, th, ep=1e-4):
 
 
 def main(argv):
-    args = argument_handler.test_arg_parser(argv)
+    args = argument_handler.csf_test_arg_parser(argv)
     args.batch_size = 16
     args.workers = 2
 
@@ -118,6 +118,7 @@ def main(argv):
     header = 'LambdaWave,SF,ACC,Contrast'
     all_results = []
     tb_writer = args.tb_writers['test']
+    max_attempt = args.test_attempts
     for i in range(len(csf_flags)):
         low = min_low
         high = max_high
@@ -149,7 +150,7 @@ def main(argv):
             all_results.append(np.array([lambda_waves[i], readable_sfs[i], accuracy, mid]))
             # th=0.749 because test samples are 16, 12 correct equals 0.75 and test stops
             new_low, new_mid, new_high = _midpoint_sf(accuracy, low, mid, high, th=0.749)
-            if abs(csf_flags[i] - max_high) < 1e-3 or new_mid == csf_flags[i] or j == 20:
+            if abs(csf_flags[i] - max_high) < 1e-3 or new_mid == csf_flags[i] or j == max_attempt:
                 print('had to skip', csf_flags[i])
                 csf_flags[i] = None
             else:
