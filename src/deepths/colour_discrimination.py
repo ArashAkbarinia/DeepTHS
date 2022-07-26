@@ -397,7 +397,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
 
     low = np.expand_dims(qval['ref'][:3], axis=(0, 1))
     high = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
-    mid = report_utils.mid_point(low, high, circ_chns)
+    mid = report_utils.compute_avg(low, high, circ_chns)
 
     others_colour = qval['ffun'](low)
 
@@ -416,7 +416,9 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))
         np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
 
-        new_low, new_mid, new_high = _midpoint_colour(accuracy, low, mid, high, th, circ_chns)
+        new_low, new_mid, new_high = report_utils.midpoint(
+            accuracy, low, mid, high, th=th, circ_chns=circ_chns
+        )
 
         if new_low is None or j == args.test_attempts:
             print('had to skip')
@@ -424,15 +426,3 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         else:
             low, mid, high = new_low, new_mid, new_high
         j += 1
-
-
-def _midpoint_colour(accuracy, low, mid, high, th, circ_chns=None):
-    diff_acc = accuracy - th
-    if abs(diff_acc) < 0.005:
-        return None, None, None
-    elif diff_acc > 0:
-        new_mid = report_utils.mid_point(low, mid, circ_chns)
-        return low, new_mid, mid
-    else:
-        new_mid = report_utils.mid_point(high, mid, circ_chns)
-        return mid, new_mid, high

@@ -33,18 +33,6 @@ def sensitivity_sf(result_mat, sf, th=0.75, low=0, high=1):
         return (high + contrast_i) / 2, contrast_i, high
 
 
-def _midpoint_sf(accuracy, low, mid, high, th, ep=1e-4):
-    diff_acc = accuracy - th
-    if abs(diff_acc) < ep:
-        return None, None, None
-    elif diff_acc > 0:
-        new_mid = report_utils.mid_point(low, mid)
-        return low, new_mid, mid
-    else:
-        new_mid = report_utils.mid_point(high, mid)
-        return mid, new_mid, high
-
-
 def main(argv):
     args = argument_handler.csf_test_arg_parser(argv)
     args.batch_size = 16
@@ -145,7 +133,7 @@ def main(argv):
             print(lambda_waves[i], csf_flags[i], accuracy, low, high)
             all_results.append(np.array([lambda_waves[i], readable_sfs[i], accuracy, mid]))
             # th=0.749 because test samples are 16, 12 correct equals 0.75 and test stops
-            new_low, new_mid, new_high = _midpoint_sf(accuracy, low, mid, high, th=0.749)
+            new_low, new_mid, new_high = report_utils.midpoint(accuracy, low, mid, high, th=0.749)
             if abs(csf_flags[i] - max_high) < 1e-3 or new_mid == csf_flags[i] or j == max_attempt:
                 print('had to skip', csf_flags[i])
                 csf_flags[i] = None

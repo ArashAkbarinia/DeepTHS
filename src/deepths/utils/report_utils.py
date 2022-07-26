@@ -106,16 +106,28 @@ def min_max_normalise(x, low=0, high=1, minv=None, maxv=None):
     return output
 
 
-def mid_point(a, b, circular_chns=None):
-    if circular_chns is None:
-        circular_chns = []
+def midpoint(acc, low, mid, high, th, ep=1e-4, circ_chns=None):
+    diff_acc = acc - th
+    if abs(diff_acc) < ep:
+        return None, None, None
+    elif diff_acc > 0:
+        new_mid = compute_avg(low, mid, circ_chns)
+        return low, new_mid, mid
+    else:
+        new_mid = compute_avg(high, mid, circ_chns)
+        return mid, new_mid, high
+
+
+def compute_avg(a, b, circ_chns=None):
+    if circ_chns is None:
+        circ_chns = []
     c = (a + b) / 2
-    for i in circular_chns:
-        c[0, 0, i] = circular_mid_point(a[0, 0, i], b[0, 0, i])
+    for i in circ_chns:
+        c[0, 0, i] = circular_avg(a[0, 0, i], b[0, 0, i])
     return c
 
 
-def circular_mid_point(a, b):
+def circular_avg(a, b):
     mu = (a + b + 1) / 2 if abs(a - b) > 0.5 else (a + b) / 2
     if mu >= 1:
         mu = mu - 1
