@@ -3,6 +3,7 @@ A collection of architectures to do the contrast discrimination task.
 """
 
 import torch
+
 from .readout import ReadOutNetwork
 
 

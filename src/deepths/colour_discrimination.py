@@ -51,12 +51,10 @@ def _main_worker(args):
     mean, std = model_utils.get_mean_std(args.colour_space, args.vision_type)
     args.preprocess = (mean, std)
 
-    net_class = networks.network_class(args.paradigm)
-
-    if args.test_net:
-        model = net_class(args.test_net, args.target_size)
-    else:
-        model = net_class(args.architecture, args.target_size, args.transfer_weights)
+    model = networks.colour_discrimination_net(
+        args.paradigm, args.test_net, args.architecture, args.target_size,
+        args.transfer_weights, args.classifier
+    )
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)

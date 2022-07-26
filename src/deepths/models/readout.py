@@ -57,8 +57,7 @@ class ReadOutNetwork(nn.Module):
         self.features = features
 
         if classifier == 'nn':
-            scale_factor = num_classes * (self.input_nodes / 2)
-            self.fc = nn.Linear(int(org_classes * scale_factor), num_classes)
+            self.fc = nn.Linear(int(org_classes * self.input_nodes), num_classes)
         else:
             self.fc = None  # e.g. for SVM
 
