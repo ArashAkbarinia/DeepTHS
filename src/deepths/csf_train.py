@@ -2,11 +2,9 @@
 PyTorch contrast-discrimination training script for various datasets.
 """
 
-import os
 import numpy as np
 import time
 import sys
-import collections
 
 import torch
 import torch.nn as nn
@@ -18,7 +16,7 @@ import torch.utils.data.distributed
 from sklearn import svm
 
 from .datasets import dataloader
-from .models import model_csf, model_utils
+from .models import model_csf
 from .utils import report_utils, system_utils, argument_handler
 from .utils import common_routines
 
@@ -38,31 +36,6 @@ def _main_worker(args):
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
-
-    optimizer = common_routines.make_optimizer(args, model)
-
-    model_progress = []
-    model_progress_path = os.path.join(args.output_dir, 'model_progress.csv')
-
-    # optionally resume from a checkpoint
-    best_acc1 = 0
-    if args.resume is not None:
-        if os.path.isfile(args.resume):
-            checkpoint = torch.load(args.resume, map_location='cpu')
-            print("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))
-
-            args.initial_epoch = checkpoint['epoch'] + 1
-            best_acc1 = checkpoint['best_acc1']
-            model.load_state_dict(checkpoint['state_dict'], strict=False)
-            model = model.cuda(args.gpu)
-
-            optimizer.load_state_dict(checkpoint['optimizer'])
-
-            if os.path.exists(model_progress_path):
-                model_progress = np.loadtxt(model_progress_path, delimiter=',')
-                model_progress = model_progress.tolist()
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
 
     train_trans = []
     valid_trans = []
@@ -122,26 +95,7 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, drop_last=True
     )
 
-    common_routines.do_epochs(
-        args, _train_val, optimizer, train_loader, val_loader, model,
-        model_progress, model_progress_path
-    )
-
-
-def _extract_altered_state_dict(model, classifier):
-    altered_state_dict = collections.OrderedDict()
-    for key, _ in model.named_buffers():
-        altered_state_dict[key] = model.state_dict()[key]
-    if classifier == 'nn':
-        for key in ['fc.weight', 'fc.bias']:
-            altered_state_dict[key] = model.state_dict()[key]
-    return altered_state_dict
-
-
-def _adjust_learning_rate(optimizer, epoch, args):
-    lr = args.learning_rate * (0.1 ** (epoch // (args.epochs / 3)))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+    common_routines.do_epochs(args, _train_val, train_loader, val_loader, model)
 
 
 def _train_val(db_loader, model, optimizer, epoch, args):

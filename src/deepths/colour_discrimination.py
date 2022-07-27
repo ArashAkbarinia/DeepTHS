@@ -9,7 +9,7 @@ import time
 import torch
 
 from .datasets import dataloader_colour
-from .models import model_colour as networks, model_utils
+from .models import model_colour as networks
 from .utils import report_utils, argument_handler, colour_spaces
 from .utils import common_routines
 
@@ -49,34 +49,6 @@ def _main_worker(args):
             _accuracy_test_points(args, model)
         return
 
-    optimizer = common_routines.make_optimizer(args, model)
-
-    model_progress = []
-    model_progress_path = os.path.join(args.output_dir, 'model_progress.csv')
-
-    # optionally resume from a checkpoint
-    best_acc1 = 0
-    if args.resume is not None:
-        if os.path.isfile(args.resume):
-            checkpoint = torch.load(args.resume, map_location='cpu')
-            print(
-                "=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch'])
-            )
-
-            args.initial_epoch = checkpoint['epoch'] + 1
-            best_acc1 = checkpoint['best_acc1']
-            model.load_state_dict(checkpoint['state_dict'])
-            best_acc1 = best_acc1.to(args.gpu)
-            model = model.cuda(args.gpu)
-
-            optimizer.load_state_dict(checkpoint['optimizer'])
-
-            if os.path.exists(model_progress_path):
-                model_progress = np.loadtxt(model_progress_path, delimiter=',')
-                model_progress = model_progress.tolist()
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-
     # loading the validation set
     val_dataset = []
     for ref_pts in args.test_pts.values():
@@ -109,10 +81,7 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
 
-    common_routines.do_epochs(
-        args, _train_val, optimizer, train_loader, val_loader, model,
-        model_progress, model_progress_path
-    )
+    common_routines.do_epochs(args, _train_val, train_loader, val_loader, model)
 
 
 def _organise_test_points(test_pts):
@@ -141,12 +110,6 @@ def _organise_test_points(test_pts):
             out_test_pts[test_pt_name]['ext'].append(pt_val)
             out_test_pts[test_pt_name]['chns'].append(test_pt[-1])
     return out_test_pts
-
-
-def _adjust_learning_rate(optimizer, epoch, args):
-    lr = args.learning_rate * (0.1 ** (epoch // (args.epochs / 3)))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
