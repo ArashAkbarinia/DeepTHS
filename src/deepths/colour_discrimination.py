@@ -122,21 +122,16 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             ep_helper.log_data_t.update(time.time() - end)
 
             if args.paradigm == '2afc':
-                (img0, img1, target) = cu_batch
-                img0 = img0.cuda(args.gpu, non_blocking=True)
-                img1 = img1.cuda(args.gpu, non_blocking=True)
-                target = target.unsqueeze(dim=1).float()
+                target = cu_batch[-1].unsqueeze(dim=1).float()
+                odd_ind = target
             else:
-                (img0, img1, img2, img3, odd_ind) = cu_batch
-                img0 = img0.cuda(args.gpu, non_blocking=True)
-                img1 = img1.cuda(args.gpu, non_blocking=True)
-                img2 = img2.cuda(args.gpu, non_blocking=True)
-                img3 = img3.cuda(args.gpu, non_blocking=True)
-
+                odd_ind = cu_batch[-1]
                 # preparing the target
                 target = torch.zeros(odd_ind.shape[0], 4)
-                target[torch.arange(odd_ind.shape[0]), odd_ind] = 1
-                odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
+                target[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
+            odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
+            target = target.cuda(args.gpu, non_blocking=True)
+            output = ep_helper.model(*cu_batch[:-1])
 
             if batch_ind == 0 and epoch >= -1:
                 ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
@@ -145,17 +140,9 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
                 ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
             else:
-                target = target.cuda(args.gpu, non_blocking=True)
-
-                # compute output
-                if args.paradigm == '2afc':
-                    output = ep_helper.model(img0, img1)
-                    odd_ind = target
-                else:
-                    output = ep_helper.model(img0, img1, img2, img3)
                 loss = ep_helper.model.loss_function(output, target)
 
-                ep_helper.update_epoch(loss, output, odd_ind, img0)
+                ep_helper.update_epoch(loss, output, odd_ind, cu_batch[0])
 
             # measure elapsed time
             ep_helper.log_batch_t.update(time.time() - end)
@@ -186,7 +173,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
             elif batch_ind % args.print_freq == 0:
                 ep_helper.print_epoch(db_loader, batch_ind)
-            if ep_helper.break_batch(batch_ind, img0):
+            if ep_helper.break_batch(batch_ind, cu_batch[0]):
                 break
 
     ep_helper.finish_epoch()
