@@ -155,13 +155,14 @@ class EpochHelper:
         self.log_loss = report_utils.AverageMeter()
         self.log_acc = report_utils.AverageMeter()
 
+        self.epoch = epoch
         self.model = model
         self.optimizer = optimizer
         self.classifier = args.classifier
         self.output_dir = args.output_dir
 
         self.is_train = optimizer is not None
-        self.is_test = epoch < 0
+        self.is_test = self.epoch < 0
 
         if self.is_train:
             self.model.train()
@@ -204,6 +205,12 @@ class EpochHelper:
             print(' * Acc@1 {top1.avg:.3f}'.format(top1=self.log_acc))
         print()
 
+        # writing to tensorboard
+        if self.epoch_type != 'test':
+            self.tb_writer.add_scalar("{}".format('loss'), self.log_loss.avg, self.epoch)
+            self.tb_writer.add_scalar("{}".format('top1'), self.log_acc.avg, self.epoch)
+            self.tb_writer.add_scalar("{}".format('time'), self.log_batch_t.avg, self.epoch)
+
     def train_non_nn(self):
         all_xs = np.concatenate(np.array(self.all_xs), axis=0)
         all_ys = np.concatenate(np.array(self.all_ys), axis=0)
@@ -221,14 +228,21 @@ class EpochHelper:
             clf = system_utils.read_pickle(pickle_path)
         return self.log_acc.update(np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs))
 
-    def print_epoch(self, epoch, db_loader, batch_ind):
+    def print_epoch(self, db_loader, batch_ind):
         print(
             '{0}: [{1}][{2}/{3}]\t'
             'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
             'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
             'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
             'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                self.epoch_type, epoch, batch_ind, len(db_loader), batch_time=self.log_batch_t,
+                self.epoch_type, self.epoch, batch_ind, len(db_loader), batch_time=self.log_batch_t,
                 data_time=self.log_data_t, loss=self.log_loss, top1=self.log_acc
             )
         )
+
+    def tb_write_images(self, cu_batch, mean, std, name_gen=None):
+        img_disp = torch.cat([*cu_batch], dim=3)
+        img_inv = report_utils.inv_normalise_tensor(img_disp, mean, std)
+        for j in range(min(16, cu_batch[0].shape[0])):
+            img_name = name_gen(j) if name_gen is not None else 'img%03d' % j
+            self.tb_writer.add_image('{}'.format(img_name), img_inv[j], self.epoch)

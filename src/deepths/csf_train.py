@@ -94,6 +94,11 @@ def _main_worker(args):
     common_routines.do_epochs(args, _train_val, train_loader, val_loader, model)
 
 
+def _gen_img_name(img_settings, img_ind):
+    _, sf, angle, phase, _ = img_settings[img_ind]
+    return '%.3d_%.3d_%.3d' % (sf, angle, phase)
+
+
 def _train_val(db_loader, model, optimizer, epoch, args):
     # move this to the model itself
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
@@ -102,41 +107,27 @@ def _train_val(db_loader, model, optimizer, epoch, args):
 
     end = time.time()
 
-    ep_det = {'lcontrast': [], 'hcontrast': [], 'ill': [], 'chn': []}
     with torch.set_grad_enabled(ep_helper.grad_status()):
-        for batch_ind, data in enumerate(db_loader):
+        for batch_ind, cu_batch in enumerate(db_loader):
             # measure data loading time
             ep_helper.log_data_t.update(time.time() - end)
 
             if args.grating_detector:
-                img0, target, _ = data
+                img0, target, img_settings = cu_batch
                 img0 = img0.cuda(args.gpu, non_blocking=True)
                 output = ep_helper.model(img0)
             else:
-                img0, img1, target, img_settings = data
+                img0, img1, target, img_settings = cu_batch
                 img0 = img0.cuda(args.gpu, non_blocking=True)
                 img1 = img1.cuda(args.gpu, non_blocking=True)
                 # compute output
                 output = ep_helper.model(img0, img1)
 
-                # FIXME, do this for grating detector as well
-                if ep_helper.epoch_type == 'train':
-                    for iset in img_settings:
-                        contrast0, contrast1, ill, chn = iset
-                        ep_det['lcontrast'].append(min(contrast0, contrast1))
-                        ep_det['hcontrast'].append(max(contrast0, contrast1))
-                        ep_det['ill'].append(ill)
-                        ep_det['chn'].append(chn)
-                if batch_ind == 0 and epoch >= -1:
-                    img_disp = torch.cat([img0, img1], dim=3)
-                    img_inv = report_utils.inv_normalise_tensor(img_disp, args.mean, args.std)
-                    for j in range(min(16, img0.shape[0])):
-                        if ep_helper.epoch_type == 'test':
-                            contrast, sf, angle, phase, _ = img_settings[j]
-                            img_name = '%.3d_%.3d_%.3d' % (sf, angle, phase)
-                        else:
-                            img_name = 'img%03d' % j
-                        ep_helper.tb_writer.add_image('{}'.format(img_name), img_inv[j], epoch)
+            if batch_ind == 0 and epoch >= -1:
+                def name_gen(x): return _gen_img_name(cu_batch[-1], x)
+
+                name_gen_f = name_gen if ep_helper.is_test else None
+                ep_helper.tb_write_images(cu_batch[:-2], args.mean, args.std, name_gen_f)
 
             if ep_helper.all_xs is not None:
                 ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
@@ -153,27 +144,10 @@ def _train_val(db_loader, model, optimizer, epoch, args):
 
             # printing the accuracy at certain intervals
             if batch_ind % args.print_freq == 0:
-                ep_helper.print_epoch(epoch, db_loader, batch_ind)
+                ep_helper.print_epoch(db_loader, batch_ind)
             if ep_helper.break_batch(batch_ind, img0):
                 break
 
     ep_helper.finish_epoch()
-
-    if ep_helper.epoch_type == 'train':
-        for key in ep_det.keys():
-            ep_det[key] = np.array(ep_det[key])
-        ep_helper.tb_writer.add_histogram("{}".format('low_contrast'), ep_det['lcontrast'], epoch)
-        ep_helper.tb_writer.add_histogram("{}".format('high_contrast'), ep_det['hcontrast'], epoch)
-        ep_helper.tb_writer.add_histogram("{}".format('illuminant'), ep_det['ill'], epoch)
-        chns_occurrence = dict()
-        for chn_ind in [-1, 0, 1, 2]:
-            chns_occurrence['%d' % chn_ind] = np.sum(ep_det['chn'] == chn_ind)
-        ep_helper.tb_writer.add_scalars("{}".format('chn'), chns_occurrence, epoch)
-
-    # writing to tensorboard
-    if ep_helper.epoch_type != 'test':
-        ep_helper.tb_writer.add_scalar("{}".format('loss'), ep_helper.log_loss.avg, epoch)
-        ep_helper.tb_writer.add_scalar("{}".format('top1'), ep_helper.log_acc.avg, epoch)
-        ep_helper.tb_writer.add_scalar("{}".format('time'), ep_helper.log_batch_t.avg, epoch)
 
     return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]

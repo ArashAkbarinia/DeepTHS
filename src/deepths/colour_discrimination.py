@@ -138,6 +138,9 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 target[torch.arange(odd_ind.shape[0]), odd_ind] = 1
                 odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
 
+            if batch_ind == 0 and epoch >= -1:
+                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
+
             if ep_helper.all_xs is not None:
                 ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
                 ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
@@ -182,7 +185,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             if ep_helper.is_test and print_test:
                 print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
             elif batch_ind % args.print_freq == 0:
-                ep_helper.print_epoch(epoch, db_loader, batch_ind)
+                ep_helper.print_epoch(db_loader, batch_ind)
             if ep_helper.break_batch(batch_ind, img0):
                 break
 
