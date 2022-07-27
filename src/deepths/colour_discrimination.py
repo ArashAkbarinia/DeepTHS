@@ -112,6 +112,7 @@ def _organise_test_points(test_pts):
 
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
+    criterion = ep_helper.model.loss_function
 
     all_predictions = []
     end = time.time()
@@ -136,13 +137,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             if batch_ind == 0 and epoch >= -1:
                 ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
 
-            if ep_helper.all_xs is not None:
-                ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
-                ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
-            else:
-                loss = ep_helper.model.loss_function(output, target)
-
-                ep_helper.update_epoch(loss, output, odd_ind, cu_batch[0])
+            ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
 
             # measure elapsed time
             ep_helper.log_batch_t.update(time.time() - end)

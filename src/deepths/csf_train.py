@@ -101,7 +101,6 @@ def _gen_img_name(img_settings, img_ind):
 def _train_val(db_loader, model, optimizer, epoch, args):
     # move this to the model itself
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
 
     end = time.time()
@@ -120,13 +119,7 @@ def _train_val(db_loader, model, optimizer, epoch, args):
                 name_gen_f = name_gen if ep_helper.is_test else None
                 ep_helper.tb_write_images(cu_batch[:-2], args.mean, args.std, name_gen_f)
 
-            if ep_helper.all_xs is not None:
-                ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
-                ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
-            else:
-                loss = criterion(output, target)
-
-                ep_helper.update_epoch(loss, output, target, cu_batch[0])
+            ep_helper.update_epoch(output, target, target, cu_batch[0], criterion)
 
             # measure elapsed time
             ep_helper.log_batch_t.update(time.time() - end)

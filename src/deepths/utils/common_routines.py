@@ -177,17 +177,23 @@ class EpochHelper:
         self.all_xs = [] if self.classifier != 'nn' else None
         self.all_ys = [] if self.classifier != 'nn' else None
 
-    def update_epoch(self, loss, output, target, img0):
-        # measure accuracy and record loss
-        acc1 = report_utils.accuracy(output, target)
-        self.log_loss.update(loss.item(), img0.size(0))
-        self.log_acc.update(acc1[0].cpu().numpy()[0], img0.size(0))
+    def update_epoch(self, output, target, target_acc, img0, criterion):
+        if self.all_xs is not None:
+            self.all_xs.append(output.detach().cpu().numpy().copy())
+            self.all_ys.append(target.detach().cpu().numpy().copy())
+        else:
+            loss = criterion(output, target)
 
-        if self.is_train:
-            # compute gradient and do SGD step
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            # measure accuracy and record loss
+            acc1 = report_utils.accuracy(output, target_acc)
+            self.log_loss.update(loss.item(), img0.size(0))
+            self.log_acc.update(acc1[0].cpu().numpy()[0], img0.size(0))
+
+            if self.is_train:
+                # compute gradient and do SGD step
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
 
     def grad_status(self):
         return self.is_train and self.classifier == 'nn'
