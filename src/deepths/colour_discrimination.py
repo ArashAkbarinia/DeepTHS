@@ -111,32 +111,15 @@ def _organise_test_points(test_pts):
 
 
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
-    batch_time = report_utils.AverageMeter()
-    data_time = report_utils.AverageMeter()
-    losses = report_utils.AverageMeter()
-    top1 = report_utils.AverageMeter()
-
-    is_train = optimizer is not None
-    is_test = epoch == -1
-
-    if is_train:
-        model.train()
-        num_samples = args.train_samples
-    else:
-        model.eval()
-        num_samples = args.val_samples
+    ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
 
     all_predictions = []
-    epoch_type = 'train' if is_train else 'val'
     end = time.time()
 
-    all_xs = [] if args.classifier != 'nn' else None
-    all_ys = [] if args.classifier != 'nn' else None
-
-    with torch.set_grad_enabled(is_train and args.classifier == 'nn'):
+    with torch.set_grad_enabled(ep_helper.grad_status()):
         for batch_ind, cu_batch in enumerate(db_loader):
             # measure data loading time
-            data_time.update(time.time() - end)
+            ep_helper.log_data_t.update(time.time() - end)
 
             if args.paradigm == '2afc':
                 (img0, img1, target) = cu_batch
@@ -155,34 +138,24 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 target[torch.arange(odd_ind.shape[0]), odd_ind] = 1
                 odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
 
-            if all_xs is not None:
-                all_xs.append(output.detach().cpu().numpy().copy())
-                all_ys.append(target.detach().cpu().numpy().copy())
+            if ep_helper.all_xs is not None:
+                ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
+                ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
             else:
                 target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
                 if args.paradigm == '2afc':
-                    output = model(img0, img1)
+                    output = ep_helper.model(img0, img1)
                     odd_ind = target
                 else:
-                    output = model(img0, img1, img2, img3)
-                loss = model.loss_function(output, target)
+                    output = ep_helper.model(img0, img1, img2, img3)
+                loss = ep_helper.model.loss_function(output, target)
 
-                # measure accuracy and record loss
-                # FIXME
-                acc1 = report_utils.accuracy(output, odd_ind)
-                losses.update(loss.item(), img0.size(0))
-                top1.update(acc1[0].cpu().numpy()[0], img0.size(0))
-
-                if is_train:
-                    # compute gradient and do SGD step
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                ep_helper.update_epoch(loss, output, odd_ind, img0)
 
             # measure elapsed time
-            batch_time.update(time.time() - end)
+            ep_helper.log_batch_t.update(time.time() - end)
             end = time.time()
 
             # to use for correlations
@@ -206,34 +179,23 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 all_predictions[j].append(out)
 
             # printing the accuracy at certain intervals
-            if is_test and print_test:
+            if ep_helper.is_test and print_test:
                 print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
             elif batch_ind % args.print_freq == 0:
-                common_routines.print_epoch(
-                    epoch_type, epoch, db_loader, batch_time, data_time, losses, top1, batch_ind
-                )
-            if num_samples is not None and batch_ind * len(img0) > num_samples:
+                ep_helper.print_epoch(epoch, db_loader, batch_ind)
+            if ep_helper.break_batch(batch_ind, img0):
                 break
 
-    # the case of non NN classifier
-    if all_xs is not None:
-        top1.update(
-            common_routines.train_non_nn(all_xs, all_ys, is_train, args.classifier, args.output_dir)
-        )
-
-    if not is_train:
-        # printing the accuracy of the epoch
-        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
-    print()
+    ep_helper.finish_epoch()
 
     if len(all_predictions) == 1:
         prediction_output = np.concatenate(all_predictions[0])
     else:
         prediction_output = [np.concatenate(out) for out in all_predictions]
-    if is_test:
-        accuracy = top1.avg if top1.avg <= 1.0 else top1.avg / 100
+    if ep_helper.is_test:
+        accuracy = ep_helper.log_acc.avg if ep_helper.log_acc.avg <= 1.0 else ep_helper.log_acc.avg / 100
         return prediction_output, accuracy
-    return [epoch, batch_time.avg, losses.avg, top1.avg]
+    return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]
 
 
 def _common_db_params(args):

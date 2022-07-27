@@ -98,119 +98,82 @@ def _train_val(db_loader, model, optimizer, epoch, args):
     # move this to the model itself
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
 
-    batch_time = report_utils.AverageMeter()
-    data_time = report_utils.AverageMeter()
-    losses = report_utils.AverageMeter()
-    top1 = report_utils.AverageMeter()
-
-    is_train = optimizer is not None
-
-    if is_train:
-        model.train()
-        num_samples = args.train_samples
-        epoch_type = 'train'
-    else:
-        model.eval()
-        num_samples = args.val_samples
-        epoch_type = 'test' if epoch < 0 else 'val'
-    tb_writer = args.tb_writers[epoch_type]
+    ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
 
     end = time.time()
 
-    all_xs = [] if args.classifier != 'nn' else None
-    all_ys = [] if args.classifier != 'nn' else None
-
-    epoch_detail = {'lcontrast': [], 'hcontrast': [], 'ill': [], 'chn': []}
-    with torch.set_grad_enabled(is_train and args.classifier == 'nn'):
+    ep_det = {'lcontrast': [], 'hcontrast': [], 'ill': [], 'chn': []}
+    with torch.set_grad_enabled(ep_helper.grad_status()):
         for batch_ind, data in enumerate(db_loader):
             # measure data loading time
-            data_time.update(time.time() - end)
+            ep_helper.log_data_t.update(time.time() - end)
 
             if args.grating_detector:
                 img0, target, _ = data
                 img0 = img0.cuda(args.gpu, non_blocking=True)
-                output = model(img0)
+                output = ep_helper.model(img0)
             else:
                 img0, img1, target, img_settings = data
                 img0 = img0.cuda(args.gpu, non_blocking=True)
                 img1 = img1.cuda(args.gpu, non_blocking=True)
                 # compute output
-                output = model(img0, img1)
+                output = ep_helper.model(img0, img1)
 
                 # FIXME, do this for grating detector as well
-                if epoch_type == 'train':
+                if ep_helper.epoch_type == 'train':
                     for iset in img_settings:
                         contrast0, contrast1, ill, chn = iset
-                        epoch_detail['lcontrast'].append(min(contrast0, contrast1))
-                        epoch_detail['hcontrast'].append(max(contrast0, contrast1))
-                        epoch_detail['ill'].append(ill)
-                        epoch_detail['chn'].append(chn)
+                        ep_det['lcontrast'].append(min(contrast0, contrast1))
+                        ep_det['hcontrast'].append(max(contrast0, contrast1))
+                        ep_det['ill'].append(ill)
+                        ep_det['chn'].append(chn)
                 if batch_ind == 0 and epoch >= -1:
                     img_disp = torch.cat([img0, img1], dim=3)
                     img_inv = report_utils.inv_normalise_tensor(img_disp, args.mean, args.std)
                     for j in range(min(16, img0.shape[0])):
-                        if epoch_type == 'test':
+                        if ep_helper.epoch_type == 'test':
                             contrast, sf, angle, phase, _ = img_settings[j]
                             img_name = '%.3d_%.3d_%.3d' % (sf, angle, phase)
                         else:
                             img_name = 'img%03d' % j
-                        tb_writer.add_image('{}'.format(img_name), img_inv[j], epoch)
+                        ep_helper.tb_writer.add_image('{}'.format(img_name), img_inv[j], epoch)
 
-            if all_xs is not None:
-                all_xs.append(output.detach().cpu().numpy().copy())
-                all_ys.append(target.detach().cpu().numpy().copy())
+            if ep_helper.all_xs is not None:
+                ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
+                ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
             else:
                 target = target.cuda(args.gpu, non_blocking=True)
                 loss = criterion(output, target)
 
-                # measure accuracy and record loss
-                acc1 = report_utils.accuracy(output, target)
-                losses.update(loss.item(), img0.size(0))
-                top1.update(acc1[0].cpu().numpy()[0], img0.size(0))
-
-                if is_train:
-                    # compute gradient and do SGD step
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                ep_helper.update_epoch(loss, output, target, img0)
 
             # measure elapsed time
-            batch_time.update(time.time() - end)
+            ep_helper.log_batch_t.update(time.time() - end)
             end = time.time()
 
             # printing the accuracy at certain intervals
             if batch_ind % args.print_freq == 0:
-                common_routines.print_epoch(
-                    epoch_type, epoch, db_loader, batch_time, data_time, losses, top1, batch_ind
-                )
-            if num_samples is not None and batch_ind * len(img0) > num_samples:
+                ep_helper.print_epoch(epoch, db_loader, batch_ind)
+            if ep_helper.break_batch(batch_ind, img0):
                 break
 
-    # the case of non NN classifier
-    if all_xs is not None:
-        top1.update(
-            common_routines.train_non_nn(all_xs, all_ys, is_train, args.classifier, args.output_dir)
-        )
+    ep_helper.finish_epoch()
 
-    if not is_train:
-        # printing the accuracy of the epoch
-        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
-
-    if epoch_type == 'train':
-        for key in epoch_detail.keys():
-            epoch_detail[key] = np.array(epoch_detail[key])
-        tb_writer.add_histogram("{}".format('low_contrast'), epoch_detail['lcontrast'], epoch)
-        tb_writer.add_histogram("{}".format('high_contrast'), epoch_detail['hcontrast'], epoch)
-        tb_writer.add_histogram("{}".format('illuminant'), epoch_detail['ill'], epoch)
-        chns_occurance = dict()
+    if ep_helper.epoch_type == 'train':
+        for key in ep_det.keys():
+            ep_det[key] = np.array(ep_det[key])
+        ep_helper.tb_writer.add_histogram("{}".format('low_contrast'), ep_det['lcontrast'], epoch)
+        ep_helper.tb_writer.add_histogram("{}".format('high_contrast'), ep_det['hcontrast'], epoch)
+        ep_helper.tb_writer.add_histogram("{}".format('illuminant'), ep_det['ill'], epoch)
+        chns_occurrence = dict()
         for chn_ind in [-1, 0, 1, 2]:
-            chns_occurance['%d' % chn_ind] = np.sum(epoch_detail['chn'] == chn_ind)
-        tb_writer.add_scalars("{}".format('chn'), chns_occurance, epoch)
+            chns_occurrence['%d' % chn_ind] = np.sum(ep_det['chn'] == chn_ind)
+        ep_helper.tb_writer.add_scalars("{}".format('chn'), chns_occurrence, epoch)
 
     # writing to tensorboard
-    if epoch_type != 'test':
-        tb_writer.add_scalar("{}".format('loss'), losses.avg, epoch)
-        tb_writer.add_scalar("{}".format('top1'), top1.avg, epoch)
-        tb_writer.add_scalar("{}".format('time'), batch_time.avg, epoch)
+    if ep_helper.epoch_type != 'test':
+        ep_helper.tb_writer.add_scalar("{}".format('loss'), ep_helper.log_loss.avg, epoch)
+        ep_helper.tb_writer.add_scalar("{}".format('top1'), ep_helper.log_acc.avg, epoch)
+        ep_helper.tb_writer.add_scalar("{}".format('time'), ep_helper.log_batch_t.avg, epoch)
 
-    return [epoch, batch_time.avg, losses.avg, top1.avg]
+    return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]

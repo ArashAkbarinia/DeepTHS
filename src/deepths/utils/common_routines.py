@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from sklearn import svm
 
-from . import system_utils
+from . import system_utils, report_utils
 from ..models import model_utils
 
 
@@ -148,31 +148,87 @@ def _adjust_learning_rate(optimizer, epoch, args):
         param_group['lr'] = lr
 
 
-def print_epoch(e_str, e_num, db_loader, batch_time, data_time, losses, top1, batch_ind):
-    print(
-        '{0}: [{1}][{2}/{3}]\t'
-        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-        'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-        'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-        'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-            e_str, e_num, batch_ind, len(db_loader), batch_time=batch_time,
-            data_time=data_time, loss=losses, top1=top1
+class EpochHelper:
+    def __init__(self, args, model, optimizer, epoch):
+        self.log_batch_t = report_utils.AverageMeter()
+        self.log_data_t = report_utils.AverageMeter()
+        self.log_loss = report_utils.AverageMeter()
+        self.log_acc = report_utils.AverageMeter()
+
+        self.model = model
+        self.optimizer = optimizer
+        self.classifier = args.classifier
+        self.output_dir = args.output_dir
+
+        self.is_train = optimizer is not None
+        self.is_test = epoch < 0
+
+        if self.is_train:
+            self.model.train()
+            self.num_samples = args.train_samples
+            self.epoch_type = 'train'
+        else:
+            self.model.eval()
+            self.num_samples = args.val_samples
+            self.epoch_type = 'test' if self.is_test else 'val'
+        self.tb_writer = args.tb_writers[self.epoch_type]
+
+        self.all_xs = [] if self.classifier != 'nn' else None
+        self.all_ys = [] if self.classifier != 'nn' else None
+
+    def update_epoch(self, loss, output, target, img0):
+        # measure accuracy and record loss
+        acc1 = report_utils.accuracy(output, target)
+        self.log_loss.update(loss.item(), img0.size(0))
+        self.log_acc.update(acc1[0].cpu().numpy()[0], img0.size(0))
+
+        if self.is_train:
+            # compute gradient and do SGD step
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+    def grad_status(self):
+        return self.is_train and self.classifier == 'nn'
+
+    def break_batch(self, batch_ind, img0):
+        return self.num_samples is not None and batch_ind * len(img0) > self.num_samples
+
+    def finish_epoch(self):
+        # the case of non NN classifier
+        if self.all_xs is not None:
+            self.train_non_nn()
+
+        if not self.is_train:
+            # printing the accuracy of the epoch
+            print(' * Acc@1 {top1.avg:.3f}'.format(top1=self.log_acc))
+        print()
+
+    def train_non_nn(self):
+        all_xs = np.concatenate(np.array(self.all_xs), axis=0)
+        all_ys = np.concatenate(np.array(self.all_ys), axis=0)
+        pickle_path = '%s/%s.pickle' % (self.output_dir, self.classifier)
+        if self.is_train:
+            # currently only supporting svm
+            max_iter = 100000
+            if self.classifier == 'linear_svm':
+                clf = svm.LinearSVC(max_iter=max_iter)
+            elif self.classifier == 'svm':
+                clf = svm.SVC(max_iter=max_iter)
+            clf.fit(all_xs, all_ys)
+            system_utils.write_pickle(pickle_path, clf)
+        else:
+            clf = system_utils.read_pickle(pickle_path)
+        return self.log_acc.update(np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs))
+
+    def print_epoch(self, epoch, db_loader, batch_ind):
+        print(
+            '{0}: [{1}][{2}/{3}]\t'
+            'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+            'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+            'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+            'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
+                self.epoch_type, epoch, batch_ind, len(db_loader), batch_time=self.log_batch_t,
+                data_time=self.log_data_t, loss=self.log_loss, top1=self.log_acc
+            )
         )
-    )
-
-
-def train_non_nn(all_xs, all_ys, is_train, classifier, output_dir):
-    all_xs = np.concatenate(np.array(all_xs), axis=0)
-    all_ys = np.concatenate(np.array(all_ys), axis=0)
-    if is_train:
-        # currently only supporting svm
-        max_iter = 100000
-        if classifier == 'linear_svm':
-            clf = svm.LinearSVC(max_iter=max_iter)
-        elif classifier == 'svm':
-            clf = svm.SVC(max_iter=max_iter)
-        clf.fit(all_xs, all_ys)
-        system_utils.write_pickle('%s/%s.pickle' % (output_dir, classifier), clf)
-    else:
-        clf = system_utils.read_pickle('%s/%s.pickle' % (output_dir, classifier))
-    return np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs)
