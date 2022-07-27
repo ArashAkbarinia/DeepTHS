@@ -13,19 +13,15 @@ import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 
-from sklearn import svm
-
 from .datasets import dataloader
 from .models import model_csf
-from .utils import report_utils, system_utils, argument_handler
+from .utils import report_utils, argument_handler
 from .utils import common_routines
 
 
 def main(argv):
     args = argument_handler.csf_train_arg_parser(argv)
-
     args = common_routines.prepare_starting(args, 'csf')
-
     _main_worker(args)
 
 
@@ -126,7 +122,7 @@ def _train_val(db_loader, model, optimizer, epoch, args):
 
     epoch_detail = {'lcontrast': [], 'hcontrast': [], 'ill': [], 'chn': []}
     with torch.set_grad_enabled(is_train and args.classifier == 'nn'):
-        for i, data in enumerate(db_loader):
+        for batch_ind, data in enumerate(db_loader):
             # measure data loading time
             data_time.update(time.time() - end)
 
@@ -149,7 +145,7 @@ def _train_val(db_loader, model, optimizer, epoch, args):
                         epoch_detail['hcontrast'].append(max(contrast0, contrast1))
                         epoch_detail['ill'].append(ill)
                         epoch_detail['chn'].append(chn)
-                if i == 0 and epoch >= -1:
+                if batch_ind == 0 and epoch >= -1:
                     img_disp = torch.cat([img0, img1], dim=3)
                     img_inv = report_utils.inv_normalise_tensor(img_disp, args.mean, args.std)
                     for j in range(min(16, img0.shape[0])):
@@ -183,36 +179,18 @@ def _train_val(db_loader, model, optimizer, epoch, args):
             end = time.time()
 
             # printing the accuracy at certain intervals
-            if i % args.print_freq == 0:
-                print(
-                    'Epoch: [{0}][{1}/{2}]\t'
-                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                    'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                    'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                        epoch, i, len(db_loader), batch_time=batch_time,
-                        data_time=data_time, loss=losses, top1=top1
-                    )
+            if batch_ind % args.print_freq == 0:
+                common_routines.print_epoch(
+                    epoch_type, epoch, db_loader, batch_time, data_time, losses, top1, batch_ind
                 )
-            if num_samples is not None and i * len(img0) > num_samples:
+            if num_samples is not None and batch_ind * len(img0) > num_samples:
                 break
 
     # the case of non NN classifier
     if all_xs is not None:
-        all_xs = np.concatenate(np.array(all_xs), axis=0)
-        all_ys = np.concatenate(np.array(all_ys), axis=0)
-        if is_train:
-            # currently only supporting svm
-            max_iter = 100000
-            if args.classifier == 'linear_svm':
-                clf = svm.LinearSVC(max_iter=max_iter)
-            elif args.classifier == 'svm':
-                clf = svm.SVC(max_iter=max_iter)
-            clf.fit(all_xs, all_ys)
-            system_utils.write_pickle('%s/%s.pickle' % (args.output_dir, args.classifier), clf)
-        else:
-            clf = system_utils.read_pickle('%s/%s.pickle' % (args.output_dir, args.classifier))
-        top1.update(np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs))
+        top1.update(
+            common_routines.train_non_nn(all_xs, all_ys, is_train, args.classifier, args.output_dir)
+        )
 
     if not is_train:
         # printing the accuracy of the epoch

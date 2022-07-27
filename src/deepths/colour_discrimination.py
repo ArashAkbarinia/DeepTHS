@@ -1,5 +1,5 @@
 """
-
+PyTorch scripts to train/test colour discrimination.
 """
 
 import os
@@ -16,9 +16,7 @@ from .utils import common_routines
 
 def main(argv):
     args = argument_handler.colour_discrimination_arg_parser(argv)
-
     args = common_routines.prepare_starting(args, 'colour_discrimination')
-
     _main_worker(args)
 
 
@@ -129,10 +127,14 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
         num_samples = args.val_samples
 
     all_predictions = []
-    epoch_str = 'train' if is_train else 'val'
+    epoch_type = 'train' if is_train else 'val'
     end = time.time()
-    with torch.set_grad_enabled(is_train):
-        for i, cu_batch in enumerate(db_loader):
+
+    all_xs = [] if args.classifier != 'nn' else None
+    all_ys = [] if args.classifier != 'nn' else None
+
+    with torch.set_grad_enabled(is_train and args.classifier == 'nn'):
+        for batch_ind, cu_batch in enumerate(db_loader):
             # measure data loading time
             data_time.update(time.time() - end)
 
@@ -153,27 +155,31 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 target[torch.arange(odd_ind.shape[0]), odd_ind] = 1
                 odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
 
-            target = target.cuda(args.gpu, non_blocking=True)
-
-            # compute output
-            if args.paradigm == '2afc':
-                output = model(img0, img1)
-                odd_ind = target
+            if all_xs is not None:
+                all_xs.append(output.detach().cpu().numpy().copy())
+                all_ys.append(target.detach().cpu().numpy().copy())
             else:
-                output = model(img0, img1, img2, img3)
-            loss = model.loss_function(output, target)
+                target = target.cuda(args.gpu, non_blocking=True)
 
-            # measure accuracy and record loss
-            # FIXME
-            acc1 = report_utils.accuracy(output, odd_ind)
-            losses.update(loss.item(), img0.size(0))
-            top1.update(acc1[0].cpu().numpy()[0], img0.size(0))
+                # compute output
+                if args.paradigm == '2afc':
+                    output = model(img0, img1)
+                    odd_ind = target
+                else:
+                    output = model(img0, img1, img2, img3)
+                loss = model.loss_function(output, target)
 
-            if is_train:
-                # compute gradient and do SGD step
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                # measure accuracy and record loss
+                # FIXME
+                acc1 = report_utils.accuracy(output, odd_ind)
+                losses.update(loss.item(), img0.size(0))
+                top1.update(acc1[0].cpu().numpy()[0], img0.size(0))
+
+                if is_train:
+                    # compute gradient and do SGD step
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -182,13 +188,11 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             # to use for correlations
             if args.paradigm == '2afc':
                 pred_outs = np.concatenate(
-                    [output.detach().cpu().numpy(), odd_ind.cpu().numpy()],
-                    axis=1
+                    [output.detach().cpu().numpy(), odd_ind.cpu().numpy()], axis=1
                 )
             else:
                 pred_outs = np.concatenate(
-                    [output.detach().cpu().numpy(), odd_ind.unsqueeze(dim=1).cpu().numpy()],
-                    axis=1
+                    [output.detach().cpu().numpy(), odd_ind.unsqueeze(dim=1).cpu().numpy()], axis=1
                 )
             # I'm not sure if this is all necessary, copied from keras
             if not isinstance(pred_outs, list):
@@ -203,23 +207,23 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
 
             # printing the accuracy at certain intervals
             if is_test and print_test:
-                print('Testing: [{0}/{1}]'.format(i, len(db_loader)))
-            elif i % args.print_freq == 0:
-                print(
-                    '{0}: [{1}][{2}/{3}]\t'
-                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                    'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                    'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                        epoch_str, epoch, i, len(db_loader), batch_time=batch_time,
-                        data_time=data_time, loss=losses, top1=top1
-                    )
+                print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
+            elif batch_ind % args.print_freq == 0:
+                common_routines.print_epoch(
+                    epoch_type, epoch, db_loader, batch_time, data_time, losses, top1, batch_ind
                 )
-            if num_samples is not None and i * len(img0) > num_samples:
+            if num_samples is not None and batch_ind * len(img0) > num_samples:
                 break
-        if not is_train:
-            # printing the accuracy of the epoch
-            print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
+
+    # the case of non NN classifier
+    if all_xs is not None:
+        top1.update(
+            common_routines.train_non_nn(all_xs, all_ys, is_train, args.classifier, args.output_dir)
+        )
+
+    if not is_train:
+        # printing the accuracy of the epoch
+        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
     print()
 
     if len(all_predictions) == 1:

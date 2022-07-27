@@ -9,6 +9,8 @@ import collections
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from sklearn import svm
+
 from . import system_utils
 from ..models import model_utils
 
@@ -144,3 +146,33 @@ def _adjust_learning_rate(optimizer, epoch, args):
     lr = args.learning_rate * (0.1 ** (epoch // (args.epochs / 3)))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+
+def print_epoch(e_str, e_num, db_loader, batch_time, data_time, losses, top1, batch_ind):
+    print(
+        '{0}: [{1}][{2}/{3}]\t'
+        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+        'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+        'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+        'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
+            e_str, e_num, batch_ind, len(db_loader), batch_time=batch_time,
+            data_time=data_time, loss=losses, top1=top1
+        )
+    )
+
+
+def train_non_nn(all_xs, all_ys, is_train, classifier, output_dir):
+    all_xs = np.concatenate(np.array(all_xs), axis=0)
+    all_ys = np.concatenate(np.array(all_ys), axis=0)
+    if is_train:
+        # currently only supporting svm
+        max_iter = 100000
+        if classifier == 'linear_svm':
+            clf = svm.LinearSVC(max_iter=max_iter)
+        elif classifier == 'svm':
+            clf = svm.SVC(max_iter=max_iter)
+        clf.fit(all_xs, all_ys)
+        system_utils.write_pickle('%s/%s.pickle' % (output_dir, classifier), clf)
+    else:
+        clf = system_utils.read_pickle('%s/%s.pickle' % (output_dir, classifier))
+    return np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs)

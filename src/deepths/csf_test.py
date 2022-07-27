@@ -15,24 +15,6 @@ from .utils import system_utils, report_utils, argument_handler
 from .csf_train import _train_val
 
 
-def sensitivity_sf(result_mat, sf, th=0.75, low=0, high=1):
-    result_mat = result_mat[result_mat[:, 1] == sf, :]
-    unique_contrast = np.unique(result_mat[:, 0])
-    accs = []
-    for contrast in unique_contrast:
-        accs.append(result_mat[result_mat[:, 0] == contrast, -1].mean())
-
-    max_ind = 0
-    diff_acc = accs[max_ind] - th
-    contrast_i = unique_contrast[max_ind]
-    if abs(diff_acc) < 0.005:
-        return None, 0, 1
-    elif diff_acc > 0:
-        return (low + contrast_i) / 2, low, contrast_i
-    else:
-        return (high + contrast_i) / 2, contrast_i, high
-
-
 def main(argv):
     args = argument_handler.csf_test_arg_parser(argv)
     args.batch_size = 16
