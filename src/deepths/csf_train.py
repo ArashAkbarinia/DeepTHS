@@ -111,16 +111,8 @@ def _train_val(db_loader, model, optimizer, epoch, args):
             # measure data loading time
             ep_helper.log_data_t.update(time.time() - end)
 
-            if args.grating_detector:
-                img0, target, img_settings = cu_batch
-                img0 = img0.cuda(args.gpu, non_blocking=True)
-                output = ep_helper.model(img0)
-            else:
-                img0, img1, target, img_settings = cu_batch
-                img0 = img0.cuda(args.gpu, non_blocking=True)
-                img1 = img1.cuda(args.gpu, non_blocking=True)
-                # compute output
-                output = ep_helper.model(img0, img1)
+            target = cu_batch[-2].cuda(args.gpu, non_blocking=True)
+            output = ep_helper.model(*cu_batch[:-2])
 
             if batch_ind == 0 and epoch >= -1:
                 def name_gen(x): return _gen_img_name(cu_batch[-1], x)
@@ -132,10 +124,9 @@ def _train_val(db_loader, model, optimizer, epoch, args):
                 ep_helper.all_xs.append(output.detach().cpu().numpy().copy())
                 ep_helper.all_ys.append(target.detach().cpu().numpy().copy())
             else:
-                target = target.cuda(args.gpu, non_blocking=True)
                 loss = criterion(output, target)
 
-                ep_helper.update_epoch(loss, output, target, img0)
+                ep_helper.update_epoch(loss, output, target, cu_batch[0])
 
             # measure elapsed time
             ep_helper.log_batch_t.update(time.time() - end)
@@ -144,7 +135,7 @@ def _train_val(db_loader, model, optimizer, epoch, args):
             # printing the accuracy at certain intervals
             if batch_ind % args.print_freq == 0:
                 ep_helper.print_epoch(db_loader, batch_ind)
-            if ep_helper.break_batch(batch_ind, img0):
+            if ep_helper.break_batch(batch_ind, cu_batch[0]):
                 break
 
     ep_helper.finish_epoch()

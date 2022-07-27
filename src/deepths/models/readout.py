@@ -68,6 +68,7 @@ class ReadOutNetwork(nn.Module):
         return x.type(self.in_type) if 'clip' in self.architecture else x
 
     def extract_features(self, x):
+        x = x.to(next(self.parameters()).device)
         x = self.features(self.check_img_type(x))
         return x
 
