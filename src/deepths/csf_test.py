@@ -6,7 +6,6 @@ import numpy as np
 import os
 
 import torch
-import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader
@@ -79,7 +78,6 @@ def main(argv):
         'mask_image': args.mask_image,
         'grating_detector': args.grating_detector
     }
-    criterion = nn.CrossEntropyLoss().cuda()
 
     header = 'LambdaWave,SF,ACC,Contrast'
     all_results = []
@@ -107,7 +105,7 @@ def main(argv):
                 num_workers=args.workers, pin_memory=True
             )
 
-            epoch_out = _train_val(db_loader, model, criterion, None, -1 - j, args)
+            epoch_out = _train_val(db_loader, model, None, -1 - j, args)
             accuracy = epoch_out[3] / 100
             contrast = int(csf_flags[i] * 1000)
             psf_i['acc'].append(accuracy)
