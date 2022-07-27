@@ -98,8 +98,8 @@ def _organise_test_points(test_pts):
                 bfun = colour_spaces.rgb2hsv01
                 chns_name = ['H', 'S', 'V']
             elif test_pt[-1] == 'rgb':
-                ffun = lambda x: x
-                bfun = lambda x: x
+                ffun = colour_spaces.identity
+                bfun = colour_spaces.identity
                 chns_name = ['R', 'G', 'B']
             out_test_pts[test_pt_name] = {
                 'ref': pt_val, 'ffun': ffun, 'bfun': bfun, 'space': chns_name, 'ext': [], 'chns': []

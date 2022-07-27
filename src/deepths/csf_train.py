@@ -2,7 +2,6 @@
 PyTorch contrast-discrimination training script for various datasets.
 """
 
-import numpy as np
 import time
 import sys
 
@@ -15,7 +14,7 @@ import torch.utils.data.distributed
 
 from .datasets import dataloader
 from .models import model_csf
-from .utils import report_utils, argument_handler
+from .utils import argument_handler
 from .utils import common_routines
 
 

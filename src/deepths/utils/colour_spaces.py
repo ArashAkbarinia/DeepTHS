@@ -130,6 +130,10 @@ def hsv012rgb01(x):
     return clip01(x)
 
 
+def identity(x):
+    return x
+
+
 def clip01(x):
     x = np.maximum(x, 0)
     x = np.minimum(x, 1)
