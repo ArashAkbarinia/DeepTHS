@@ -64,6 +64,12 @@ def _make_optimizer(args, model):
 def prepare_starting(args, task_folder):
     system_utils.set_random_environment(args.random_seed)
 
+    args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
+    args.preprocess = (args.mean, args.std)
+
+    if args.test_net:
+        return args
+
     if args.classifier != 'nn':
         args.epochs = 1
         args.print_freq = np.inf
@@ -75,12 +81,8 @@ def prepare_starting(args, task_folder):
     )
     system_utils.create_dir(args.output_dir)
 
-    args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
-    args.preprocess = (args.mean, args.std)
-
     # dumping all passed arguments to a json file
-    if not args.test_net:
-        system_utils.save_arguments(args)
+    system_utils.save_arguments(args)
     return args
 
 
