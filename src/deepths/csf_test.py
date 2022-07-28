@@ -88,17 +88,15 @@ def main(argv):
     args.batch_size = 16
     args.workers = 2
 
-    target_size = args.target_size
-
     # which illuminant to test
     args.illuminant = 0 if args.illuminant is None else args.illuminant[0]
     ill_suffix = '' if args.illuminant == 0 else '_%d' % int(args.illuminant * 100)
 
     res_out_dir = os.path.join(args.output_dir, 'evals%s' % ill_suffix)
-    system_utils.create_dir(res_out_dir)
     out_file = '%s/%s_evolution.csv' % (res_out_dir, args.experiment_name)
     if os.path.exists(out_file):
         return
+    system_utils.create_dir(res_out_dir)
 
     tb_path = os.path.join(args.output_dir, 'test_%s%s' % (args.experiment_name, ill_suffix))
     args.tb_writers = {'test': SummaryWriter(tb_path)}
@@ -107,8 +105,8 @@ def main(argv):
     args.mean, args.std = preprocess
 
     # testing setting
-    sf_base = ((target_size / 2) / np.pi)
-    human_sfs = [i for i in range(1, int(target_size / 2) + 1) if target_size % i == 0]
+    sf_base = ((args.target_size / 2) / np.pi)
+    human_sfs = [i for i in range(1, int(args.target_size / 2) + 1) if args.target_size % i == 0]
     lambda_waves = [sf_base / e for e in human_sfs]
 
     # creating the model, args.architecture should be a path
@@ -116,7 +114,7 @@ def main(argv):
         net_t = model_csf.load_grating_detector
     else:
         net_t = model_csf.load_contrast_discrimination
-    model = net_t(args.architecture, target_size, args.classifier)
+    model = net_t(args.architecture, args.target_size, args.classifier)
 
     model = lesion_utils.lesion_kernels(
         model, args.lesion_kernels, args.lesion_planes, args.lesion_lines
