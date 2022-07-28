@@ -7,6 +7,7 @@ import numpy as np
 import time
 
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks
@@ -41,6 +42,10 @@ def _main_worker(args):
         args.validation_dir = args.data_dir + '/validation_set/'
 
     if args.test_net:
+        args.background = 128 if args.background is None else int(args.background)
+        bg_suffix = '_%.3d' % args.background
+        tb_path = os.path.join(args.output_dir, 'test_%s%s' % (args.experiment_name, bg_suffix))
+        args.tb_writers = {'test': SummaryWriter(tb_path)}
         if args.test_attempts > 0:
             _sensitivity_test_points(args, model)
         else:
@@ -235,8 +240,10 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     qval = args.test_pts[qname]
     chns_name = qval['space']
     circ_chns = [0] if chns_name[0] == 'H' else []
-    output_file = os.path.join(args.output_dir, 'evolutoin_%s_%d.csv' % (qname, pt_ind))
-    if os.path.exists((output_file)):
+    bg_suffix = '_%.3d' % args.background
+    res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
+    output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (qname, pt_ind))
+    if os.path.exists(output_file):
         return
 
     low = np.expand_dims(qval['ref'][:3], axis=(0, 1))
