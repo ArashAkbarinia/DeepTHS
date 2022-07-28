@@ -92,6 +92,8 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
     for mode in ['train', 'val']:
         args.tb_writers[mode] = SummaryWriter(os.path.join(args.output_dir, mode))
 
+    # TODO: for resume this is not correct, make the epoch helper here
+    best_acc1 = 0
     # training on epoch
     for epoch in range(args.initial_epoch, args.epochs):
         if args.classifier == 'nn':
