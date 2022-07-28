@@ -17,7 +17,13 @@ def colour_discrimination_net(paradigm, test_net, architecture, target_size, tra
     net_class = network_class(paradigm)
 
     if test_net:
-        model = net_class(test_net, target_size, transfer_weights, classifier)
+        print('Loading ColourDiscrimination test model from %s!' % test_net)
+        checkpoint = torch.load(test_net, map_location='cpu')
+        architecture = checkpoint['arch']
+        transfer_weights = checkpoint['transfer_weights']
+
+        model = net_class(architecture, target_size, transfer_weights, classifier)
+        model.load_state_dict(checkpoint['state_dict'], strict=False)
     else:
         model = net_class(architecture, target_size, transfer_weights, classifier)
     return model
