@@ -240,8 +240,8 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     if os.path.exists(output_file):
         return
     system_utils.create_dir(res_out_dir)
-    tb_path = os.path.join(args.output_dir, 'tests/%s_%d_bg%s' % (qname, pt_ind, bg_suffix))
-    args.tb_writers = {'test': SummaryWriter(tb_path)}
+    tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
+    args.tb_writers = {'test': SummaryWriter(os.path.join(tb_dir, '%s_%d' % (qname, pt_ind)))}
 
     qval = args.test_pts[qname]
     chns_name = qval['space']
