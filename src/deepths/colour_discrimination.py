@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .datasets import dataloader_colour
 from .models import model_colour as networks
 from .utils import report_utils, argument_handler, colour_spaces
-from .utils import common_routines
+from .utils import common_routines, system_utils
 
 
 def main(argv):
@@ -242,6 +242,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     circ_chns = [0] if chns_name[0] == 'H' else []
     bg_suffix = '_%.3d' % args.background
     res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
+    system_utils.create_dir(res_out_dir)
     output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (qname, pt_ind))
     if os.path.exists(output_file):
         return

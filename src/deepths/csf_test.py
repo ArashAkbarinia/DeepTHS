@@ -27,7 +27,6 @@ def main(argv):
     ill_suffix = '' if illuminant == 0 else '_%d' % int(illuminant * 100)
 
     res_out_dir = os.path.join(args.output_dir, 'evals%s' % ill_suffix)
-
     system_utils.create_dir(res_out_dir)
     out_file = '%s/%s_evolution.csv' % (res_out_dir, args.experiment_name)
     if os.path.exists(out_file):
