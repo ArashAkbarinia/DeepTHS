@@ -74,3 +74,14 @@ class ReadOutNetwork(nn.Module):
 
     def do_classifier(self, x):
         return x if self.fc is None else self.fc(x)
+
+
+def load_model(weights, target_size, net_class, classifier):
+    print('Loading test model from %s!' % weights)
+    checkpoint = torch.load(weights, map_location='cpu')
+    architecture = checkpoint['arch']
+    transfer_weights = checkpoint['transfer_weights']
+
+    model = net_class(architecture, target_size, transfer_weights, classifier)
+    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    return model

@@ -5,7 +5,7 @@
 import torch
 from torch.nn import functional as t_functional
 
-from .readout import ReadOutNetwork
+from . import readout
 
 
 def network_class(paradigm):
@@ -17,19 +17,13 @@ def colour_discrimination_net(paradigm, test_net, architecture, target_size, tra
     net_class = network_class(paradigm)
 
     if test_net:
-        print('Loading ColourDiscrimination test model from %s!' % test_net)
-        checkpoint = torch.load(test_net, map_location='cpu')
-        architecture = checkpoint['arch']
-        transfer_weights = checkpoint['transfer_weights']
-
-        model = net_class(architecture, target_size, transfer_weights, classifier)
-        model.load_state_dict(checkpoint['state_dict'], strict=False)
+        model = readout.load_model(architecture, target_size, net_class, classifier)
     else:
         model = net_class(architecture, target_size, transfer_weights, classifier)
     return model
 
 
-class ColourDiscriminationOddOneOut(ReadOutNetwork):
+class ColourDiscriminationOddOneOut(readout.ReadOutNetwork):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ColourDiscriminationOddOneOut, self).__init__(
             architecture, target_size, transfer_weights, 3, classifier, 1
@@ -59,7 +53,7 @@ class ColourDiscriminationOddOneOut(ReadOutNetwork):
         return loss / (4 * output.shape[0])
 
 
-class ColourDiscrimination2AFC(ReadOutNetwork):
+class ColourDiscrimination2AFC(readout.ReadOutNetwork):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ColourDiscrimination2AFC, self).__init__(
             architecture, target_size, transfer_weights, 1, classifier, 1

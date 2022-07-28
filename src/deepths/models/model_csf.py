@@ -4,19 +4,12 @@ A collection of architectures to do the contrast discrimination task.
 
 import torch
 
-from .readout import ReadOutNetwork
+from . import readout
 
 
 def _load_csf_model(weights, target_size, net_type, classifier):
-    print('Loading CSF test model from %s!' % weights)
-    checkpoint = torch.load(weights, map_location='cpu')
-    architecture = checkpoint['arch']
-    transfer_weights = checkpoint['transfer_weights']
-
     net_class = ContrastDiscrimination if net_type == 'ContrastDiscrimination' else GratingDetector
-    model = net_class(architecture, target_size, transfer_weights, classifier)
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
-    return model
+    return readout.load_model(weights, target_size, net_class, classifier)
 
 
 def load_contrast_discrimination(weights, target_size, classifier):
@@ -27,7 +20,7 @@ def load_grating_detector(weights, target_size, classifier):
     return _load_csf_model(weights, target_size, 'GratingDetector', classifier)
 
 
-class ContrastDiscrimination(ReadOutNetwork):
+class ContrastDiscrimination(readout.ReadOutNetwork):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ContrastDiscrimination, self).__init__(
             architecture, target_size, transfer_weights, 2, classifier, 2
@@ -42,7 +35,7 @@ class ContrastDiscrimination(ReadOutNetwork):
         return self.do_classifier(x)
 
 
-class GratingDetector(ReadOutNetwork):
+class GratingDetector(readout.ReadOutNetwork):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(GratingDetector, self).__init__(
             architecture, target_size, transfer_weights, 1, classifier, 2
