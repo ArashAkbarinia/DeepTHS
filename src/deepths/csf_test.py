@@ -25,7 +25,7 @@ def _make_test_loader(args, contrast, l_wave):
     # unique params
     test_thetas = [0, 45, 90, 135]
     test_rhos = [0, 180]
-    test_ps = [0.0] if args.grating_detector else test_ps = [0.0, 1.0]
+    test_ps = [0.0] if args.grating_detector else [0.0, 1.0]
 
     db_params = {
         'colour_space': args.colour_space,
