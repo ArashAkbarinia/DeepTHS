@@ -176,12 +176,13 @@ class EpochHelper:
             self.model.eval()
             self.num_samples = args.val_samples
             self.epoch_type = 'test' if self.is_test else 'val'
+        self.num_samples = np.inf if self.num_samples is None else self.num_samples
         self.tb_writer = args.tb_writers[self.epoch_type]
 
         self.all_xs = [] if self.classifier != 'nn' else None
         self.all_ys = [] if self.classifier != 'nn' else None
 
-    def update_epoch(self, output, target, target_acc, img0, criterion):
+    def update_epoch(self, output, target, target_acc, batch, criterion):
         if self.all_xs is not None:
             self.all_xs.append(output.detach().cpu().numpy().copy())
             self.all_ys.append(target.detach().cpu().numpy().copy())
@@ -190,8 +191,8 @@ class EpochHelper:
 
             # measure accuracy and record loss
             acc1 = report_utils.accuracy(output, target_acc)
-            self.log_loss.update(loss.item(), img0.size(0))
-            self.log_acc.update(acc1[0].cpu().numpy()[0], img0.size(0))
+            self.log_loss.update(loss.item(), batch.size(0))
+            self.log_acc.update(acc1[0].cpu().numpy()[0], batch.size(0))
 
             if self.is_train:
                 # compute gradient and do SGD step
@@ -202,8 +203,8 @@ class EpochHelper:
     def grad_status(self):
         return self.is_train and self.classifier == 'nn'
 
-    def break_batch(self, batch_ind, img0):
-        return self.num_samples is not None and batch_ind * len(img0) > self.num_samples
+    def break_batch(self, b_ind, batch):
+        return not self.is_test and b_ind * len(batch) > self.num_samples
 
     def finish_epoch(self):
         # the case of non NN classifier
