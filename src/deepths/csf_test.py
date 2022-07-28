@@ -86,9 +86,9 @@ def main(argv):
         low = min_low
         high = max_high
         mid = mid_start
-        j = 0
+        attempt_i = 0
         psf_i = {'acc': [], 'contrast': []}
-        while csf_flags[i] is not None:
+        while True:
             test_samples = {
                 'amp': [csf_flags[i]], 'lambda_wave': [lambda_waves[i]], 'theta': test_thetas,
                 'rho': test_rhos, 'side': test_ps, 'illuminant': illuminant
@@ -104,7 +104,7 @@ def main(argv):
                 num_workers=args.workers, pin_memory=True
             )
 
-            epoch_out = _train_val(db_loader, model, None, -1 - j, args)
+            epoch_out = _train_val(db_loader, model, None, -1 - attempt_i, args)
             accuracy = epoch_out[3] / 100
             contrast = int(csf_flags[i] * 1000)
             psf_i['acc'].append(accuracy)
@@ -113,9 +113,9 @@ def main(argv):
             all_results.append(np.array([lambda_waves[i], readable_sfs[i], accuracy, mid]))
             # th=0.749 because test samples are 16, 12 correct equals 0.75 and test stops
             new_low, new_mid, new_high = report_utils.midpoint(accuracy, low, mid, high, th=0.749)
-            if abs(csf_flags[i] - max_high) < 1e-3 or new_mid == csf_flags[i] or j == max_attempt:
+            if new_mid is None or attempt_i == max_attempt:
                 print('had to skip', csf_flags[i])
-                csf_flags[i] = None
+                break
             else:
                 low, mid, high = new_low, new_mid, new_high
                 csf_flags[i] = new_mid
@@ -125,8 +125,8 @@ def main(argv):
                 max_diff = 0.5 - csf_flags[i]
                 if illuminant < min(min_diff, max_diff) or illuminant > max(min_diff, max_diff):
                     print('Ill %.3f not possible for contrast %.3f' % (illuminant, csf_flags[i]))
-                    csf_flags[i] = None
-            j += 1
+                    break
+            attempt_i += 1
         np.savetxt(out_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
         tb_writer.add_scalar("{}".format('csf'), 1 / all_results[-1][-1], readable_sfs[i])
 

@@ -254,7 +254,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     others_colour = qval['ffun'](low)
 
     all_results = []
-    j = 0
+    attempt_i = 0
     header = 'acc,%s,%s,%s,R,G,B' % (chns_name[0], chns_name[1], chns_name[2])
 
     th = 0.75 if args.paradigm == '2afc' else 0.625
@@ -262,8 +262,8 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         target_colour = qval['ffun'](mid)
         db_loader = _make_test_loader(args, target_colour, others_colour)
 
-        _, accuracy = _train_val(db_loader, model, None, -1, args, print_test=False)
-        print(qname, pt_ind, accuracy, j, low.squeeze(), mid.squeeze(), high.squeeze())
+        _, accuracy = _train_val(db_loader, model, None, -1 - attempt_i, args, print_test=False)
+        print(qname, pt_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
 
         all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))
         np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
@@ -272,9 +272,9 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
             accuracy, low, mid, high, th=th, circ_chns=circ_chns
         )
 
-        if new_low is None or j == args.test_attempts:
+        if new_low is None or attempt_i == args.test_attempts:
             print('had to skip')
             break
         else:
             low, mid, high = new_low, new_mid, new_high
-        j += 1
+        attempt_i += 1
