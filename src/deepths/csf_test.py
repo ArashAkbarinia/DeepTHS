@@ -71,7 +71,7 @@ def _sensitivity_sf(args, model, l_wave, sf):
         print(l_wave, mid, accuracy, low, high)
         res_sf.append(np.array([l_wave, sf, accuracy, mid]))
         new_low, new_mid, new_high = report_utils.midpoint(accuracy, low, mid, high, th=th)
-        if new_mid is None or attempt_i == args.max_attempt:
+        if new_mid is None or attempt_i == args.test_attempts:
             print('had to skip')
             break
         else:
