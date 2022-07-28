@@ -65,9 +65,8 @@ def _sensitivity_sf(args, model, l_wave, sf):
 
         epoch_out = _train_val(db_loader, model, None, -1 - attempt_i, args)
         accuracy = epoch_out[3] / 100
-        contrast = int(mid * 1000)
         psf['acc'].append(accuracy)
-        psf['contrast'].append(contrast)
+        psf['contrast'].append(int(mid * 1000))
         print(l_wave, mid, accuracy, low, high)
         res_sf.append(np.array([l_wave, sf, accuracy, mid]))
         new_low, new_mid, new_high = report_utils.midpoint(accuracy, low, mid, high, th=th)
@@ -101,8 +100,7 @@ def main(argv):
     tb_path = os.path.join(args.output_dir, 'test_%s%s' % (args.experiment_name, ill_suffix))
     args.tb_writers = {'test': SummaryWriter(tb_path)}
 
-    preprocess = model_utils.get_mean_std(args.colour_space, args.vision_type)
-    args.mean, args.std = preprocess
+    args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
 
     # testing setting
     sf_base = ((args.target_size / 2) / np.pi)

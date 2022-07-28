@@ -43,9 +43,6 @@ def _main_worker(args):
 
     if args.test_net:
         args.background = 128 if args.background is None else int(args.background)
-        bg_suffix = '_%.3d' % args.background
-        tb_path = os.path.join(args.output_dir, 'test_%s%s' % (args.experiment_name, bg_suffix))
-        args.tb_writers = {'test': SummaryWriter(tb_path)}
         if args.test_attempts > 0:
             _sensitivity_test_points(args, model)
         else:
@@ -239,10 +236,12 @@ def _accuracy_test_point(args, model, qname, pt_ind):
 def _sensitivity_test_point(args, model, qname, pt_ind):
     bg_suffix = '_%.3d' % args.background
     res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
-    system_utils.create_dir(res_out_dir)
     output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (qname, pt_ind))
     if os.path.exists(output_file):
         return
+    system_utils.create_dir(res_out_dir)
+    tb_path = os.path.join(args.output_dir, 'tests/%s_%d_bg%s' % (qname, pt_ind, bg_suffix))
+    args.tb_writers = {'test': SummaryWriter(tb_path)}
 
     qval = args.test_pts[qname]
     chns_name = qval['space']
