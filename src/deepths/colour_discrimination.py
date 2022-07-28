@@ -183,7 +183,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
     else:
         prediction_output = [np.concatenate(out) for out in all_predictions]
     if ep_helper.is_test:
-        accuracy = ep_helper.log_acc.avg if ep_helper.log_acc.avg <= 1.0 else ep_helper.log_acc.avg / 100
+        accuracy = ep_helper.log_acc.avg / 100
         return prediction_output, accuracy
     return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]
 
