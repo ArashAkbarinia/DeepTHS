@@ -113,7 +113,7 @@ def _train_val(db_loader, model, optimizer, epoch, args):
             target = cu_batch[-2].cuda(args.gpu, non_blocking=True)
             output = ep_helper.model(*cu_batch[:-2])
 
-            if batch_ind == 0 and epoch >= -1:
+            if batch_ind == 0:
                 def name_gen(x): return _gen_img_name(cu_batch[-1], x)
 
                 name_gen_f = name_gen if ep_helper.is_test else None

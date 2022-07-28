@@ -139,7 +139,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             target = target.cuda(args.gpu, non_blocking=True)
             output = ep_helper.model(*cu_batch[:-1])
 
-            if batch_ind == 0 and epoch >= -1:
+            if batch_ind == 0:
                 ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
 
             ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
