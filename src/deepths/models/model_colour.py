@@ -17,7 +17,7 @@ def colour_discrimination_net(paradigm, test_net, architecture, target_size, tra
     net_class = network_class(paradigm)
 
     if test_net:
-        model = readout.load_model(architecture, target_size, net_class, classifier)
+        model = readout.load_model(test_net, target_size, net_class, classifier)
     else:
         model = net_class(architecture, target_size, transfer_weights, classifier)
     return model
