@@ -1,12 +1,9 @@
 """
-
+Dataloader for the colour discrimination task.
 """
 
-import os
 import numpy as np
-import glob
 import random
-import ntpath
 
 import torchvision.transforms as torch_transforms
 
@@ -14,7 +11,7 @@ from skimage import io
 import scipy.stats as ss
 
 from . import cv2_transforms
-from .binary_shapes import ShapeDataset
+from .binary_shapes import ShapeDataset, ShapeTrain
 
 
 def _normal_dist_ints(max_diff, scale=3):
@@ -31,57 +28,14 @@ def _normal_dist_ints(max_diff, scale=3):
 
 
 def _get_others_colour(target_colour):
-    others_colour = []
-    # others_diff = np.random.choice(self.rgb_diffs, size=3, p=self.rgb_probs)
     others_diff = [random.choice([1, -1]) * random.randint(1, 128) for _ in range(3)]
+    others_colour = []
     for chn_ind in range(3):
         chn_colour = target_colour[chn_ind] + others_diff[chn_ind]
         if chn_colour < 0 or chn_colour > 255:
             chn_colour = target_colour[chn_ind] - others_diff[chn_ind]
         others_colour.append(chn_colour)
     return others_colour
-
-
-class ShapeTrain(ShapeDataset):
-
-    def __init__(self, root, transform=None, colour_dist=None, **kwargs):
-        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
-        if self.bg is None:
-            self.bg = 'rnd_uniform'
-        if self.same_rotation is None:
-            self.same_rotation = False
-        self.angles = (1, 11)
-        self.rgb_diffs, self.rgb_probs = _normal_dist_ints(25, scale=5)
-        self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
-        self.colour_dist = colour_dist
-        if self.colour_dist is not None:
-            self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
-
-    def _prepare_train_imgs(self, masks, others_colour, target_colour):
-        others_colour = np.array(others_colour).astype('float32') / 255
-        target_colour = np.array(target_colour).astype('float32') / 255
-        imgs = self._mul_out_imgs(masks, others_colour, target_colour, _random_place)
-        return imgs
-
-    def _get_target_colour(self):
-        if self.colour_dist is not None:
-            rand_row = random.randint(0, len(self.colour_dist) - 1)
-            target_colour = self.colour_dist[rand_row]
-        else:
-            target_colour = [random.randint(0, 255) for _ in range(3)]
-        return target_colour
-
-    def _angle_paths(self, path, samples):
-        angle = int(ntpath.basename(path[:-4]).split('_')[-1].replace('angle', ''))
-        ang_pool = list(np.arange(*self.angles))
-        ang_pool.remove(angle)
-        random.shuffle(ang_pool)
-        org_angle = 'angle%d.png' % angle
-        angle_paths = [path.replace(org_angle, 'angle%d.png' % ang_pool[i]) for i in range(samples)]
-        return angle_paths
-
-    def __len__(self):
-        return len(self.img_paths)
 
 
 class ShapeVal(ShapeDataset):
@@ -122,7 +76,7 @@ class ShapeOddOneOutTrain(ShapeTrain):
         target_colour = self._get_target_colour()
         others_colour = _get_others_colour(target_colour)
 
-        imgs = self._prepare_train_imgs(masks, others_colour, target_colour)
+        imgs = self._mul_train_imgs(masks, others_colour, target_colour)
 
         inds = list(np.arange(0, self.num_stimuli))
         random.shuffle(inds)
@@ -143,7 +97,7 @@ class ShapeOddOneOutVal(ShapeVal):
         base_path = '%s/img_shape%d_angle' % (self.imgdir, imgi)
         target_path = '%s%d.png' % (base_path, self.stimuli[item, 0])
         if self.same_rotation:
-            other_paths = [target_path, target_path, target_path]
+            other_paths = [target_path] * 3
         else:
             other_paths = ['%s%d.png' % (base_path, self.stimuli[item, i]) for i in range(3)]
         masks = [io.imread(target_path), *[io.imread(opath) for opath in other_paths]]
@@ -178,7 +132,7 @@ class Shape2AFCTrain(ShapeTrain):
             target = 0
             others_colour = _get_others_colour(target_colour)
 
-        imgs = self._prepare_train_imgs(masks, others_colour, target_colour)
+        imgs = self._mul_train_imgs(masks, others_colour, target_colour)
 
         return imgs[0], imgs[1], target
 
@@ -208,12 +162,6 @@ class Shape2AFCVal(ShapeVal):
 def _centre_place(mask_size, target_size):
     srow = int((target_size[0] - mask_size[0]) / 2)
     scol = int((target_size[1] - mask_size[1]) / 2)
-    return srow, scol
-
-
-def _random_place(mask_size, target_size):
-    srow = random.randint(0, target_size[0] - mask_size[0])
-    scol = random.randint(0, target_size[1] - mask_size[1])
     return srow, scol
 
 

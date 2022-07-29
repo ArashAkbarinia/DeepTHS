@@ -4,6 +4,9 @@ Creating PyTorch dataloader from a set of binary images.
 
 import os
 import numpy as np
+import glob
+import random
+import ntpath
 
 from skimage import io
 import cv2
@@ -29,6 +32,12 @@ def _create_bg_img(bg, mask_size, full_size):
     mask_img = mask_img.astype('float32') / 255
     full_img = full_img.astype('float32') / 255
     return mask_img, full_img
+
+
+def _random_place(mask_size, target_size):
+    srow = random.randint(0, target_size[0] - mask_size[0])
+    scol = random.randint(0, target_size[1] - mask_size[1])
+    return srow, scol
 
 
 class ShapeDataset(torch_data.Dataset):
@@ -67,3 +76,44 @@ class ShapeDataset(torch_data.Dataset):
         if self.transform is not None:
             imgs = self.transform(imgs)
         return imgs
+
+
+class ShapeTrain(ShapeDataset):
+
+    def __init__(self, root, transform=None, colour_dist=None, **kwargs):
+        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        if self.bg is None:
+            self.bg = 'rnd_uniform'
+        if self.same_rotation is None:
+            self.same_rotation = False
+        self.angles = (1, 11)
+        self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
+        self.colour_dist = colour_dist
+        if self.colour_dist is not None:
+            self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
+
+    def _mul_train_imgs(self, masks, others_colour, target_colour):
+        others_colour = np.array(others_colour).astype('float32') / 255
+        target_colour = np.array(target_colour).astype('float32') / 255
+        imgs = self._mul_out_imgs(masks, others_colour, target_colour, _random_place)
+        return imgs
+
+    def _get_target_colour(self):
+        if self.colour_dist is not None:
+            rand_row = random.randint(0, len(self.colour_dist) - 1)
+            target_colour = self.colour_dist[rand_row]
+        else:
+            target_colour = [random.randint(0, 255) for _ in range(3)]
+        return target_colour
+
+    def _angle_paths(self, path, samples):
+        angle = int(ntpath.basename(path[:-4]).split('_')[-1].replace('angle', ''))
+        ang_pool = list(np.arange(*self.angles))
+        ang_pool.remove(angle)
+        random.shuffle(ang_pool)
+        org_angle = 'angle%d.png' % angle
+        angle_paths = [path.replace(org_angle, 'angle%d.png' % ang_pool[i]) for i in range(samples)]
+        return angle_paths
+
+    def __len__(self):
+        return len(self.img_paths)
