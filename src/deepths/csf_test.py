@@ -8,7 +8,7 @@ import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from .datasets import dataloader
+from .datasets import dataloader_csf
 from .models import model_csf, model_utils, lesion_utils
 from .utils import system_utils, report_utils, argument_handler
 from .csf_train import _train_val
@@ -39,7 +39,7 @@ def _make_test_loader(args, contrast, l_wave):
         'rho': test_rhos, 'side': test_ps, 'illuminant': args.illuminant
     }
 
-    db = dataloader.validation_set(
+    db = dataloader_csf.validation_set(
         'gratings', args.target_size, (args.mean, args.std), data_dir=test_samples, **db_params
     )
     db.contrast_space = args.contrast_space

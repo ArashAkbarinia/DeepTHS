@@ -12,7 +12,7 @@ import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 
-from .datasets import dataloader
+from .datasets import dataloader_csf
 from .models import model_csf
 from .utils import argument_handler
 from .utils import common_routines
@@ -61,12 +61,12 @@ def _main_worker(args):
         'same_transforms': args.same_transforms,
         'grating_detector': args.grating_detector
     }
-    if args.dataset in dataloader.NATURAL_DATASETS:
+    if args.dataset in dataloader_csf.NATURAL_DATASETS:
         path_or_sample = args.data_dir
     else:
         # this would be only for the grating dataset to generate
         path_or_sample = args.train_samples
-    train_dataset = dataloader.train_set(
+    train_dataset = dataloader_csf.train_set(
         args.dataset, args.target_size, preprocess=(args.mean, args.std),
         extra_transformation=train_trans, data_dir=path_or_sample, **db_params
     )
@@ -80,7 +80,7 @@ def _main_worker(args):
     db_params['train_params'] = None
     # loading validation set
     valid_trans = [*both_trans, *valid_trans]
-    validation_dataset = dataloader.validation_set(
+    validation_dataset = dataloader_csf.validation_set(
         args.dataset, args.target_size, preprocess=(args.mean, args.std),
         extra_transformation=valid_trans, data_dir=path_or_sample, **db_params
     )
