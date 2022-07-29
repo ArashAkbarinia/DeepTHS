@@ -18,6 +18,7 @@ from . import imutils
 from . import stimuli_bank
 from . import cv2_transforms
 from .binary_shapes import ShapeTrain
+from . import dataset_utils
 
 NATURAL_DATASETS = ['imagenet', 'celeba', 'land', 'bw']
 
@@ -33,25 +34,10 @@ def _two_pairs_stimuli(img0, img1, con0, con1, p=0.5, contrast_target=None):
     return (imgs_cat[0], imgs_cat[1]), contrast_target
 
 
-def _prepare_vision_types(img, colour_space, vision_type):
-    if 'grey' not in colour_space and vision_type != 'trichromat':
-        opp_img = colour_spaces.rgb2dkl(img)
-        if vision_type == 'dichromat_rg':
-            opp_img[:, :, 1] = 0
-        elif vision_type == 'dichromat_yb':
-            opp_img[:, :, 2] = 0
-        elif vision_type == 'monochromat':
-            opp_img[:, :, [1, 2]] = 0
-        else:
-            sys.exit('Vision type %s not supported' % vision_type)
-        img = colour_spaces.dkl2rgb(opp_img)
-    return img
-
-
 def _prepare_grating_detector(img0, colour_space, vision_type, contrasts, mask_image,
                               pre_transform, post_transform, p, illuminant=0.0,
                               sf_filter=None, contrast_space='rgb'):
-    img0 = _prepare_vision_types(img0, colour_space, vision_type)
+    img0 = dataset_utils.apply_vision_type(img0, colour_space, vision_type)
     # converting to range 0 to 1
     img0 = np.float32(img0) / 255
 
@@ -146,7 +132,7 @@ def _prepare_stimuli(img0, colour_space, vision_type, contrasts, mask_image,
             p, illuminant, sf_filter, contrast_space
         )
 
-    img0 = _prepare_vision_types(img0, colour_space, vision_type)
+    img0 = dataset_utils.apply_vision_type(img0, colour_space, vision_type)
     # converting to range 0 to 1
     img0 = np.float32(img0) / 255
     # copying to img1
@@ -272,12 +258,6 @@ def _gauss_img(img_size):
     return gauss_img
 
 
-def _cv2_loader(path):
-    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img
-
-
 class AfcDataset(object):
     def __init__(self, post_transform=None, pre_transform=None, p=0.5, contrasts=None,
                  same_transforms=False, colour_space='grey', vision_type='trichromat',
@@ -306,7 +286,7 @@ class CelebA(AfcDataset, tdatasets.CelebA):
     def __init__(self, afc_kwargs, celeba_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
         tdatasets.CelebA.__init__(self, **celeba_kwargs)
-        self.loader = _cv2_loader
+        self.loader = dataset_utils.cv2_loader
 
     def __getitem__(self, index):
         path = os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index])
@@ -329,7 +309,7 @@ class ImageFolder(AfcDataset, tdatasets.ImageFolder):
     def __init__(self, afc_kwargs, folder_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
         tdatasets.ImageFolder.__init__(self, **folder_kwargs)
-        self.loader = _cv2_loader
+        self.loader = dataset_utils.cv2_loader
 
     def __getitem__(self, index):
         current_param = None
@@ -362,7 +342,7 @@ class BinaryShapes(AfcDataset, ShapeTrain):
     def __init__(self, afc_kwargs, shape_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
         ShapeTrain.__init__(self, **shape_kwargs)
-        self.loader = _cv2_loader
+        self.loader = dataset_utils.cv2_loader
 
     def __getitem__(self, index):
         current_param = None

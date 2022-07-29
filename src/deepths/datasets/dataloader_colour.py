@@ -8,23 +8,9 @@ import random
 import torchvision.transforms as torch_transforms
 
 from skimage import io
-import scipy.stats as ss
 
 from . import cv2_transforms
 from .binary_shapes import ShapeDataset, ShapeTrain
-
-
-def _normal_dist_ints(max_diff, scale=3):
-    diffs = np.arange(-max_diff + 1, max_diff)
-    x_u, x_l = diffs + 0.5, diffs - 0.5
-    probs = ss.norm.cdf(x_u, scale=scale) - ss.norm.cdf(x_l, scale=scale)
-
-    ind0 = np.where(diffs == 0)
-    diffs = np.delete(diffs, ind0)
-    probs = np.delete(probs, ind0)
-    # normalise the probabilities so their sum is 1
-    probs = probs / probs.sum()
-    return diffs, probs
 
 
 def _get_others_colour(target_colour):
