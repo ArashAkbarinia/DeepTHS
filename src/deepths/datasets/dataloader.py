@@ -7,7 +7,7 @@ import sys
 
 import torchvision.transforms as torch_transforms
 
-from . import dataset_utils
+from . import dataloader_csf
 from . import cv2_transforms
 
 NATURAL_DATASETS = ['imagenet', 'celeba', 'land', 'bw']
@@ -77,17 +77,17 @@ def _natural_dataset(db, which_set, pre_transforms, post_transforms, data_dir, *
     }
     if db == 'imagenet':
         natural_kwargs = {'root': os.path.join(data_dir, which_set)}
-        current_db = dataset_utils.ImageFolder(afc_kwargs, natural_kwargs)
+        current_db = dataloader_csf.ImageFolder(afc_kwargs, natural_kwargs)
     elif db == 'land':
         natural_kwargs = {'root': os.path.join(data_dir, 'Images')}
-        current_db = dataset_utils.ImageFolder(afc_kwargs, natural_kwargs)
+        current_db = dataloader_csf.ImageFolder(afc_kwargs, natural_kwargs)
     elif db == 'celeba':
         split = 'test' if which_set == 'validation' else 'train'
         natural_kwargs = {'root': data_dir, 'split': split}
-        current_db = dataset_utils.CelebA(afc_kwargs, natural_kwargs)
+        current_db = dataloader_csf.CelebA(afc_kwargs, natural_kwargs)
     elif db == 'bw':
         shape_kwargs = {'root': data_dir, 'background': 128}
-        current_db = dataset_utils.BinaryShapes(afc_kwargs, shape_kwargs)
+        current_db = dataloader_csf.BinaryShapes(afc_kwargs, shape_kwargs)
     else:
         sys.exit('Dataset %s is not supported!' % db)
     return current_db
@@ -101,7 +101,7 @@ def _get_grating_dataset(pre_transforms, post_transforms, target_size, data_dir,
         'post_transform': torch_post_transforms,
         **kwargs
     }
-    return dataset_utils.GratingImages(
+    return dataloader_csf.GratingImages(
         samples=data_dir, afc_kwargs=afc_kwargs, target_size=target_size
     )
 
