@@ -147,9 +147,13 @@ class ShapeDataset(torch_data.Dataset):
                 bg_img = io.imread(self.bg)
                 mask_img = cv2.resize(bg_img, self.mask_size, interpolation=cv2.INTER_NEAREST)
                 img = cv2.resize(bg_img, self.target_size, interpolation=cv2.INTER_NEAREST)
-            elif self.bg == 'rnd':
+            elif self.bg == 'rnd_img':
                 mask_img = np.random.randint(0, 256, (*self.mask_size, 3), dtype='uint8')
                 img = np.random.randint(0, 256, (*self.target_size, 3), dtype='uint8')
+            elif self.bg == 'rnd':
+                rnd_bg = np.random.randint(0, 256, dtype='uint8')
+                mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + rnd_bg
+                img = np.zeros((*self.target_size, 3), dtype='uint8') + rnd_bg
             else:
                 mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + int(self.bg)
                 img = np.zeros((*self.target_size, 3), dtype='uint8') + int(self.bg)
@@ -357,46 +361,34 @@ class Shape2AFCVal(ShapeVal):
 def _centre_place(mask_size, target_size):
     srow = int((target_size[0] - mask_size[0]) / 2)
     scol = int((target_size[1] - mask_size[1]) / 2)
-
     return srow, scol
 
 
 def _random_place(mask_size, target_size):
     srow = random.randint(0, target_size[0] - mask_size[0])
     scol = random.randint(0, target_size[1] - mask_size[1])
-
     return srow, scol
 
 
 def train_set(root, target_size, preprocess, task, **kwargs):
-    mean, std = preprocess
-
     scale = (0.8, 1.0)
     transform = torch_transforms.Compose([
         cv2_transforms.RandomResizedCrop(target_size, scale=scale),
         cv2_transforms.RandomHorizontalFlip(),
         cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(mean, std),
+        cv2_transforms.Normalize(*preprocess),
     ])
 
-    # return OddOneOutTrain(root, transform, **kwargs)
-    if task == 'odd4':
-        return ShapeOddOneOutTrain(root, transform, **kwargs)
-    else:
-        return Shape2AFCTrain(root, transform, **kwargs)
+    db_fun = ShapeOddOneOutTrain if task == 'odd4' else Shape2AFCTrain
+    return db_fun(root, transform, **kwargs)
 
 
 def val_set(root, target_size, preprocess, task, **kwargs):
-    mean, std = preprocess
-
     transform = torch_transforms.Compose([
         cv2_transforms.CenterCrop(target_size),
         cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(mean, std),
+        cv2_transforms.Normalize(*preprocess),
     ])
 
-    # return OddOneOutVal(root, transform, **kwargs)
-    if task == 'odd4':
-        return ShapeOddOneOutVal(root, transform, **kwargs)
-    else:
-        return Shape2AFCVal(root, transform, **kwargs)
+    db_fun = ShapeOddOneOutVal if task == 'odd4' else Shape2AFCVal
+    return db_fun(root, transform, **kwargs)
