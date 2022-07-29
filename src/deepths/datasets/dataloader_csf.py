@@ -272,9 +272,8 @@ class AfcDataset(object):
         self.post_transform = post_transform
         self.pre_transform = pre_transform
         self.illuminant = illuminant
-        if train_params is None:
-            self.train_params = train_params
-        else:
+        self.train_params = train_params
+        if self.train_params is not None:
             self.train_params = system_utils.read_pickle(train_params)
         self.img_counter = 0
         self.sf_filter = sf_filter

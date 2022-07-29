@@ -93,9 +93,9 @@ class ShapeOddOneOutVal(ShapeVal):
         # the target is always added the first element in the imgs list
         target = self.stimuli[item, -1]
         inds = list(np.arange(0, self.num_stimuli))
-        tmp_img = imgs[target]
-        imgs[target] = imgs[0]
-        imgs[0] = tmp_img
+        tmp_img = imgs[target].copy()
+        imgs[target] = imgs[0].copy()
+        imgs[0] = tmp_img.copy()
         return imgs[inds[0]], imgs[inds[1]], imgs[inds[2]], imgs[inds[3]], target
 
 
