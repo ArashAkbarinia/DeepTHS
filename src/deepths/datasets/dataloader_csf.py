@@ -37,9 +37,9 @@ def _two_pairs_stimuli(img0, img1, con0, con1, p=0.5, contrast_target=None):
 def _prepare_grating_detector(img0, colour_space, vision_type, contrasts, mask_image,
                               pre_transform, post_transform, p, illuminant=0.0,
                               sf_filter=None, contrast_space='rgb'):
-    img0 = dataset_utils.apply_vision_type(img0, colour_space, vision_type)
     # converting to range 0 to 1
     img0 = np.float32(img0) / 255
+    img0 = dataset_utils.apply_vision_type_rgb(img0, colour_space, vision_type)
 
     if pre_transform is not None:
         [img0] = pre_transform([img0])
@@ -132,9 +132,9 @@ def _prepare_stimuli(img0, colour_space, vision_type, contrasts, mask_image,
             p, illuminant, sf_filter, contrast_space
         )
 
-    img0 = dataset_utils.apply_vision_type(img0, colour_space, vision_type)
     # converting to range 0 to 1
     img0 = np.float32(img0) / 255
+    img0 = dataset_utils.apply_vision_type_rgb(img0, colour_space, vision_type)
     # copying to img1
     img1 = img0.copy()
 
