@@ -16,6 +16,7 @@ from torch.utils import data as torch_data
 from ..utils import colour_spaces, system_utils
 from . import imutils
 from . import stimuli_bank
+from .binary_shapes import ShapeDataset
 
 
 def _two_pairs_stimuli(img0, img1, con0, con1, p=0.5, contrast_target=None):
@@ -354,47 +355,6 @@ class ImageFolder(AfcDataset, tdatasets.ImageFolder):
             return img_out[0], img_out[1], contrast_target, img_settings
 
 
-class ShapeDataset(torch_data.Dataset):
-    def __init__(self, root, background=None, **kwargs):
-        self.root = root
-        self.target_size = (224, 224)
-        self.mask_size = (128, 128)
-        self.imgdir = '%s/shape2D/' % self.root
-        self.bg = background
-
-    def _prepare_out_imgs(self, bw_img, target_colour, place_fun):
-        mask = cv2.resize(bw_img, self.mask_size, interpolation=cv2.INTER_NEAREST)
-        current_colour = target_colour
-        if self.bg == 'rnd_uniform':
-            bg = np.random.randint(0, 256)
-            mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + bg
-            img = np.zeros((*self.target_size, 3), dtype='uint8') + bg
-        elif isinstance(self.bg, int) or self.bg.isdigit():
-            mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + int(self.bg)
-            img = np.zeros((*self.target_size, 3), dtype='uint8') + int(self.bg)
-        elif os.path.exists(self.bg):
-            bg_img = io.imread(self.bg)
-            mask_img = cv2.resize(bg_img, self.mask_size, interpolation=cv2.INTER_NEAREST)
-            img = cv2.resize(bg_img, self.target_size, interpolation=cv2.INTER_NEAREST)
-        elif self.bg == 'rnd':
-            mask_img = np.random.randint(0, 256, (*self.mask_size, 3), dtype='uint8')
-            img = np.random.randint(0, 256, (*self.target_size, 3), dtype='uint8')
-        # converting images to float
-        mask_img = mask_img.astype('float32') / 255
-        img = img.astype('float32') / 255
-
-        for chn_ind in range(3):
-            current_chn = mask_img[:, :, chn_ind]
-            current_chn[mask == 255] = current_colour[chn_ind]
-
-        srow, scol = place_fun(self.mask_size, self.target_size)
-        erow = srow + self.mask_size[0]
-        ecol = scol + self.mask_size[1]
-        img[srow:erow, scol:ecol] = mask_img
-
-        return (img * 255).astype('uint8')
-
-
 def _random_place(mask_size, target_size):
     srow = random.randint(0, target_size[0] - mask_size[0])
     scol = random.randint(0, target_size[1] - mask_size[1])
@@ -407,7 +367,7 @@ class ShapeTrain(ShapeDataset):
     def __init__(self, root, transform=None, colour_dist=None, **kwargs):
         ShapeDataset.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
-            self.bg = 'rnd'
+            self.bg = 'rnd_uniform'
         self.angles = (1, 11)
         self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
         self.colour_dist = colour_dist
@@ -416,7 +376,7 @@ class ShapeTrain(ShapeDataset):
 
     def _prepare_train_imgs(self, mask_img, target_colour):
         target_colour = np.array(target_colour).astype('float32') / 255
-        return self._prepare_out_imgs(mask_img, target_colour, _random_place)
+        return self._one_out_img_uint8(mask_img, target_colour, _random_place)
 
     def _get_target_colour(self):
         if self.colour_dist is not None:
