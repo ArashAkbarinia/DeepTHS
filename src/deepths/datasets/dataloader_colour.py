@@ -31,101 +31,24 @@ def _normal_dist_ints(max_diff, scale=3):
     return diffs, probs
 
 
-class OddOneOutTrain(torch_data.Dataset):
-
-    def __init__(self, root, transform=None, **kwargs):
-        self.root = root
-        self.transform = transform
-        self.num_stimuli = 4
-        img_info = np.loadtxt(self.root + 'img_info.txt', delimiter=',', dtype=str)
-        self.munsells = (int(img_info[0]), int(img_info[1]) + 1)
-        self.rotations = (int(img_info[2]), int(img_info[3]) + 1)
-        self.objects = img_info[4:]
-        self.imgdir = '%s/img/' % self.root
-        self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
-        self.muns_diffs, self.muns_probs = _normal_dist_ints(self.munsells[1] - 1)
-
-    def __getitem__(self, item):
-        target_path = self.img_paths[item]
-        target_parts = ntpath.basename(target_path).split('_')
-
-        # munsell pool
-        munsell_ind = int(target_parts[0].replace('MunsellNo', ''))
-        # muns_pool = np.arange(*self.munsells).tolist()
-        # muns_pool.remove(munsell_ind)
-        # random.shuffle(muns_pool)
-        # same_munsells_ind = muns_pool[0]
-
-        # selecting a munsell close to current munsell chip with a gaussian dist
-        munsell_diff = np.random.choice(self.muns_diffs, size=1, p=self.muns_probs)[0]
-        munsell_pool = munsell_ind + munsell_diff
-        min_mun = self.munsells[0]
-        max_mun = self.munsells[1] - 1
-        if munsell_pool > max_mun:
-            munsell_pool = munsell_pool - max_mun
-        elif munsell_pool < min_mun:
-            munsell_pool = max_mun + munsell_pool
-
-        # rotation pool
-        rots_pool = list(np.arange(*self.rotations))
-        random.shuffle(rots_pool)
-
-        identical_munsell_paths = [
-            '%s/MunsellNo%d_rot%d_%s' % (self.imgdir, munsell_pool, rots_pool[0], target_parts[-1]),
-            '%s/MunsellNo%d_rot%d_%s' % (self.imgdir, munsell_pool, rots_pool[1], target_parts[-1]),
-            '%s/MunsellNo%d_rot%d_%s' % (self.imgdir, munsell_pool, rots_pool[2], target_parts[-1]),
-        ]
-
-        imgs = [
-            io.imread(target_path),
-            io.imread(identical_munsell_paths[0]),
-            io.imread(identical_munsell_paths[1]),
-            io.imread(identical_munsell_paths[2])
-        ]
-
-        if self.transform is not None:
-            imgs = self.transform(imgs)
-
-        inds = list(np.arange(0, self.num_stimuli))
-        random.shuffle(inds)
-        # the target is always added the first element in the imgs list
-        target = inds.index(0)
-        return imgs[inds[0]], imgs[inds[1]], imgs[inds[2]], imgs[inds[3]], target
-
-    def __len__(self):
-        return len(self.img_paths)
-
-
-class OddOneOutVal(torch_data.Dataset):
-
-    def __init__(self, root, transform=None, **kwargs):
-        self.root = root
-        self.transform = transform
-        self.num_stimuli = 4
-        data_file_path = '%s/simulationOrder_validation.csv' % self.root
-        data_file = np.loadtxt(data_file_path, delimiter=',', dtype=str)
-        # the first row are comments
-        self.data_file = data_file[1:]
-        self.imgdir = '%s/img' % self.root
-
-    def __getitem__(self, item):
-        current_test = self.data_file[item]
-        imgs = [
-            io.imread('%s/%s' % (self.imgdir, current_test[0])),
-            io.imread('%s/%s' % (self.imgdir, current_test[1])),
-            io.imread('%s/%s' % (self.imgdir, current_test[2])),
-            io.imread('%s/%s' % (self.imgdir, current_test[3])),
-        ]
-
-        if self.transform is not None:
-            imgs = self.transform(imgs)
-
-        inds = list(np.roll(np.arange(4), np.mod(item, 4)))
-        target = inds.index(0)
-        return imgs[inds[0]], imgs[inds[1]], imgs[inds[2]], imgs[inds[3]], target
-
-    def __len__(self):
-        return len(self.data_file)
+def _create_bg_img(bg, mask_size, full_size):
+    if os.path.exists(bg):
+        bg_img = io.imread(bg)
+        mask_img = cv2.resize(bg_img, mask_size, interpolation=cv2.INTER_NEAREST)
+        full_img = cv2.resize(bg_img, full_size, interpolation=cv2.INTER_NEAREST)
+    elif bg == 'rnd_img':
+        mask_img = np.random.randint(0, 256, (*mask_size, 3), dtype='uint8')
+        full_img = np.random.randint(0, 256, (*full_size, 3), dtype='uint8')
+    elif bg == 'rnd':
+        rnd_bg = np.random.randint(0, 256, dtype='uint8')
+        mask_img = np.zeros((*mask_size, 3), dtype='uint8') + rnd_bg
+        full_img = np.zeros((*full_size, 3), dtype='uint8') + rnd_bg
+    else:
+        mask_img = np.zeros((*mask_size, 3), dtype='uint8') + int(bg)
+        full_img = np.zeros((*full_size, 3), dtype='uint8') + int(bg)
+    mask_img = mask_img.astype('float32') / 255
+    full_img = full_img.astype('float32') / 255
+    return mask_img, full_img
 
 
 class ShapeDataset(torch_data.Dataset):
@@ -143,23 +66,7 @@ class ShapeDataset(torch_data.Dataset):
         for mask_ind, mask in enumerate(masks):
             mask = cv2.resize(mask, self.mask_size, interpolation=cv2.INTER_NEAREST)
             current_colour = target_colour if mask_ind == 0 else others_colour
-            if os.path.exists(self.bg):
-                bg_img = io.imread(self.bg)
-                mask_img = cv2.resize(bg_img, self.mask_size, interpolation=cv2.INTER_NEAREST)
-                img = cv2.resize(bg_img, self.target_size, interpolation=cv2.INTER_NEAREST)
-            elif self.bg == 'rnd_img':
-                mask_img = np.random.randint(0, 256, (*self.mask_size, 3), dtype='uint8')
-                img = np.random.randint(0, 256, (*self.target_size, 3), dtype='uint8')
-            elif self.bg == 'rnd':
-                rnd_bg = np.random.randint(0, 256, dtype='uint8')
-                mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + rnd_bg
-                img = np.zeros((*self.target_size, 3), dtype='uint8') + rnd_bg
-            else:
-                mask_img = np.zeros((*self.mask_size, 3), dtype='uint8') + int(self.bg)
-                img = np.zeros((*self.target_size, 3), dtype='uint8') + int(self.bg)
-            # converting images to float
-            mask_img = mask_img.astype('float32') / 255
-            img = img.astype('float32') / 255
+            mask_img, img = _create_bg_img(self.bg, self.mask_size, self.target_size)
 
             for chn_ind in range(3):
                 current_chn = mask_img[:, :, chn_ind]
@@ -216,7 +123,7 @@ class ShapeTrain(ShapeDataset):
             target_colour = [random.randint(0, 255) for _ in range(3)]
         return target_colour
 
-    def _prepare_angle_paths(self, path, samples):
+    def _angle_paths(self, path, samples):
         angle = int(ntpath.basename(path[:-4]).split('_')[-1].replace('angle', ''))
         ang_pool = list(np.arange(*self.angles))
         ang_pool.remove(angle)
@@ -260,11 +167,7 @@ class ShapeOddOneOutTrain(ShapeTrain):
 
     def __getitem__(self, item):
         target_path = self.img_paths[item]
-        if self.same_rotation:
-            other_paths = [target_path, target_path, target_path]
-        else:
-            other_paths = self._prepare_angle_paths(target_path, 3)
-
+        other_paths = [target_path] * 3 if self.same_rotation else self._angle_paths(target_path, 3)
         masks = [io.imread(target_path), *[io.imread(opath) for opath in other_paths]]
 
         # set the colours
@@ -315,11 +218,7 @@ class Shape2AFCTrain(ShapeTrain):
 
     def __getitem__(self, item):
         target_path = self.img_paths[item]
-        if self.same_rotation:
-            other_paths = target_path
-        else:
-            other_paths = self._prepare_angle_paths(target_path, 1)[0]
-
+        other_paths = target_path if self.same_rotation else self._angle_paths(target_path, 1)[0]
         masks = [io.imread(target_path), io.imread(other_paths)]
 
         # set the colours
