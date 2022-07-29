@@ -208,7 +208,6 @@ def _accuracy_test_points(args, model):
 
 
 def _make_test_loader(args, target_colour, others_colour):
-    args.same_rotation = False
     kwargs = {'target_colour': target_colour, 'others_colour': others_colour,
               **_common_db_params(args)}
     db = dataloader_colour.val_set(args.validation_dir, args.target_size, args.preprocess,
