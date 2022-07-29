@@ -67,7 +67,7 @@ class OddOneOutTrain(torch_data.Dataset):
             munsell_pool = max_mun + munsell_pool
 
         # rotation pool
-        rots_pool = np.arange(*self.rotations).tolist()
+        rots_pool = list(np.arange(*self.rotations))
         random.shuffle(rots_pool)
 
         identical_munsell_paths = [
@@ -86,7 +86,7 @@ class OddOneOutTrain(torch_data.Dataset):
         if self.transform is not None:
             imgs = self.transform(imgs)
 
-        inds = np.arange(0, self.num_stimuli).tolist()
+        inds = list(np.arange(0, self.num_stimuli))
         random.shuffle(inds)
         # the target is always added the first element in the imgs list
         target = inds.index(0)
@@ -106,7 +106,7 @@ class OddOneOutVal(torch_data.Dataset):
         data_file = np.loadtxt(data_file_path, delimiter=',', dtype=str)
         # the first row are comments
         self.data_file = data_file[1:]
-        self.imgdir = '%s/img' % (self.root)
+        self.imgdir = '%s/img' % self.root
 
     def __getitem__(self, item):
         current_test = self.data_file[item]
@@ -120,7 +120,7 @@ class OddOneOutVal(torch_data.Dataset):
         if self.transform is not None:
             imgs = self.transform(imgs)
 
-        inds = np.roll(np.arange(4), np.mod(item, 4)).tolist()
+        inds = list(np.roll(np.arange(4), np.mod(item, 4)))
         target = inds.index(0)
         return imgs[inds[0]], imgs[inds[1]], imgs[inds[2]], imgs[inds[3]], target
 
@@ -171,6 +171,18 @@ class ShapeDataset(torch_data.Dataset):
         return imgs
 
 
+def _get_others_colour(target_colour):
+    others_colour = []
+    # others_diff = np.random.choice(self.rgb_diffs, size=3, p=self.rgb_probs)
+    others_diff = [random.choice([1, -1]) * random.randint(1, 128) for _ in range(3)]
+    for chn_ind in range(3):
+        chn_colour = target_colour[chn_ind] + others_diff[chn_ind]
+        if chn_colour < 0 or chn_colour > 255:
+            chn_colour = target_colour[chn_ind] - others_diff[chn_ind]
+        others_colour.append(chn_colour)
+    return others_colour
+
+
 class ShapeTrain(ShapeDataset):
 
     def __init__(self, root, transform=None, colour_dist=None, **kwargs):
@@ -200,20 +212,9 @@ class ShapeTrain(ShapeDataset):
             target_colour = [random.randint(0, 255) for _ in range(3)]
         return target_colour
 
-    def _get_others_colour(self, target_colour):
-        others_colour = []
-        # others_diff = np.random.choice(self.rgb_diffs, size=3, p=self.rgb_probs)
-        others_diff = [random.choice([1, -1]) * random.randint(1, 128) for _ in range(3)]
-        for chn_ind in range(3):
-            chn_colour = target_colour[chn_ind] + others_diff[chn_ind]
-            if chn_colour < 0 or chn_colour > 255:
-                chn_colour = target_colour[chn_ind] - others_diff[chn_ind]
-            others_colour.append(chn_colour)
-        return others_colour
-
     def _prepare_angle_paths(self, path, samples):
         angle = int(ntpath.basename(path[:-4]).split('_')[-1].replace('angle', ''))
-        ang_pool = np.arange(*self.angles).tolist()
+        ang_pool = list(np.arange(*self.angles))
         ang_pool.remove(angle)
         random.shuffle(ang_pool)
         org_angle = 'angle%d.png' % angle
@@ -264,11 +265,11 @@ class ShapeOddOneOutTrain(ShapeTrain):
 
         # set the colours
         target_colour = self._get_target_colour()
-        others_colour = self._get_others_colour(target_colour)
+        others_colour = _get_others_colour(target_colour)
 
         imgs = self._prepare_train_imgs(masks, others_colour, target_colour)
 
-        inds = np.arange(0, self.num_stimuli).tolist()
+        inds = list(np.arange(0, self.num_stimuli))
         random.shuffle(inds)
         # the target is always added the first element in the imgs list
         target = inds.index(0)
@@ -296,7 +297,7 @@ class ShapeOddOneOutVal(ShapeVal):
 
         # the target is always added the first element in the imgs list
         target = self.stimuli[item, -1]
-        inds = np.arange(0, self.num_stimuli).tolist()
+        inds = list(np.arange(0, self.num_stimuli))
         tmp_img = imgs[target]
         imgs[target] = imgs[0]
         imgs[0] = tmp_img
@@ -324,7 +325,7 @@ class Shape2AFCTrain(ShapeTrain):
             others_colour = target_colour
         else:
             target = 0
-            others_colour = self._get_others_colour(target_colour)
+            others_colour = _get_others_colour(target_colour)
 
         imgs = self._prepare_train_imgs(masks, others_colour, target_colour)
 
