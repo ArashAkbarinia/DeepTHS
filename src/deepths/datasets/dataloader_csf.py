@@ -6,7 +6,6 @@ import sys
 import os
 import numpy as np
 import random
-import glob
 
 import cv2
 from skimage import io
@@ -18,7 +17,7 @@ from ..utils import colour_spaces, system_utils
 from . import imutils
 from . import stimuli_bank
 from . import cv2_transforms
-from .binary_shapes import ShapeDataset
+from .binary_shapes import ShapeTrain
 
 NATURAL_DATASETS = ['imagenet', 'celeba', 'land', 'bw']
 
@@ -359,41 +358,6 @@ class ImageFolder(AfcDataset, tdatasets.ImageFolder):
             return img_out[0], img_out[1], contrast_target, img_settings
 
 
-def _random_place(mask_size, target_size):
-    srow = random.randint(0, target_size[0] - mask_size[0])
-    scol = random.randint(0, target_size[1] - mask_size[1])
-
-    return srow, scol
-
-
-class ShapeTrain(ShapeDataset):
-
-    def __init__(self, root, transform=None, colour_dist=None, **kwargs):
-        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
-        if self.bg is None:
-            self.bg = 'rnd_uniform'
-        self.angles = (1, 11)
-        self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
-        self.colour_dist = colour_dist
-        if self.colour_dist is not None:
-            self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
-
-    def _prepare_train_imgs(self, mask_img, target_colour):
-        target_colour = np.array(target_colour).astype('float32') / 255
-        return self._one_out_img_uint8(mask_img, target_colour, _random_place)
-
-    def _get_target_colour(self):
-        if self.colour_dist is not None:
-            rand_row = random.randint(0, len(self.colour_dist) - 1)
-            target_colour = self.colour_dist[rand_row]
-        else:
-            target_colour = [random.randint(0, 255) for _ in range(3)]
-        return target_colour
-
-    def __len__(self):
-        return len(self.img_paths)
-
-
 class BinaryShapes(AfcDataset, ShapeTrain):
     def __init__(self, afc_kwargs, shape_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
@@ -415,7 +379,7 @@ class BinaryShapes(AfcDataset, ShapeTrain):
         path = self.img_paths[index]
         mask_img = io.imread(path)
         target_colour = self._get_target_colour()
-        img0 = self._prepare_train_imgs(mask_img, target_colour)
+        img0 = self._one_train_img(mask_img, target_colour)
 
         img_out, contrast_target, img_settings = _prepare_stimuli(
             img0, self.colour_space, self.vision_type, self.contrasts, self.mask_image,

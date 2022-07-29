@@ -92,6 +92,10 @@ class ShapeTrain(ShapeDataset):
         if self.colour_dist is not None:
             self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
 
+    def _one_train_img(self, mask_img, target_colour):
+        target_colour = np.array(target_colour).astype('float32') / 255
+        return self._one_out_img_uint8(mask_img, target_colour, _random_place)
+
     def _mul_train_imgs(self, masks, others_colour, target_colour):
         others_colour = np.array(others_colour).astype('float32') / 255
         target_colour = np.array(target_colour).astype('float32') / 255
