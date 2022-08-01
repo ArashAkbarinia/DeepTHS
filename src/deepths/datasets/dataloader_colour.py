@@ -85,7 +85,7 @@ class ShapeOddOneOutVal(ShapeVal):
         if self.same_rotation:
             other_paths = [target_path] * 3
         else:
-            other_paths = ['%s%d.png' % (base_path, self.stimuli[item, i]) for i in range(3)]
+            other_paths = ['%s%d.png' % (base_path, self.stimuli[item, i]) for i in range(1, 4)]
         masks = [io.imread(target_path), *[io.imread(opath) for opath in other_paths]]
 
         imgs = self._prepare_test_imgs(masks)
