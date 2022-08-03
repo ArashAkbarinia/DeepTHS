@@ -12,13 +12,10 @@ def lesion_lines(model, layer, kernel, kill_lines):
         if len(current_line) != 4:
             sys.exit(
                 'The order of lines to be killed should follow '
-                '<P1>_<L1>_<P2>_<L2>. Invalid item %d' %
-                l_item
+                '<P1>_<L1>_<P2>_<L2>. Invalid item %d' % l_item
             )
         else:
-            print(
-                'Removing %d %s' % (kernel, l_item)
-            )
+            print('Removing %d %s' % (kernel, l_item))
             ax0 = int(current_line[0])
             ax1 = int(current_line[2])
             ln0 = int(current_line[1])
@@ -40,13 +37,10 @@ def lesion_planes(model, layer, kernel, kill_planes):
             if axis_num is None:
                 sys.exit(
                     'The order of planes to be killed should follow '
-                    'ax_<NUMBER> and plane indices. Invalid axis %d' %
-                    axis_num
+                    'ax_<NUMBER> and plane indices. Invalid axis %d' % axis_num
                 )
             else:
-                print(
-                    'Removing axis %d plane %d' % (axis_num, plane_index)
-                )
+                print('Removing axis %d plane %d' % (axis_num, plane_index))
                 if axis_num == 0:
                     model.state_dict()[layer][kernel, plane_index, :, :] = 0
                 elif axis_num == 1:
@@ -68,24 +62,16 @@ def lesion_kernels(model, kernels=None, planes=None, lines=None):
                 if layer_name == '':
                     sys.exit(
                         'The order of kernels to be killed should follow '
-                        'layer name and kernel indices. Invalid layer name %s' %
-                        layer_name
+                        'layer name and kernel indices. Invalid layer name %s' % layer_name
                     )
                 else:
-                    print(
-                        'Removing layer %s kernel %d' %
-                        (layer_name, kernel_index)
-                    )
+                    print('Removing layer %s kernel %d' % (layer_name, kernel_index))
                     # check whether planes or lines are specified
                     # TODO: move this to TXT file to allow better combinations
                     if planes is not None:
-                        model = lesion_planes(
-                            model, layer_name, kernel_index, planes
-                        )
+                        model = lesion_planes(model, layer_name, kernel_index, planes)
                     elif lines is not None:
-                        model = lesion_lines(
-                            model, layer_name, kernel_index, lines
-                        )
+                        model = lesion_lines(model, layer_name, kernel_index, lines)
                     else:
                         model.state_dict()[layer_name][kernel_index] = 0
             else:
