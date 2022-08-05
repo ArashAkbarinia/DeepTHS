@@ -27,10 +27,8 @@ class ContrastDiscrimination(readout.ReadOutNetwork):
         )
 
     def forward(self, x0, x1):
-        x0 = self.extract_features(x0)
-        x0 = x0.view(x0.size(0), -1).float()
-        x1 = self.extract_features(x1)
-        x1 = x1.view(x1.size(0), -1).float()
+        x0 = self.extract_features_flatten(x0)
+        x1 = self.extract_features_flatten(x1)
         x = torch.cat([x0, x1], dim=1)
         return self.do_classifier(x)
 
@@ -42,6 +40,5 @@ class GratingDetector(readout.ReadOutNetwork):
         )
 
     def forward(self, x):
-        x = self.extract_features(x)
-        x = x.view(x.size(0), -1).float()
+        x = self.extract_features_flatten(x)
         return self.do_classifier(x)

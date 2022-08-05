@@ -30,14 +30,10 @@ class ColourDiscriminationOddOneOut(readout.ReadOutNetwork):
         )
 
     def forward(self, x0, x1, x2, x3):
-        x0 = self.extract_features(x0)
-        x0 = x0.view(x0.size(0), -1).float()
-        x1 = self.extract_features(x1)
-        x1 = x1.view(x1.size(0), -1).float()
-        x2 = self.extract_features(x2)
-        x2 = x2.view(x2.size(0), -1).float()
-        x3 = self.extract_features(x3)
-        x3 = x3.view(x3.size(0), -1).float()
+        x0 = self.extract_features_flatten(x0)
+        x1 = self.extract_features_flatten(x1)
+        x2 = self.extract_features_flatten(x2)
+        x3 = self.extract_features_flatten(x3)
 
         comp3 = self.do_classifier(torch.abs(torch.cat([x3 - x0, x3 - x1, x3 - x2], dim=1)))
         comp2 = self.do_classifier(torch.abs(torch.cat([x2 - x0, x2 - x1, x2 - x3], dim=1)))
@@ -60,10 +56,8 @@ class ColourDiscrimination2AFC(readout.ReadOutNetwork):
         )
 
     def forward(self, x0, x1):
-        x0 = self.extract_features(x0)
-        x0 = x0.view(x0.size(0), -1).float()
-        x1 = self.extract_features(x1)
-        x1 = x1.view(x1.size(0), -1).float()
+        x0 = self.extract_features_flatten(x0)
+        x1 = self.extract_features_flatten(x1)
 
         # x = self.fc(torch.cat([x0, x1], dim=1))
         x = torch.abs(x0 - x1)

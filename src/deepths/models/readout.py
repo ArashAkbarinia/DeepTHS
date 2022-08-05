@@ -69,7 +69,11 @@ class ReadOutNetwork(nn.Module):
 
     def extract_features(self, x):
         x = x.to(next(self.parameters()).device)
-        x = self.features(self.check_img_type(x))
+        return self.features(self.check_img_type(x)).float()
+
+    def extract_features_flatten(self, x):
+        x = self.extract_features(x)
+        x = x.view(x.size(0), -1)
         return x
 
     def do_classifier(self, x):
