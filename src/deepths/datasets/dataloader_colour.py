@@ -5,12 +5,10 @@ Dataloader for the colour discrimination task.
 import numpy as np
 import random
 
-import torchvision.transforms as torch_transforms
-
 from skimage import io
 
-from . import cv2_transforms
 from .binary_shapes import ShapeDataset, ShapeTrain
+from . import dataset_utils
 
 
 def _get_others_colour(target_colour):
@@ -152,24 +150,12 @@ def _centre_place(mask_size, target_size):
 
 
 def train_set(root, target_size, preprocess, task, **kwargs):
-    scale = (0.8, 1.0)
-    transform = torch_transforms.Compose([
-        cv2_transforms.RandomResizedCrop(target_size, scale=scale),
-        cv2_transforms.RandomHorizontalFlip(),
-        cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(*preprocess),
-    ])
-
     db_fun = ShapeOddOneOutTrain if task == 'odd4' else Shape2AFCTrain
+    transform = dataset_utils.train_preprocess(target_size, preprocess, (0.8, 1.0))
     return db_fun(root, transform, **kwargs)
 
 
 def val_set(root, target_size, preprocess, task, **kwargs):
-    transform = torch_transforms.Compose([
-        cv2_transforms.CenterCrop(target_size),
-        cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(*preprocess),
-    ])
-
     db_fun = ShapeOddOneOutVal if task == 'odd4' else Shape2AFCVal
+    transform = dataset_utils.eval_preprocess(target_size, preprocess)
     return db_fun(root, transform, **kwargs)

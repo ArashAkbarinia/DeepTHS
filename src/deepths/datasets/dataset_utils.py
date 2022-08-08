@@ -4,8 +4,11 @@ Set of utility functions common across datasets.
 
 import sys
 
+import torchvision.transforms as torch_transforms
+
 import cv2
 
+from . import cv2_transforms
 from ..utils import colour_spaces
 
 
@@ -50,3 +53,21 @@ def apply_vision_type(opp_img, colour_space, vision_type):
         else:
             sys.exit('Vision type %s not supported' % vision_type)
     return opp_img
+
+
+def eval_preprocess(target_size, preprocess):
+    return torch_transforms.Compose([
+        cv2_transforms.Resize(target_size),
+        cv2_transforms.CenterCrop(target_size),
+        cv2_transforms.ToTensor(),
+        cv2_transforms.Normalize(*preprocess),
+    ])
+
+
+def train_preprocess(target_size, preprocess, scale):
+    return torch_transforms.Compose([
+        cv2_transforms.RandomResizedCrop(target_size, scale=scale),
+        cv2_transforms.RandomHorizontalFlip(),
+        cv2_transforms.ToTensor(),
+        cv2_transforms.Normalize(*preprocess),
+    ])
