@@ -124,8 +124,7 @@ def resize(img, size, interpolation='BILINEAR'):
     """
     if not _is_numpy_image(img):
         raise TypeError('img should be CV Image. Got {}'.format(type(img)))
-    if not (isinstance(size, int) or (
-            isinstance(size, Iterable) and len(size) == 2)):
+    if not (isinstance(size, int) or (isinstance(size, Iterable) and len(size) == 2)):
         raise TypeError('Got inappropriate size arg: {}'.format(size))
 
     if isinstance(size, int):
@@ -135,21 +134,14 @@ def resize(img, size, interpolation='BILINEAR'):
         if w < h:
             ow = size
             oh = int(size * h / w)
-            return cv2.resize(
-                img, dsize=(ow, oh), interpolation=INTER_MODE[interpolation]
-            )
+            return cv2.resize(img, dsize=(ow, oh), interpolation=INTER_MODE[interpolation])
         else:
             oh = size
             ow = int(size * w / h)
-            return cv2.resize(
-                img, dsize=(ow, oh), interpolation=INTER_MODE[interpolation]
-            )
+            return cv2.resize(img, dsize=(ow, oh), interpolation=INTER_MODE[interpolation])
     else:
         oh, ow = size
-        return cv2.resize(
-            img, dsize=(int(ow), int(oh)),
-            interpolation=INTER_MODE[interpolation]
-        )
+        return cv2.resize(img, dsize=(int(ow), int(oh)), interpolation=INTER_MODE[interpolation])
 
 
 def crop(img, top, left, height, width):
@@ -165,27 +157,18 @@ def crop(img, top, left, height, width):
     Returns:
         CV Image: Cropped image.
     """
-    assert _is_numpy_image(img), 'img should be CV Image. Got {}'.format(
-        type(img))
-    assert (
-            height > 0 and width > 0
-    ), 'h={} and w={} should greater than 0'.format(height, width)
+    assert _is_numpy_image(img), 'img should be CV Image. Got {}'.format(type(img))
+    assert (height > 0 and width > 0), 'h={} and w={} should greater than 0'.format(height, width)
 
-    x1, y1, x2, y2 = round(top), round(left), round(top + height), round(
-        left + width)
+    x1, y1, x2, y2 = round(top), round(left), round(top + height), round(left + width)
 
     try:
         _ = img[x1, y1, ...]
         _ = img[x2 - 1, y2 - 1, ...]
     except IndexError:
-        warnings.warn(
-            'crop region is {} but image size is {}'.format(
-                (x1, y1, x2, y2), img.shape
-            )
-        )
+        warnings.warn('crop region is {} but image size is {}'.format((x1, y1, x2, y2), img.shape))
         img = cv2.copyMakeBorder(
-            img, - min(0, x1), max(x2 - img.shape[0], 0),
-            -min(0, y1), max(y2 - img.shape[1], 0),
+            img, - min(0, x1), max(x2 - img.shape[0], 0), -min(0, y1), max(y2 - img.shape[1], 0),
             cv2.BORDER_CONSTANT, value=[0, 0, 0]
         )
         y2 += -min(0, y1)
@@ -256,11 +239,8 @@ def pad(img, padding, fill=(0, 0, 0), padding_mode='constant'):
 
     if padding_mode == 'constant':
         assert (
-            ((len(fill) == 3 and len(img.shape) == 3) or
-             (len(fill) == 1 and len(img.shape) == 2))
-        ), 'channel of image is {} but length of fill is {}'.format(
-            img.shape[-1], len(fill)
-        )
+            ((len(fill) == 3 and len(img.shape) == 3) or (len(fill) == 1 and len(img.shape) == 2))
+        ), 'channel of image is {} but length of fill is {}'.format(img.shape[-1], len(fill))
 
     img = cv2.copyMakeBorder(
         src=img, top=pad_top, bottom=pad_bottom, left=pad_left, right=pad_right,

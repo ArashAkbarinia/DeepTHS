@@ -11,14 +11,11 @@ import numbers
 
 import numpy as np
 
+from . import cv2_functional as tfunctional
+
 import collections
 
-if sys.version_info < (3, 3):
-    Iterable = collections.Iterable
-else:
-    Iterable = collections.abc.Iterable
-
-from . import cv2_functional as tfunctional
+Iterable = collections.Iterable if sys.version_info < (3, 3) else collections.abc.Iterable
 
 
 class RandomCrop(object):
@@ -36,10 +33,7 @@ class RandomCrop(object):
     """
 
     def __init__(self, size: int, padding=0, pad_if_needed=False):
-        if isinstance(size, numbers.Number):
-            self.size = (int(size), int(size))
-        else:
-            self.size = size
+        self.size = (int(size), int(size)) if isinstance(size, numbers.Number) else size
         self.padding = padding
         self.pad_if_needed = pad_if_needed
 
@@ -75,9 +69,7 @@ class RandomCrop(object):
             np.ndarray: Cropped image.
         """
 
-        top, left, height, width = self.get_params(
-            _find_first_image_recursive(imgs), self.size
-        )
+        top, left, height, width = self.get_params(_find_first_image_recursive(imgs), self.size)
         fun = tfunctional.pad_crop
         kwargs = {
             'top': top, 'left': left, 'height': height, 'width': width,
@@ -87,8 +79,7 @@ class RandomCrop(object):
         return _call_recursive(imgs, fun, **kwargs)
 
     def __repr__(self):
-        return self.__class__.__name__ + '(size={0}, padding={1})'.format(
-            self.size, self.padding)
+        return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
 
 
 class RandomResizedCrop(object):
@@ -106,12 +97,8 @@ class RandomResizedCrop(object):
         interpolation: Default: BILINEAR
     """
 
-    def __init__(self, size, scale=(0.08, 1.0), ratio=(3. / 4., 4. / 3.),
-                 interpolation='BILINEAR'):
-        if isinstance(size, tuple):
-            self.size = size
-        else:
-            self.size = (size, size)
+    def __init__(self, size, scale=(0.08, 1.0), ratio=(3. / 4., 4. / 3.), interpolation='BILINEAR'):
+        self.size = size if isinstance(size, tuple) else (size, size)
         if (scale[0] > scale[1]) or (ratio[0] > ratio[1]):
             warnings.warn("range should be of kind (min, max)")
 
@@ -177,12 +164,8 @@ class RandomResizedCrop(object):
     def __repr__(self):
         interpolate_str = self.interpolation
         format_string = self.__class__.__name__ + '(size={0}'.format(self.size)
-        format_string += ', scale={0}'.format(
-            tuple(round(s, 4) for s in self.scale)
-        )
-        format_string += ', ratio={0}'.format(
-            tuple(round(r, 4) for r in self.ratio)
-        )
+        format_string += ', scale={0}'.format(tuple(round(s, 4) for s in self.scale))
+        format_string += ', ratio={0}'.format(tuple(round(r, 4) for r in self.ratio))
         format_string += ', interpolation={0})'.format(interpolate_str)
         return format_string
 
@@ -230,12 +213,8 @@ class RandomResizedCropSegmentation(RandomResizedCrop):
     def __repr__(self):
         interpolate_str = self.interpolation
         format_string = self.__class__.__name__ + '(size={0}'.format(self.size)
-        format_string += ', scale={0}'.format(
-            tuple(round(s, 4) for s in self.scale)
-        )
-        format_string += ', ratio={0}'.format(
-            tuple(round(r, 4) for r in self.ratio)
-        )
+        format_string += ', scale={0}'.format(tuple(round(s, 4) for s in self.scale))
+        format_string += ', ratio={0}'.format(tuple(round(r, 4) for r in self.ratio))
         format_string += ', interpolation={0})'.format(interpolate_str)
         return format_string
 
@@ -281,8 +260,7 @@ class Resize(object):
     """
 
     def __init__(self, size, interpolation='BILINEAR'):
-        assert (isinstance(size, int) or
-                (isinstance(size, Iterable) and len(size) == 2))
+        assert (isinstance(size, int) or (isinstance(size, Iterable) and len(size) == 2))
         self.size = size
         self.interpolation = interpolation
         self.kwargs = {'size': self.size, 'interpolation': self.interpolation}
@@ -300,9 +278,8 @@ class Resize(object):
         return _call_recursive(imgs, fun, **kwargs)
 
     def __repr__(self):
-        interpolate_str = self.interpolation
         return self.__class__.__name__ + '(size={0}, interpolation={1})'.format(
-            self.size, interpolate_str
+            self.size, self.interpolation
         )
 
 
@@ -321,8 +298,7 @@ class Normalize(object):
     def __call__(self, tensors):
         """
         Args:
-            tensors (Tensor): List of tensor images of size (C, H, W) to be
-             normalised.
+            tensors (Tensor): List of tensor images of size (C, H, W) to be normalised.
 
         Returns:
             Tensor: Normalized Tensor image.
@@ -332,9 +308,7 @@ class Normalize(object):
         return _call_recursive(tensors, fun, **kwargs)
 
     def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(
-            self.mean, self.std
-        )
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
 
 class NormalizeSegmentation(object):
@@ -357,8 +331,7 @@ class NormalizeSegmentation(object):
     def __call__(self, tensors):
         """
         Args:
-            tensors (Tensor): List of tensor images of size (C, H, W) to be
-             normalised.
+            tensors (Tensor): List of tensor images of size (C, H, W) to be normalised.
 
         Returns:
             Tensor: Normalized Tensor image.
@@ -382,8 +355,7 @@ class ToTensor(object):
     def __call__(self, pics):
         """
         Args:
-            pics (List of cv2 Image or numpy.ndarray): Image to be converted to
-             tensor.
+            pics (List of cv2 Image or numpy.ndarray): Image to be converted to tensor.
 
         Returns:
             Tensor: Converted images.
@@ -403,8 +375,7 @@ class ToTensorSegmentation(object):
     def __call__(self, pics):
         """
         Args:
-            pics (List of cv2 Image or numpy.ndarray): Image to be converted to
-             tensor.
+            pics (List of cv2 Image or numpy.ndarray): Image to be converted to tensor.
 
         Returns:
             Tensor: Converted images.
@@ -423,15 +394,11 @@ class CenterCrop(object):
 
     Args:
         size (sequence or int): Desired output size of the crop. If size is an
-            int instead of sequence like (h, w), a square crop (size, size) is
-            made.
+            int instead of sequence like (h, w), a square crop (size, size) is made.
     """
 
     def __init__(self, size):
-        if isinstance(size, numbers.Number):
-            self.size = (int(size), int(size))
-        else:
-            self.size = size
+        self.size = (int(size), int(size)) if isinstance(size, numbers.Number) else size
         self.kwargs = {'output_size': self.size}
 
     def __call__(self, imgs):
@@ -490,8 +457,7 @@ def normalize_inverse(imgs, mean, std):
 
 class NormalizeInverse(Normalize):
     """
-    Undoes the normalization and returns the reconstructed images in the input
-    domain.
+    Undoes the normalization and returns the reconstructed images in the input domain.
     """
 
     def __init__(self, mean, std):
