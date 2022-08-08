@@ -23,7 +23,7 @@ def colour_discrimination_net(paradigm, test_net, architecture, target_size, tra
     return model
 
 
-class ColourDiscriminationOddOneOut(readout.ReadOutNetwork):
+class ColourDiscriminationOddOneOut(readout.ClassifierNet):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ColourDiscriminationOddOneOut, self).__init__(
             architecture, target_size, transfer_weights, 3, classifier, 1
@@ -49,7 +49,7 @@ class ColourDiscriminationOddOneOut(readout.ReadOutNetwork):
         return loss / (4 * output.shape[0])
 
 
-class ColourDiscrimination2AFC(readout.ReadOutNetwork):
+class ColourDiscrimination2AFC(readout.ClassifierNet):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ColourDiscrimination2AFC, self).__init__(
             architecture, target_size, transfer_weights, 1, classifier, 1

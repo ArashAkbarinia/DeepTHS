@@ -9,10 +9,10 @@ import torch.nn as nn
 from . import pretrained_models
 
 
-class ReadOutNetwork(nn.Module):
+class ClassifierNet(nn.Module):
     def __init__(self, architecture, target_size, transfer_weights, input_nodes, classifier,
                  num_classes):
-        super(ReadOutNetwork, self).__init__()
+        super(ClassifierNet, self).__init__()
 
         self.input_nodes = input_nodes
         self.architecture = architecture

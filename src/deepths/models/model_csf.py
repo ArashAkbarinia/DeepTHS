@@ -20,7 +20,7 @@ def load_grating_detector(weights, target_size, classifier):
     return _load_csf_model(weights, target_size, 'GratingDetector', classifier)
 
 
-class ContrastDiscrimination(readout.ReadOutNetwork):
+class ContrastDiscrimination(readout.ClassifierNet):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(ContrastDiscrimination, self).__init__(
             architecture, target_size, transfer_weights, 2, classifier, 2
@@ -33,7 +33,7 @@ class ContrastDiscrimination(readout.ReadOutNetwork):
         return self.do_classifier(x)
 
 
-class GratingDetector(readout.ReadOutNetwork):
+class GratingDetector(readout.ClassifierNet):
     def __init__(self, architecture, target_size, transfer_weights, classifier):
         super(GratingDetector, self).__init__(
             architecture, target_size, transfer_weights, 1, classifier, 2
