@@ -618,7 +618,6 @@ class GratingImages(AfcDataset, torch_data.Dataset):
 
 
 def train_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
-    mean, std = preprocess
     if extra_transformation is None:
         extra_transformation = []
     if kwargs['train_params'] is None:
@@ -628,7 +627,7 @@ def train_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
         ]
     else:
         shared_pre_transforms = [*extra_transformation]
-    shared_post_transforms = _get_shared_post_transforms(mean, std)
+    shared_post_transforms = dataset_utils.post_transform(*preprocess)
     if db in NATURAL_DATASETS:
         # if train params are passed don't use any random processes
         if kwargs['train_params'] is None:
@@ -637,8 +636,7 @@ def train_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
             pre_transforms = [size_transform, *shared_pre_transforms]
         else:
             pre_transforms = [
-                cv2_transforms.Resize(target_size),
-                cv2_transforms.CenterCrop(target_size),
+                *dataset_utils.pre_transform_eval(target_size),
                 *shared_pre_transforms
             ]
         post_transforms = [*shared_post_transforms]
@@ -651,15 +649,13 @@ def train_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
 
 
 def validation_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
-    mean, std = preprocess
     if extra_transformation is None:
         extra_transformation = []
     shared_pre_transforms = [*extra_transformation]
-    shared_post_transforms = _get_shared_post_transforms(mean, std)
+    shared_post_transforms = dataset_utils.post_transform(*preprocess)
     if db in NATURAL_DATASETS:
         pre_transforms = [
-            cv2_transforms.Resize(target_size),
-            cv2_transforms.CenterCrop(target_size),
+            *dataset_utils.pre_transform_eval(target_size),
             *shared_pre_transforms
         ]
         post_transforms = [*shared_post_transforms]
@@ -706,10 +702,3 @@ def _get_grating_dataset(pre_transforms, post_transforms, target_size, data_dir,
         **kwargs
     }
     return GratingImages(samples=data_dir, afc_kwargs=afc_kwargs, target_size=target_size)
-
-
-def _get_shared_post_transforms(mean, std):
-    return [
-        cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(mean, std),
-    ]

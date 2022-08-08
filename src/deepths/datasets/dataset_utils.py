@@ -57,17 +57,34 @@ def apply_vision_type(opp_img, colour_space, vision_type):
 
 def eval_preprocess(target_size, preprocess):
     return torch_transforms.Compose([
-        cv2_transforms.Resize(target_size),
-        cv2_transforms.CenterCrop(target_size),
-        cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(*preprocess),
+        *pre_transform_eval(target_size),
+        *post_transform(*preprocess)
     ])
 
 
 def train_preprocess(target_size, preprocess, scale):
     return torch_transforms.Compose([
+        *pre_transform_train(target_size, scale),
+        *post_transform(*preprocess)
+    ])
+
+
+def pre_transform_train(target_size, scale):
+    return [
         cv2_transforms.RandomResizedCrop(target_size, scale=scale),
         cv2_transforms.RandomHorizontalFlip(),
+    ]
+
+
+def pre_transform_eval(target_size):
+    return [
+        cv2_transforms.Resize(target_size),
+        cv2_transforms.CenterCrop(target_size),
+    ]
+
+
+def post_transform(mean, std):
+    return [
         cv2_transforms.ToTensor(),
-        cv2_transforms.Normalize(*preprocess),
-    ])
+        cv2_transforms.Normalize(mean, std),
+    ]
