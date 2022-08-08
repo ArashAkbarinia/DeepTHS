@@ -7,7 +7,7 @@ import random
 
 from skimage import io
 
-from .binary_shapes import ShapeDataset, ShapeTrain
+from .binary_shapes import ShapeMultipleOut, ShapeTrain
 from . import dataset_utils
 
 
@@ -22,10 +22,10 @@ def _get_others_colour(target_colour):
     return others_colour
 
 
-class ShapeVal(ShapeDataset):
+class ShapeVal(ShapeMultipleOut):
 
     def __init__(self, root, transform=None, target_colour=None, others_colour=None, **kwargs):
-        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        ShapeMultipleOut.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
             self.bg = 128
         if self.same_rotation is None:
@@ -38,7 +38,7 @@ class ShapeVal(ShapeDataset):
     def _prepare_test_imgs(self, masks):
         others_colour = self.others_colour.squeeze()
         target_colour = self.target_colour.squeeze()
-        imgs = self._mul_out_imgs(masks, others_colour, target_colour, _centre_place)
+        imgs = self._mul_out_imgs(masks, others_colour, target_colour, 'centre')
         return imgs
 
     def __len__(self):
@@ -141,12 +141,6 @@ class Shape2AFCVal(ShapeVal):
         # target doesn't have a meaning in this test, it's always False
         target = 0
         return imgs[0], imgs[1], target
-
-
-def _centre_place(mask_size, target_size):
-    srow = int((target_size[0] - mask_size[0]) / 2)
-    scol = int((target_size[1] - mask_size[1]) / 2)
-    return srow, scol
 
 
 def train_set(root, target_size, preprocess, task, **kwargs):

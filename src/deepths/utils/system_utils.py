@@ -49,14 +49,9 @@ def save_checkpoint(state, is_best, args, filename='checkpoint.pth.tar'):
 
 
 def _read_extension(root, extension):
-    img_paths = []
-    img_paths.extend(
-        sorted(glob.glob(root + '/*' + extension))
-    )
+    img_paths = sorted(glob.glob(root + '/*' + extension))
     # with upper case
-    img_paths.extend(
-        sorted(glob.glob(root + '/*' + extension.upper()))
-    )
+    img_paths.extend(sorted(glob.glob(root + '/*' + extension.upper())))
     return img_paths
 
 

@@ -13,6 +13,8 @@ import cv2
 
 from torch.utils import data as torch_data
 
+from ..utils import system_utils
+
 
 def _create_bg_img(bg, mask_size, full_size):
     if os.path.exists(bg):
@@ -40,9 +42,14 @@ def _random_place(mask_size, target_size):
     return srow, scol
 
 
+def _centre_place(mask_size, target_size):
+    srow = int((target_size[0] - mask_size[0]) / 2)
+    scol = int((target_size[1] - mask_size[1]) / 2)
+    return srow, scol
+
+
 class ShapeDataset(torch_data.Dataset):
-    def __init__(self, root, transform=None, background=None, same_rotation=None,
-                 target_size=None, mask_size=None, **kwargs):
+    def __init__(self, root, transform=None, background=None, target_size=None, mask_size=None):
         self.root = root
         self.transform = transform
         self.target_size = 224 if target_size is None else target_size
@@ -51,9 +58,8 @@ class ShapeDataset(torch_data.Dataset):
         self.mask_size = 128 if mask_size is None else mask_size
         if isinstance(self.mask_size, int):
             self.mask_size = (self.mask_size, self.mask_size)
-        self.imgdir = '%s/shape2D/' % self.root
+        self.imgdir = '%s/imgs/' % self.root
         self.bg = background
-        self.same_rotation = same_rotation
 
     def _one_out_img(self, mask, colour, place_fun):
         mask = cv2.resize(mask, self.mask_size, interpolation=cv2.INTER_NEAREST)
@@ -62,6 +68,9 @@ class ShapeDataset(torch_data.Dataset):
         for chn_ind in range(3):
             current_chn = mask_img[:, :, chn_ind]
             current_chn[mask == 255] = colour[chn_ind]
+
+        if isinstance(place_fun, str):
+            place_fun = _centre_place if place_fun == 'centre' else _random_place
 
         srow, scol = place_fun(self.mask_size, self.target_size)
         erow = srow + self.mask_size[0]
@@ -73,6 +82,17 @@ class ShapeDataset(torch_data.Dataset):
         img = self._one_out_img(mask, colour, place_fun)
         return (img * 255).astype('uint8')
 
+    def _one_train_img_uint8(self, mask_img, colour):
+        colour = np.array(colour).astype('float32') / 255
+        return self._one_out_img_uint8(mask_img, colour, _random_place)
+
+
+class ShapeMultipleOut(ShapeDataset):
+    def __init__(self, root, transform=None, background=None, target_size=None, mask_size=None,
+                 same_rotation=None):
+        ShapeDataset.__init__(self, root, transform, background, target_size, mask_size)
+        self.same_rotation = same_rotation
+
     def _mul_out_imgs(self, masks, others_colour, target_colour, place_fun):
         imgs = []
         for mask_ind, mask in enumerate(masks):
@@ -83,10 +103,10 @@ class ShapeDataset(torch_data.Dataset):
         return imgs
 
 
-class ShapeTrain(ShapeDataset):
+class ShapeTrain(ShapeMultipleOut):
 
     def __init__(self, root, transform=None, colour_dist=None, **kwargs):
-        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        ShapeMultipleOut.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
             self.bg = 'rnd_uniform'
         if self.same_rotation is None:
@@ -96,10 +116,6 @@ class ShapeTrain(ShapeDataset):
         self.colour_dist = colour_dist
         if self.colour_dist is not None:
             self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
-
-    def _one_train_img(self, mask_img, target_colour):
-        target_colour = np.array(target_colour).astype('float32') / 255
-        return self._one_out_img_uint8(mask_img, target_colour, _random_place)
 
     def _mul_train_imgs(self, masks, others_colour, target_colour):
         others_colour = np.array(others_colour).astype('float32') / 255
@@ -126,3 +142,20 @@ class ShapeTrain(ShapeDataset):
 
     def __len__(self):
         return len(self.img_paths)
+
+
+class ShapeSingleOut(ShapeDataset):
+
+    def __init__(self, root, transform=None, colour=None, **kwargs):
+        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        if self.bg is None:
+            self.bg = 128
+        self.stimuli = sorted(system_utils.image_in_folder(self.imgdir))
+        self.colour = colour
+
+    def __getitem__(self, item):
+        mask = io.imread(self.stimuli[item])
+        return self._one_out_img(mask, self.colour.squeeze(), _centre_place)
+
+    def __len__(self):
+        return len(self.stimuli)
