@@ -132,8 +132,8 @@ class ViTClipLayers(nn.Module):
 def vit_features(model, layer, target_size):
     encoder_layer = int(layer.replace('encoder', ''))
     features = ViTLayers(model, encoder_layer)
-    org_classes = generic_features_size(features, target_size)
-    return features, org_classes
+    out_dim = generic_features_size(features, target_size)
+    return features, out_dim
 
 
 def vgg_features(model, layer, target_size):
@@ -147,8 +147,8 @@ def vgg_features(model, layer, target_size):
         )
     else:
         sys.exit('Unsupported layer %s' % layer)
-    org_classes = generic_features_size(features, target_size)
-    return features, org_classes
+    out_dim = generic_features_size(features, target_size)
+    return features, out_dim
 
 
 def generic_features_size(model, target_size, dtype=None):
@@ -160,42 +160,38 @@ def generic_features_size(model, target_size, dtype=None):
     model.eval()
     with torch.no_grad():
         out = model(img)
-    return np.prod(out[0].shape)
+    return out[0].shape
 
 
 def clip_features(model, network_name, layer, target_size):
     if layer == 'encoder':
         features = model
         if 'B32' in network_name or 'B16' in network_name or 'RN101' in network_name:
-            org_classes = 512
+            out_dim = 512
         elif 'L14' in network_name or 'RN50x16' in network_name:
-            org_classes = 768
+            out_dim = 768
         elif 'RN50x4' in network_name:
-            org_classes = 640
+            out_dim = 640
         else:
-            org_classes = 1024
-    elif network_name.replace('clip_', '') in ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64']:
-        if layer == 'area0':
-            layer = 8
-            org_classes = 200704
-        elif layer == 'area1':
-            layer = 9
-            org_classes = 802816
-        elif layer == 'area2':
-            layer = 10
-            org_classes = 401408
-        elif layer == 'area3':
-            layer = 11
-            org_classes = 200704
-        elif layer == 'area4':
-            layer = 12
-            org_classes = 100352
-        features = nn.Sequential(*list(model.children())[:layer])
+            out_dim = 1024
     else:
-        block_layer = int(layer.replace('block', ''))
-        features = ViTClipLayers(model, block_layer)
-        org_classes = generic_features_size(features, target_size, model.conv1.weight.dtype)
-    return features, org_classes
+        if network_name.replace('clip_', '') in ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64']:
+            if layer == 'area0':
+                layer = 8
+            elif layer == 'area1':
+                layer = 9
+            elif layer == 'area2':
+                layer = 10
+            elif layer == 'area3':
+                layer = 11
+            elif layer == 'area4':
+                layer = 12
+            features = nn.Sequential(*list(model.children())[:layer])
+        else:
+            block_layer = int(layer.replace('block', ''))
+            features = ViTClipLayers(model, block_layer)
+        out_dim = generic_features_size(features, target_size, model.conv1.weight.dtype)
+    return features, out_dim
 
 
 def regnet_features(model, layer, target_size):
@@ -213,8 +209,8 @@ def regnet_features(model, layer, target_size):
         features = nn.Sequential(model.stem, *list(model.trunk_output.children())[:layer])
     else:
         sys.exit('Unsupported layer %s' % layer)
-    org_classes = generic_features_size(features, target_size)
-    return features, org_classes
+    out_dim = generic_features_size(features, target_size)
+    return features, out_dim
 
 
 def resnet_features(model, network_name, layer, target_size):
@@ -234,8 +230,8 @@ def resnet_features(model, network_name, layer, target_size):
     else:
         sys.exit('Unsupported layer %s' % layer)
     features = nn.Sequential(*list(model.children())[:layer])
-    org_classes = generic_features_size(features, target_size)
-    return features, org_classes
+    out_dim = generic_features_size(features, target_size)
+    return features, out_dim
 
 
 def get_pretrained_model(network_name, transfer_weights):
