@@ -41,22 +41,27 @@ def _random_place(mask_size, target_size):
 
 
 class ShapeDataset(torch_data.Dataset):
-    def __init__(self, root, transform=None, background=None, same_rotation=None, **kwargs):
+    def __init__(self, root, transform=None, background=None, same_rotation=None,
+                 target_size=None, mask_size=None, **kwargs):
         self.root = root
         self.transform = transform
-        self.target_size = (224, 224)
-        self.mask_size = (128, 128)
+        self.target_size = 224 if target_size is None else target_size
+        if isinstance(self.target_size, int):
+            self.target_size = (self.target_size, self.target_size)
+        self.mask_size = 128 if mask_size is None else mask_size
+        if isinstance(self.mask_size, int):
+            self.mask_size = (self.mask_size, self.mask_size)
         self.imgdir = '%s/shape2D/' % self.root
         self.bg = background
         self.same_rotation = same_rotation
 
-    def _one_out_img(self, mask, current_colour, place_fun):
+    def _one_out_img(self, mask, colour, place_fun):
         mask = cv2.resize(mask, self.mask_size, interpolation=cv2.INTER_NEAREST)
         mask_img, img = _create_bg_img(self.bg, self.mask_size, self.target_size)
 
         for chn_ind in range(3):
             current_chn = mask_img[:, :, chn_ind]
-            current_chn[mask == 255] = current_colour[chn_ind]
+            current_chn[mask == 255] = colour[chn_ind]
 
         srow, scol = place_fun(self.mask_size, self.target_size)
         erow = srow + self.mask_size[0]
@@ -64,8 +69,8 @@ class ShapeDataset(torch_data.Dataset):
         img[srow:erow, scol:ecol] = mask_img
         return img
 
-    def _one_out_img_uint8(self, mask, current_colour, place_fun):
-        img = self._one_out_img(mask, current_colour, place_fun)
+    def _one_out_img_uint8(self, mask, colour, place_fun):
+        img = self._one_out_img(mask, colour, place_fun)
         return (img * 255).astype('uint8')
 
     def _mul_out_imgs(self, masks, others_colour, target_colour, place_fun):
