@@ -78,7 +78,7 @@ def _check_dataset_space(args):
 
 
 def activation_arg_parser(argvs, extra_args_fun=None):
-    parser = _common_arg_parser(description='Contrast stimuli activation')
+    parser = _common_arg_parser(description='Kernel activation')
 
     _add_optimisation_group(parser)
     _add_lesion_group(parser)
@@ -96,6 +96,9 @@ def activation_arg_parser(argvs, extra_args_fun=None):
         extra_args_fun(parser)
 
     args = parser.parse_args(argvs)
+    if args.colour_space is None:
+        args.colour_space = 'imagenet_rgb'
+    args.colour_space = _check_dataset_space(args)
     return args
 
 

@@ -155,8 +155,7 @@ def which_network_segmentation(network_name, num_classes):
         # TODO: for now only predefined models
         # model = which_architecture(checkpoint['arch'], customs=customs)
         model = resnet.__dict__[checkpoint['arch']](
-            backbone, num_classes=num_classes, pretrained=False,
-            aux_loss=aux_loss
+            backbone, num_classes=num_classes, pretrained=False, aux_loss=aux_loss
         )
 
         model.load_state_dict(checkpoint['state_dict'])
@@ -166,3 +165,32 @@ def which_network_segmentation(network_name, num_classes):
         )
 
     return model
+
+
+def out_hook(name, out_dict):
+    def hook(model, input_x, output_y):
+        out_dict[name] = output_y.detach()
+
+    return hook
+
+
+def resnet_hooks(model):
+    act_dict = dict()
+    rfhs = dict()
+    for attr_name in ['maxpool', 'contrast_pool']:
+        if hasattr(model, attr_name):
+            area0 = getattr(model, attr_name)
+            rfhs['area0'] = area0.register_forward_hook(out_hook('area0', act_dict))
+    for i in range(1, 5):
+        attr_name = 'layer%d' % i
+        act_name = 'area%d' % i
+        area_i = getattr(model, attr_name)
+        rfhs[act_name] = area_i.register_forward_hook(out_hook(act_name, act_dict))
+        for j in range(len(area_i)):
+            for k in range(1, 4):
+                attr_name = 'bn%d' % k
+                if hasattr(area_i[j], attr_name):
+                    act_name = 'area%d.%d_%d' % (i, j, k)
+                    area_ijk = getattr(area_i[j], attr_name)
+                    rfhs[act_name] = area_ijk.register_forward_hook(out_hook(act_name, act_dict))
+    return act_dict, rfhs
