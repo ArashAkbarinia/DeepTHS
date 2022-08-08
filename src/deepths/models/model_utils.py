@@ -176,21 +176,21 @@ def out_hook(name, out_dict):
 
 def resnet_hooks(model):
     act_dict = dict()
-    rfhs = dict()
+    rf_hooks = dict()
     for attr_name in ['maxpool', 'contrast_pool']:
         if hasattr(model, attr_name):
             area0 = getattr(model, attr_name)
-            rfhs['area0'] = area0.register_forward_hook(out_hook('area0', act_dict))
+            rf_hooks['area0'] = area0.register_forward_hook(out_hook('area0', act_dict))
     for i in range(1, 5):
         attr_name = 'layer%d' % i
         act_name = 'area%d' % i
         area_i = getattr(model, attr_name)
-        rfhs[act_name] = area_i.register_forward_hook(out_hook(act_name, act_dict))
+        rf_hooks[act_name] = area_i.register_forward_hook(out_hook(act_name, act_dict))
         for j in range(len(area_i)):
             for k in range(1, 4):
                 attr_name = 'bn%d' % k
                 if hasattr(area_i[j], attr_name):
                     act_name = 'area%d.%d_%d' % (i, j, k)
                     area_ijk = getattr(area_i[j], attr_name)
-                    rfhs[act_name] = area_ijk.register_forward_hook(out_hook(act_name, act_dict))
-    return act_dict, rfhs
+                    rf_hooks[act_name] = area_ijk.register_forward_hook(out_hook(act_name, act_dict))
+    return act_dict, rf_hooks

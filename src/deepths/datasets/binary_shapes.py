@@ -155,7 +155,10 @@ class ShapeSingleOut(ShapeDataset):
 
     def __getitem__(self, item):
         mask = io.imread(self.stimuli[item])
-        return self._one_out_img(mask, self.colour.squeeze(), _centre_place)
+        img = self._one_out_img(mask, self.colour.squeeze(), _centre_place)
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, ntpath.basename(self.stimuli[item])
 
     def __len__(self):
         return len(self.stimuli)

@@ -175,7 +175,7 @@ def _add_logging_group(parser):
         '--save_all',
         action='store_true',
         default=False,
-        help='Saving all check points (default: False)'
+        help='Saving all check-points/activations (default: False)'
     )
     logging_group.add_argument(
         '--visualise',
