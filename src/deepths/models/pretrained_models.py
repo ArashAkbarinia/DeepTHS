@@ -13,7 +13,7 @@ from torchvision.models import segmentation
 import torchvision.transforms.functional as torchvis_fun
 import clip
 
-from . import model_utils
+from . import model_utils, pretrained_features
 from . import vqvae
 from .taskonomy import taskonomy_network
 
@@ -158,27 +158,13 @@ def regnet_features(model, layer, target_size):
 
 
 def resnet_features(model, network_name, layer, target_size):
-    if layer == 'area0':
-        layer = 4
-    elif layer == 'area1':
-        layer = 5
-    elif layer == 'area2':
-        layer = 6
-    elif layer == 'area3':
-        layer = 7
-    elif layer == 'area4':
-        layer = 8
-    elif layer == 'encoder':
-        if 'taskonomy_' in network_name:
-            layer = len(list(model.children()))
-    else:
-        sys.exit('Unsupported layer %s' % layer)
-    features = nn.Sequential(*list(model.children())[:layer])
+    l_ind = pretrained_features.resnet_layer(layer, network_name)
+    features = nn.Sequential(*list(model.children())[:l_ind])
     out_dim = generic_features_size(features, target_size)
     return features, out_dim
 
 
-def get_pretrained_model(network_name, transfer_weights):
+def get_pretrained_model(network_name, weights):
     if 'clip' in network_name:
         if 'B32' in network_name:
             clip_version = 'ViT-B/32'
@@ -196,10 +182,10 @@ def get_pretrained_model(network_name, transfer_weights):
         feature_type_url = taskonomy_network.TASKONOMY_PRETRAINED_URLS[feature_task + '_encoder']
         checkpoint = torch.utils.model_zoo.load_url(feature_type_url, model_dir=None, progress=True)
         model.load_state_dict(checkpoint['state_dict'])
-    elif os.path.isfile(transfer_weights[0]):
+    elif os.path.isfile(weights):
         # FIXME: cheap hack!
-        if 'vqvae' in network_name or 'vqvae' in transfer_weights[0]:
-            vqvae_info = torch.load(transfer_weights[0], map_location='cpu')
+        if 'vqvae' in network_name or 'vqvae' in weights:
+            vqvae_info = torch.load(weights, map_location='cpu')
 
             backbone = {
                 'arch_name': vqvae_info['backbone']['arach'],
@@ -216,16 +202,18 @@ def get_pretrained_model(network_name, transfer_weights):
             model.load_state_dict(vqvae_info['state_dict'])
             print('Loaded the VQVAE model!')
         else:
-            model = model_utils.which_network(
-                transfer_weights[0], transfer_weights[2],
-                num_classes=1000 if 'class' in transfer_weights[2] else 21
-            )
+            task = 'classification'
+            num_classes = 1000
+            if 'fcn_' in network_name or 'deeplab' in network_name:
+                task = 'segmentation'
+                num_classes = 21
+            model = model_utils.which_network(weights, task, num_classes=num_classes)
     elif '_scratch' in network_name:
         model = model_utils.which_architecture(network_name.replace('_scratch', ''))
     elif 'fcn_' in network_name or 'deeplab' in network_name:
         model = segmentation.__dict__[network_name](pretrained=True)
     else:
-        model = model_utils.which_network(transfer_weights[0], 'classification', num_classes=1000)
+        model = model_utils.which_network(weights, 'classification', num_classes=1000)
     return model
 
 

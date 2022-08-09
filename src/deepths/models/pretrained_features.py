@@ -143,3 +143,21 @@ def get_backbones(network_name, model):
     if 'deeplab' in network_name or 'fcn_' in network_name:
         return model.backbone
     return model
+
+
+def resnet_layer(layer, network_name):
+    if layer == 'area0':
+        layer = 4
+    elif layer == 'area1':
+        layer = 5
+    elif layer == 'area2':
+        layer = 6
+    elif layer == 'area3':
+        layer = 7
+    elif layer == 'area4':
+        layer = 8
+    elif layer == 'encoder' and 'taskonomy_' in network_name:
+        layer = None
+    else:
+        sys.exit('Unsupported layer %s' % layer)
+    return layer

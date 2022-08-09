@@ -133,7 +133,7 @@ def main(argv):
     if os.path.exists(out_file + '.pickle'):
         return
 
-    model = pretrained_models.get_pretrained_model(args.architecture, args.transfer_weights)
+    model = pretrained_models.get_pretrained_model(args.architecture, args.transfer_weights[0])
     model = pretrained_models.get_backbone(args.architecture, model)
     model = lesion_utils.lesion_kernels(
         model, args.lesion_kernels, args.lesion_planes, args.lesion_lines

@@ -17,13 +17,14 @@ class ReadOutNet(nn.Module):
 
         self.architecture = architecture
 
-        model = pretraineds.get_pretrained_model(architecture, transfer_weights)
+        model = pretraineds.get_pretrained_model(architecture, transfer_weights[0])
         if '_scratch' in architecture:
             architecture = architecture.replace('_scratch', '')
         model = pretraineds.get_backbone(architecture, model)
         self.in_type = self.set_img_type(model)
 
-        layer = transfer_weights[1] if len(transfer_weights) >= 2 else -1
+        # TODO better handing the layer
+        layer = transfer_weights[1]
 
         if layer == 'fc':
             features = model
