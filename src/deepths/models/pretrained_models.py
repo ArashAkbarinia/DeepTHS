@@ -120,17 +120,8 @@ def clip_features(model, network_name, layer, target_size):
             out_dim = 1024
     else:
         if network_name.replace('clip_', '') in ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64']:
-            if layer == 'area0':
-                layer = 8
-            elif layer == 'area1':
-                layer = 9
-            elif layer == 'area2':
-                layer = 10
-            elif layer == 'area3':
-                layer = 11
-            elif layer == 'area4':
-                layer = 12
-            features = nn.Sequential(*list(model.children())[:layer])
+            l_ind = pretrained_features.resnet_slice(layer, is_clip=True)
+            features = nn.Sequential(*list(model.children())[:l_ind])
         else:
             block_layer = int(layer.replace('block', ''))
             features = ViTClipLayers(model, block_layer)
@@ -157,8 +148,8 @@ def regnet_features(model, layer, target_size):
     return features, out_dim
 
 
-def resnet_features(model, network_name, layer, target_size):
-    l_ind = pretrained_features.resnet_layer(layer, network_name)
+def resnet_features(model, layer, target_size):
+    l_ind = pretrained_features.resnet_slice(layer)
     features = nn.Sequential(*list(model.children())[:l_ind])
     out_dim = generic_features_size(features, target_size)
     return features, out_dim
@@ -225,3 +216,29 @@ def get_backbone(network_name, model):
     elif 'fcn_' in network_name or 'deeplab' in network_name:
         return model.backbone
     return model
+
+
+def model_features(model, architecture, layer, target_size):
+    if layer == 'fc':
+        features = model
+        if hasattr(model, 'num_classes'):
+            out_dim = model.num_classes
+        else:
+            last_layer = list(model.children())[-1]
+            if type(last_layer) is torch.nn.modules.container.Sequential:
+                out_dim = last_layer[-1].out_features
+            else:
+                out_dim = last_layer.out_features
+    elif pretrained_features.is_resnet_backbone(architecture):
+        features, out_dim = resnet_features(model, layer, target_size)
+    elif 'regnet' in architecture:
+        features, out_dim = regnet_features(model, layer, target_size)
+    elif 'vgg' in architecture:
+        features, out_dim = vgg_features(model, layer, target_size)
+    elif 'vit_' in architecture:
+        features, out_dim = vit_features(model, layer, target_size)
+    elif 'clip' in architecture:
+        features, out_dim = clip_features(model, architecture, layer, target_size)
+    else:
+        sys.exit('Unsupported network %s' % architecture)
+    return features, out_dim

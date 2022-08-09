@@ -11,6 +11,7 @@ import torchvision.models as pmodels
 import torchvision.models.segmentation as seg_models
 
 from . import resnet
+from . import pretrained_features
 
 
 def get_mean_std(colour_space, colour_vision=None):
@@ -174,23 +175,27 @@ def out_hook(name, out_dict):
     return hook
 
 
-def resnet_hooks(model):
+def resnet_hooks(model, layers, is_clip=False):
     act_dict = dict()
     rf_hooks = dict()
-    for attr_name in ['maxpool', 'contrast_pool']:
-        if hasattr(model, attr_name):
-            area0 = getattr(model, attr_name)
-            rf_hooks['area0'] = area0.register_forward_hook(out_hook('area0', act_dict))
-    for i in range(1, 5):
-        attr_name = 'layer%d' % i
-        act_name = 'area%d' % i
-        area_i = getattr(model, attr_name)
-        rf_hooks[act_name] = area_i.register_forward_hook(out_hook(act_name, act_dict))
-        for j in range(len(area_i)):
-            for k in range(1, 4):
-                attr_name = 'bn%d' % k
-                if hasattr(area_i[j], attr_name):
-                    act_name = 'area%d.%d_%d' % (i, j, k)
-                    area_ijk = getattr(area_i[j], attr_name)
-                    rf_hooks[act_name] = area_ijk.register_forward_hook(out_hook(act_name, act_dict))
+    model_layers = list(model.children())
+    for layer in layers:
+        l_ind = pretrained_features.resnet_layer(layer, is_clip=is_clip)
+        rf_hooks[layer] = model_layers[l_ind].register_forward_hook(out_hook(layer, act_dict))
+    return act_dict, rf_hooks
+
+
+def clip_hooks(model, layers, architecture):
+    if architecture.replace('clip_', '') in ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64']:
+        act_dict, rf_hooks = resnet_hooks(model, layers, is_clip=True)
+    return act_dict, rf_hooks
+
+
+def register_model_hooks(model, architecture, layers):
+    if pretrained_features.is_resnet_backbone(architecture):
+        act_dict, rf_hooks = resnet_hooks(model, layers)
+    elif 'clip' in architecture:
+        act_dict, rf_hooks = clip_hooks(model, layers, architecture)
+    else:
+        sys.exit('Unsupported network %s' % architecture)
     return act_dict, rf_hooks

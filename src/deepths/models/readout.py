@@ -2,7 +2,6 @@
 
 """
 
-import sys
 import numpy as np
 
 import torch
@@ -26,34 +25,9 @@ class ReadOutNet(nn.Module):
         # TODO better handing the layer
         layer = transfer_weights[1]
 
-        if layer == 'fc':
-            features = model
-            if hasattr(model, 'num_classes'):
-                out_dim = model.num_classes
-            else:
-                last_layer = list(model.children())[-1]
-                if type(last_layer) is torch.nn.modules.container.Sequential:
-                    out_dim = last_layer[-1].out_features
-                else:
-                    out_dim = last_layer.out_features
-        elif (
-                'fcn_' in architecture or 'deeplab' in architecture
-                or 'resnet' in architecture or 'resnext' in architecture
-                or 'taskonomy_' in architecture
-        ):
-            features, out_dim = pretraineds.resnet_features(model, architecture, layer, target_size)
-        elif 'regnet' in architecture:
-            features, out_dim = pretraineds.regnet_features(model, layer, target_size)
-        elif 'vgg' in architecture:
-            features, out_dim = pretraineds.vgg_features(model, layer, target_size)
-        elif 'vit_' in architecture:
-            features, out_dim = pretraineds.vit_features(model, layer, target_size)
-        elif 'clip' in architecture:
-            features, out_dim = pretraineds.clip_features(model, architecture, layer, target_size)
-        else:
-            sys.exit('Unsupported network %s' % architecture)
-        self.out_dim = out_dim
+        features, out_dim = pretraineds.model_features(model, architecture, layer, target_size)
         self.features = features
+        self.out_dim = out_dim
 
     def set_img_type(self, model):
         return model.conv1.weight.dtype if 'clip' in self.architecture else torch.float32

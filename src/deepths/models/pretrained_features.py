@@ -145,19 +145,33 @@ def get_backbones(network_name, model):
     return model
 
 
-def resnet_layer(layer, network_name):
+def resnet_slice(layer, is_clip=False):
     if layer == 'area0':
-        layer = 4
+        layer = 8 if is_clip else 4
     elif layer == 'area1':
-        layer = 5
+        layer = 9 if is_clip else 5
     elif layer == 'area2':
-        layer = 6
+        layer = 10 if is_clip else 6
     elif layer == 'area3':
-        layer = 7
+        layer = 11 if is_clip else 7
     elif layer == 'area4':
-        layer = 8
-    elif layer == 'encoder' and 'taskonomy_' in network_name:
+        layer = 12 if is_clip else 8
+    elif layer in ['encoder', 'fc']:
         layer = None
     else:
         sys.exit('Unsupported layer %s' % layer)
     return layer
+
+
+def resnet_layer(layer, is_clip=False):
+    slice_ind = resnet_slice(layer, is_clip=is_clip)
+    layer_ind = -1 if slice_ind is None else slice_ind - 1
+    return layer_ind
+
+
+def is_resnet_backbone(architecture):
+    return (
+            'fcn_' in architecture or 'deeplab' in architecture
+            or 'resnet' in architecture or 'resnext' in architecture
+            or 'taskonomy_' in architecture
+    )

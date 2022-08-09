@@ -72,7 +72,9 @@ def run_gratings_radius(model, out_file, args):
 
 def _activation_db(db_loader, model, args, print_test=True):
     ep_helper = common_routines.EpochHelper(args, model, None, -1)
-    act_dict, rf_hooks = model_utils.resnet_hooks(ep_helper.model)
+    act_dict, rf_hooks = model_utils.register_model_hooks(
+        ep_helper.model, args.architecture, args.transfer_weights[1:]
+    )
 
     all_activations = []
     end = time.time()
