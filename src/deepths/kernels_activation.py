@@ -15,7 +15,7 @@ from .models import pretrained_models, model_utils, lesion_utils
 from .utils import system_utils, common_routines, argument_handler
 
 
-def _activation_db(db_loader, model, args, test_step, print_test=True):
+def _activation_db(db_loader, model, args, test_step, print_test=False):
     act_dict, rf_hooks = model_utils.register_model_hooks(
         model, args.architecture, args.transfer_weights[1:]
     )
@@ -24,6 +24,9 @@ def _activation_db(db_loader, model, args, test_step, print_test=True):
     with torch.set_grad_enabled(False):
         for batch_ind, cu_batch in enumerate(db_loader):
             cu_batch[0] = cu_batch[0].to(next(model.parameters()).device)
+            # FIXME: for ViT we should rearange the output
+            if 'clip' in args.architecture:
+                cu_batch[0] = cu_batch[0].type(model.conv1.weight.dtype)
             _ = model(cu_batch[0])
 
             for img_ind in range(cu_batch[0].shape[0]):
@@ -77,6 +80,7 @@ def _run_colour(args, model):
         sys.exit('Unsupported test file %s with size %s' % (args.test_file, test_colours.shape))
 
     for colour_ind in range(test_colours.shape[0]):
+        print('Performing colour %.3d' % colour_ind)
         args.save_all = '_colourind%.3d' % colour_ind if args.save_all else None
         if args.save_all is None:
             save_path = '%s/colour_ind%.3d.pickle' % (args.output_dir, colour_ind)

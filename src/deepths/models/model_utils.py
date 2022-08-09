@@ -188,6 +188,16 @@ def resnet_hooks(model, layers, is_clip=False):
 def clip_hooks(model, layers, architecture):
     if architecture.replace('clip_', '') in ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64']:
         act_dict, rf_hooks = resnet_hooks(model, layers, is_clip=True)
+    else:
+        act_dict = dict()
+        rf_hooks = dict()
+        for layer in layers:
+            if layer == 'encoder':
+                layer_hook = list(model.children())[-1]
+            else:
+                block_ind = int(layer.replace('block', ''))
+                layer_hook = model.transformer.resblocks[block_ind]
+            rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict))
     return act_dict, rf_hooks
 
 
