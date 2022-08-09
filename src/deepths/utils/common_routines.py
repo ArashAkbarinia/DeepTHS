@@ -253,8 +253,12 @@ class EpochHelper:
 
     def tb_write_images(self, cu_batch, mean, std, name_gen=None):
         step = self.epoch if self.epoch >= 0 else -self.epoch - 1
-        img_disp = torch.cat([*cu_batch], dim=3)
-        img_inv = report_utils.inv_normalise_tensor(img_disp, mean, std)
-        for j in range(min(16, cu_batch[0].shape[0])):
-            img_name = name_gen(j) if name_gen is not None else 'img%03d' % j
-            self.tb_writer.add_image('{}'.format(img_name), img_inv[j], step)
+        tb_write_images(self.tb_writer, step, cu_batch, mean, std, name_gen)
+
+
+def tb_write_images(tb_writer, step, cu_batch, mean, std, name_gen=None):
+    img_disp = torch.cat([*cu_batch], dim=3)
+    img_inv = report_utils.inv_normalise_tensor(img_disp, mean, std)
+    for j in range(min(16, cu_batch[0].shape[0])):
+        img_name = name_gen(j) if name_gen is not None else 'img%03d' % j
+        tb_writer.add_image('{}'.format(img_name), img_inv[j], step)

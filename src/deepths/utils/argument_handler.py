@@ -88,7 +88,7 @@ def activation_arg_parser(argvs, extra_args_fun=None):
         '--stimuli',
         default=None,
         type=str,
-        choices=['grating_radius'],
+        choices=['grating_radius', 'colour'],
         help='The type of stimuli (default: None)'
     )
 
