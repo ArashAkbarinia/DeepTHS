@@ -31,9 +31,9 @@ def _main_worker(args):
     model = model.cuda(args.gpu)
 
     # setting the quadrant points
-    if args.pts_path is None:
-        args.pts_path = args.validation_dir + '/rgb_points.csv'
-    test_pts = np.loadtxt(args.pts_path, delimiter=',', dtype=str)
+    if args.test_file is None:
+        args.test_file = args.validation_dir + '/rgb_points.csv'
+    test_pts = np.loadtxt(args.test_file, delimiter=',', dtype=str)
 
     args.test_pts = _organise_test_points(test_pts)
 

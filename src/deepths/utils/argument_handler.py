@@ -409,10 +409,10 @@ def _add_dataset_group(parser):
         help='Number of validation samples (default: All)'
     )
     dataset_group.add_argument(
-        '--pts_path',
+        '--test_file',
         type=str,
         default=None,
-        help='The path to the quadrant points (default: None)'
+        help='The path to the test file (default: None)'
     )
     dataset_group.add_argument(
         '--train_colours',
