@@ -91,6 +91,12 @@ def activation_arg_parser(argvs, extra_args_fun=None):
         choices=['grating_radius', 'colour'],
         help='The type of stimuli (default: None)'
     )
+    misc_group.add_argument(
+        '--ref_dir',
+        default=None,
+        type=str,
+        help='The activation maps are compared to reference dir (default: None)'
+    )
 
     if extra_args_fun is not None:
         extra_args_fun(parser)
@@ -176,12 +182,6 @@ def _add_logging_group(parser):
         action='store_true',
         default=False,
         help='Saving all check-points/activations (default: False)'
-    )
-    logging_group.add_argument(
-        '--visualise',
-        action='store_true',
-        default=False,
-        help='Visualising the input images to network (default: False)'
     )
 
 
@@ -286,7 +286,7 @@ def _add_input_group(parser):
         default=None,
         type=str,
         choices=[
-            'rgb', 'imagenet_rgb', 'taskonomy_rgb',
+            'rgb', 'imagenet_rgb', 'taskonomy_rgb', 'clip_rgb',
             'lab',
             'grey', 'grey3'
         ],
