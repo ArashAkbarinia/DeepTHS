@@ -147,15 +147,15 @@ def get_backbones(network_name, model):
 
 def resnet_slice(layer, is_clip=False):
     if layer == 'area0':
-        layer = 8 if is_clip else 4
+        layer = 10 if is_clip else 4
     elif layer == 'area1':
-        layer = 9 if is_clip else 5
+        layer = 11 if is_clip else 5
     elif layer == 'area2':
-        layer = 10 if is_clip else 6
+        layer = 12 if is_clip else 6
     elif layer == 'area3':
-        layer = 11 if is_clip else 7
+        layer = 13 if is_clip else 7
     elif layer == 'area4':
-        layer = 12 if is_clip else 8
+        layer = 14 if is_clip else 8
     elif layer in ['encoder', 'fc']:
         layer = None
     else:
