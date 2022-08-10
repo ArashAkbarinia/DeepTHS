@@ -116,6 +116,8 @@ def main(argv):
     args.output_dir = os.path.join(args.output_dir, 'acts')
     system_utils.create_dir(args.output_dir)
 
+    args.val_samples = np.inf if args.val_samples is None else args.val_samples
+
     model = pretrained_models.get_pretrained_model(args.architecture, args.transfer_weights[0])
     model = pretrained_models.get_backbone(args.architecture, model)
     model = lesion_utils.lesion_kernels(
