@@ -110,13 +110,14 @@ def main(argv):
     system_utils.create_dir(args.output_dir)
     system_utils.save_arguments(args)
 
-    tb_path = os.path.join(args.output_dir, 'tbs')
+    args.background = 128 if args.background is None else int(args.background)
+    args.val_samples = np.inf if args.val_samples is None else args.val_samples
+
+    tb_path = os.path.join(args.output_dir, 'tbs_%.3d' % args.background)
     args.tb_writers = {'test': SummaryWriter(tb_path)}
 
-    args.output_dir = os.path.join(args.output_dir, 'acts')
+    args.output_dir = os.path.join(args.output_dir, 'acts_%.3d' % args.background)
     system_utils.create_dir(args.output_dir)
-
-    args.val_samples = np.inf if args.val_samples is None else args.val_samples
 
     model = pretrained_models.get_pretrained_model(args.architecture, args.transfer_weights[0])
     model = pretrained_models.get_backbone(args.architecture, model)
