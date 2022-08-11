@@ -10,24 +10,16 @@ import torch.nn as nn
 from . import pretrained_models as pretraineds
 
 
-class ReadOutNet(nn.Module):
-    def __init__(self, architecture, target_size, transfer_weights):
-        super(ReadOutNet, self).__init__()
+class BackboneNet(nn.Module):
+    def __init__(self, architecture, weights):
+        super(BackboneNet, self).__init__()
 
-        self.architecture = architecture
-
-        model = pretraineds.get_pretrained_model(architecture, transfer_weights[0])
+        model = pretraineds.get_pretrained_model(architecture, weights)
         if '_scratch' in architecture:
             architecture = architecture.replace('_scratch', '')
-        model = pretraineds.get_backbone(architecture, model)
-        self.in_type = self.set_img_type(model)
-
-        # TODO better handing the layer
-        layer = transfer_weights[1]
-
-        features, out_dim = pretraineds.model_features(model, architecture, layer, target_size)
-        self.features = features
-        self.out_dim = out_dim
+        self.architecture = architecture
+        self.backbone = pretraineds.get_backbone(architecture, model)
+        self.in_type = self.set_img_type(self.backbone)
 
     def set_img_type(self, model):
         return model.conv1.weight.dtype if 'clip' in self.architecture else torch.float32
@@ -37,12 +29,24 @@ class ReadOutNet(nn.Module):
 
     def extract_features(self, x):
         x = x.to(next(self.parameters()).device)
-        return self.features(self.check_img_type(x)).float()
+        return self.backbone(self.check_img_type(x)).float()
 
     def extract_features_flatten(self, x):
         x = self.extract_features(x)
         x = x.view(x.size(0), -1)
         return x
+
+    def forward(self, x):
+        return self.extract_features(x)
+
+
+class ReadOutNet(BackboneNet):
+    def __init__(self, architecture, target_size, transfer_weights):
+        super(ReadOutNet, self).__init__(architecture, transfer_weights[0])
+
+        self.backbone, self.out_dim = pretraineds.model_features(
+            self.backbone, architecture, transfer_weights[1], target_size
+        )
 
 
 class ClassifierNet(ReadOutNet):

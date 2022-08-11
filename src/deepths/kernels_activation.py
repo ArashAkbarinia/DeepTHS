@@ -11,22 +11,18 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import binary_shapes, dataset_utils
-from .models import pretrained_models, model_utils, lesion_utils
+from .models import readout, model_utils, lesion_utils
 from .utils import system_utils, common_routines, argument_handler
 
 
 def _activation_db(db_loader, model, args, test_step, print_test=False):
     act_dict, rf_hooks = model_utils.register_model_hooks(
-        model, args.architecture, args.transfer_weights[1:]
+        model.backbone, args.architecture, args.transfer_weights[1:]
     )
 
     all_activations = []
     with torch.set_grad_enabled(False):
         for batch_ind, cu_batch in enumerate(db_loader):
-            cu_batch[0] = cu_batch[0].to(next(model.parameters()).device)
-            # FIXME: for ViT we should rearange the output
-            if 'clip' in args.architecture:
-                cu_batch[0] = cu_batch[0].type(model.conv1.weight.dtype)
             _ = model(cu_batch[0])
 
             for img_ind in range(cu_batch[0].shape[0]):
@@ -119,8 +115,7 @@ def main(argv):
     args.output_dir = os.path.join(args.output_dir, 'acts_%.3d' % args.background)
     system_utils.create_dir(args.output_dir)
 
-    model = pretrained_models.get_pretrained_model(args.architecture, args.transfer_weights[0])
-    model = pretrained_models.get_backbone(args.architecture, model)
+    model = readout.BackboneNet(args.architecture, args.transfer_weights[0])
     model = lesion_utils.lesion_kernels(
         model, args.lesion_kernels, args.lesion_planes, args.lesion_lines
     )
