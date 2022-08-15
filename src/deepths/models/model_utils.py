@@ -196,7 +196,7 @@ def clip_hooks(model, layers, architecture):
         act_dict = dict()
         rf_hooks = dict()
         for layer in layers:
-            if layer == 'encoder':
+            if layer == 'fc':
                 layer_hook = model
             else:
                 block_ind = int(layer.replace('block', ''))
