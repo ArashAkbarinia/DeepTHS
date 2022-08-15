@@ -203,11 +203,26 @@ def clip_hooks(model, layers, architecture):
     return act_dict, rf_hooks
 
 
+def vit_hooks(model, layers):
+    act_dict = dict()
+    rf_hooks = dict()
+    for layer in layers:
+        if layer == 'encoder':
+            layer_hook = model
+        else:
+            block_ind = int(layer.replace('encoder', ''))
+            layer_hook = model.encoder.layers[block_ind]
+        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, True))
+    return act_dict, rf_hooks
+
+
 def register_model_hooks(model, architecture, layers):
     if pretrained_features.is_resnet_backbone(architecture):
         act_dict, rf_hooks = resnet_hooks(model, layers)
     elif 'clip' in architecture:
         act_dict, rf_hooks = clip_hooks(model, layers, architecture)
+    elif 'vit_' in architecture:
+        act_dict, rf_hooks = vit_hooks(model, layers)
     else:
         sys.exit('Unsupported network %s' % architecture)
     return act_dict, rf_hooks
