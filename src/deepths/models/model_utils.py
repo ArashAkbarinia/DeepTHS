@@ -168,11 +168,13 @@ def which_network_segmentation(network_name, num_classes):
     return model
 
 
-def out_hook(name, out_dict, is_vit=False):
+def out_hook(name, out_dict, arch=None):
     def hook(model, input_x, output_y):
         out_dict[name] = output_y.detach()
-        if is_vit and len(out_dict[name].shape) > 2:
+        if 'clip' in arch and len(out_dict[name].shape) > 2:
             out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0, :]
+        elif 'vit' in arch and len(out_dict[name].shape) > 2:
+            out_dict[name] = out_dict[name][:, 0]
 
     return hook
 
@@ -199,7 +201,7 @@ def clip_hooks(model, layers, architecture):
             else:
                 block_ind = int(layer.replace('block', ''))
                 layer_hook = model.transformer.resblocks[block_ind]
-            rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, True))
+            rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, 'clip'))
     return act_dict, rf_hooks
 
 
@@ -212,7 +214,7 @@ def vit_hooks(model, layers):
         else:
             block_ind = int(layer.replace('encoder', ''))
             layer_hook = model.encoder.layers[block_ind]
-        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict))
+        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, 'vit'))
     return act_dict, rf_hooks
 
 
