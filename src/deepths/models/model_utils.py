@@ -212,7 +212,7 @@ def vit_hooks(model, layers):
         else:
             block_ind = int(layer.replace('encoder', ''))
             layer_hook = model.encoder.layers[block_ind]
-        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, True))
+        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict))
     return act_dict, rf_hooks
 
 
