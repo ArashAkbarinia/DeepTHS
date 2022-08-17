@@ -48,7 +48,7 @@ def _make_optimizer(args, model):
         if args.transfer_weights is None:
             params_to_optimize = [{'params': [p for p in model.parameters()]}]
         else:
-            for p in model.features.parameters():
+            for p in model.backbone.parameters():
                 p.requires_grad = False
             params_to_optimize = [{'params': [p for p in model.fc.parameters()]}]
         # optimiser
