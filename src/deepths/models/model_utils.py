@@ -171,10 +171,11 @@ def which_network_segmentation(network_name, num_classes):
 def out_hook(name, out_dict, arch=None):
     def hook(model, input_x, output_y):
         out_dict[name] = output_y.detach()
-        if 'clip' in arch and len(out_dict[name].shape) > 2:
-            out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0, :]
-        elif 'vit' in arch and len(out_dict[name].shape) > 2:
-            out_dict[name] = out_dict[name][:, 0]
+        if arch:
+            if 'clip' in arch and len(out_dict[name].shape) > 2:
+                out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0, :]
+            elif 'vit' in arch and len(out_dict[name].shape) > 2:
+                out_dict[name] = out_dict[name][:, 0]
 
     return hook
 

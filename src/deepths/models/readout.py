@@ -36,6 +36,8 @@ class BackboneNet(nn.Module):
         x = x.view(x.size(0), -1)
         return x
 
+
+class FeatureExtractor(BackboneNet):
     def forward(self, x):
         return self.extract_features(x)
 
