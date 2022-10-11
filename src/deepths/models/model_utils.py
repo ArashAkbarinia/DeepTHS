@@ -171,10 +171,11 @@ def which_network_segmentation(network_name, num_classes):
 def out_hook(name, out_dict, arch=None):
     def hook(model, input_x, output_y):
         out_dict[name] = output_y.detach()
-        if arch:
-            if 'clip' in arch and len(out_dict[name].shape) > 2:
-                out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0, :]
-            elif 'vit' in arch and len(out_dict[name].shape) > 2:
+        if arch and len(out_dict[name].shape) == 3:
+            if 'clip' in arch:
+                # clip output (SequenceLength, Batch, HiddenDimension)
+                out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0]
+            elif 'vit' in arch:
                 out_dict[name] = out_dict[name][:, 0]
 
     return hook
@@ -199,6 +200,8 @@ def clip_hooks(model, layers, architecture):
         for layer in layers:
             if layer == 'encoder':
                 layer_hook = model
+            elif layer == 'conv1':
+                layer_hook = model.conv1
             else:
                 block_ind = int(layer.replace('block', ''))
                 layer_hook = model.transformer.resblocks[block_ind]
@@ -212,6 +215,8 @@ def vit_hooks(model, layers):
     for layer in layers:
         if layer == 'fc':
             layer_hook = model
+        elif layer == 'conv_proj':
+            layer_hook = model.conv_proj
         else:
             block_ind = int(layer.replace('encoder', ''))
             layer_hook = model.encoder.layers[block_ind]
