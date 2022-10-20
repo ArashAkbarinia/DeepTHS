@@ -174,9 +174,9 @@ def out_hook(name, out_dict, arch=None):
         if arch and len(out_dict[name].shape) == 3:
             if 'clip' in arch:
                 # clip output (SequenceLength, Batch, HiddenDimension)
-                out_dict[name] = out_dict[name].permute(1, 0, 2)[:, 0]
-            elif 'vit' in arch:
-                out_dict[name] = out_dict[name][:, 0]
+                out_dict[name] = out_dict[name].permute(1, 0, 2)
+        #     elif 'vit' in arch:
+        #         out_dict[name] = out_dict[name][:, 0]
 
     return hook
 
