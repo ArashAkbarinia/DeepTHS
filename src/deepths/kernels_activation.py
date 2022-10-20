@@ -115,7 +115,7 @@ def main(argv):
     args.output_dir = os.path.join(args.output_dir, 'acts_%.3d' % args.background)
     system_utils.create_dir(args.output_dir)
 
-    model = readout.FeatureExtractor(args.architecture, args.transfer_weights[0])
+    model = readout.ActivationLoader(args.architecture, args.transfer_weights[0])
     model = lesion_utils.lesion_kernels(
         model, args.lesion_kernels, args.lesion_planes, args.lesion_lines
     )

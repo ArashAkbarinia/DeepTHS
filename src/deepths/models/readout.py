@@ -37,7 +37,7 @@ class BackboneNet(nn.Module):
         return x
 
 
-class FeatureExtractor(BackboneNet):
+class ActivationLoader(BackboneNet):
     def forward(self, x):
         return self.extract_features(x)
 
@@ -49,6 +49,11 @@ class ReadOutNet(BackboneNet):
         self.backbone, self.out_dim = pretraineds.model_features(
             self.backbone, architecture, transfer_weights[1], target_size
         )
+
+
+class FeatureExtractor(ReadOutNet):
+    def forward(self, x):
+        return self.extract_features_flatten(x)
 
 
 class ClassifierNet(ReadOutNet):
