@@ -33,7 +33,7 @@ class BackboneNet(nn.Module):
 
     def extract_features_flatten(self, x):
         x = self.extract_features(x)
-        x = x.view(x.size(0), -1)
+        x = torch.flatten(x, start_dim=1)
         return x
 
 
@@ -52,8 +52,13 @@ class ReadOutNet(BackboneNet):
 
 
 class FeatureExtractor(ReadOutNet):
-    def forward(self, x):
-        return self.extract_features_flatten(x)
+    def forward(self, x, pooling=None, flatten=True):
+        x = self.extract_features(x)
+        if pooling is not None:
+            x = pooling(x)
+        if flatten:
+            x = torch.flatten(x, start_dim=1)
+        return x
 
 
 class ClassifierNet(ReadOutNet):
