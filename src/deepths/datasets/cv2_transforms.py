@@ -64,7 +64,7 @@ class RandomCrop(object):
     def __call__(self, imgs):
         """
         Args:
-            img (np.ndarray): Image to be cropped.
+            imgs (np.ndarray): Image to be cropped.
         Returns:
             np.ndarray: Cropped image.
         """
@@ -73,8 +73,7 @@ class RandomCrop(object):
         fun = tfunctional.pad_crop
         kwargs = {
             'top': top, 'left': left, 'height': height, 'width': width,
-            'size': self.size,
-            'padding': self.padding, 'pad_if_needed': self.pad_if_needed
+            'size': self.size, 'padding': self.padding, 'pad_if_needed': self.pad_if_needed
         }
         return _call_recursive(imgs, fun, **kwargs)
 
@@ -324,9 +323,7 @@ class NormalizeSegmentation(object):
         self.mean = mean
         self.std = std
         self.inplace = inplace
-        self.kwargs = {
-            'mean': self.mean, 'std': self.std,  # FIXME'inplace': self.inplace
-        }
+        self.kwargs = {'mean': self.mean, 'std': self.std, 'inplace': self.inplace}
 
     def __call__(self, tensors):
         """
@@ -342,9 +339,7 @@ class NormalizeSegmentation(object):
         return image, tensors[1]
 
     def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(
-            self.mean, self.std
-        )
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
 
 class ToTensor(object):

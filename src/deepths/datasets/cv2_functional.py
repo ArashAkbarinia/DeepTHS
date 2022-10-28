@@ -14,10 +14,7 @@ import torch
 
 import cv2
 
-if sys.version_info < (3, 3):
-    Iterable = collections.Iterable
-else:
-    Iterable = collections.abc.Iterable
+Iterable = collections.Iterable if sys.version_info < (3, 3) else collections.abc.Iterable
 
 INTER_MODE = {
     'NEAREST': cv2.INTER_NEAREST, 'BILINEAR': cv2.INTER_LINEAR,
