@@ -8,17 +8,17 @@ import glob
 import random
 import ntpath
 
-from skimage import io
 import cv2
 
 from torch.utils import data as torch_data
 
 from ..utils import system_utils
+from . import dataset_utils
 
 
 def _create_bg_img(bg, mask_size, full_size):
     if os.path.exists(bg):
-        bg_img = io.imread(bg)
+        bg_img = dataset_utils.cv2_loader(bg)
         mask_img = cv2.resize(bg_img, mask_size, interpolation=cv2.INTER_NEAREST)
         full_img = cv2.resize(bg_img, full_size, interpolation=cv2.INTER_NEAREST)
     elif bg == 'rnd_img':
@@ -43,8 +43,8 @@ def _random_place(mask_size, target_size):
 
 
 def _centre_place(mask_size, target_size):
-    srow = int((target_size[0] - mask_size[0]) / 2)
-    scol = int((target_size[1] - mask_size[1]) / 2)
+    srow = (target_size[0] - mask_size[0]) // 2
+    scol = (target_size[1] - mask_size[1]) // 2
     return srow, scol
 
 
@@ -154,7 +154,7 @@ class ShapeSingleOut(ShapeDataset):
         self.colour = colour
 
     def __getitem__(self, item):
-        mask = io.imread(self.stimuli[item])
+        mask = dataset_utils.cv2_loader(self.stimuli[item])
         img = self._one_out_img(mask, self.colour.squeeze(), _centre_place)
         if self.transform is not None:
             img = self.transform(img)

@@ -5,6 +5,7 @@ Set of utility functions common across datasets.
 import sys
 
 import torchvision.transforms as torch_transforms
+from torchvision import datasets as torch_datasets
 
 import cv2
 
@@ -88,3 +89,10 @@ def post_transform(mean, std):
         cv2_transforms.ToTensor(),
         cv2_transforms.Normalize(mean, std),
     ]
+
+
+class BackgroundFolder(torch_datasets.ImageFolder):
+
+    def __getitem__(self, item):
+        img, _ = super().__getitem__(item)
+        return img
