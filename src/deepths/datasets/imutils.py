@@ -8,6 +8,9 @@ import cv2
 
 
 def adjust_contrast(image, amount):
+    if amount == 1:
+        return image
+
     amount = np.array(amount)
 
     assert np.all(amount >= 0.0), 'contrast_level too low.'

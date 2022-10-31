@@ -2,7 +2,6 @@
 Creating PyTorch dataloader from a set of binary images.
 """
 
-import os
 import numpy as np
 import glob
 import random
@@ -17,22 +16,8 @@ from . import dataset_utils
 
 
 def _create_bg_img(bg, mask_size, full_size):
-    if os.path.exists(bg):
-        bg_img = dataset_utils.cv2_loader(bg)
-        mask_img = cv2.resize(bg_img, mask_size, interpolation=cv2.INTER_NEAREST)
-        full_img = cv2.resize(bg_img, full_size, interpolation=cv2.INTER_NEAREST)
-    elif bg == 'rnd_img':
-        mask_img = np.random.randint(0, 256, (*mask_size, 3), dtype='uint8')
-        full_img = np.random.randint(0, 256, (*full_size, 3), dtype='uint8')
-    elif bg == 'rnd_uniform':
-        rnd_bg = np.random.randint(0, 256, dtype='uint8')
-        mask_img = np.zeros((*mask_size, 3), dtype='uint8') + rnd_bg
-        full_img = np.zeros((*full_size, 3), dtype='uint8') + rnd_bg
-    else:
-        mask_img = np.zeros((*mask_size, 3), dtype='uint8') + int(bg)
-        full_img = np.zeros((*full_size, 3), dtype='uint8') + int(bg)
-    mask_img = mask_img.astype('float32') / 255
-    full_img = full_img.astype('float32') / 255
+    mask_img = dataset_utils.background_img(bg, mask_size)
+    full_img = dataset_utils.background_img(bg, full_size)
     return mask_img, full_img
 
 

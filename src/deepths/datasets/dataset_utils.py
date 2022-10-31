@@ -2,6 +2,8 @@
 Set of utility functions common across datasets.
 """
 
+import numpy as np
+import os
 import sys
 
 import torchvision.transforms as torch_transforms
@@ -11,6 +13,21 @@ import cv2
 
 from . import cv2_transforms
 from ..utils import colour_spaces
+
+
+def background_img(bg_type, bg_size, num_chns=3):
+    if os.path.exists(bg_type):
+        bg_img = cv2_loader(bg_type)
+        bg_img = cv2.resize(bg_img, bg_size, interpolation=cv2.INTER_NEAREST)
+    elif bg_type == 'rnd_img':
+        bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
+    elif bg_type == 'rnd_uniform':
+        rnd_bg = np.random.randint(0, 256, dtype='uint8')
+        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + rnd_bg
+    else:
+        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + int(bg_type)
+    bg_img = bg_img.astype('float32') / 255
+    return bg_img
 
 
 def cv2_loader(path):
@@ -91,7 +108,7 @@ def post_transform(mean, std):
     ]
 
 
-class BackgroundFolder(torch_datasets.ImageFolder):
+class NoTargetFolder(torch_datasets.ImageFolder):
 
     def __getitem__(self, item):
         img, _ = super().__getitem__(item)
