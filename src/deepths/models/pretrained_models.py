@@ -203,6 +203,9 @@ def get_pretrained_model(network_name, weights):
         model = model_utils.which_architecture(network_name.replace('_scratch', ''))
     elif 'fcn_' in network_name or 'deeplab' in network_name:
         model = segmentation.__dict__[network_name](pretrained=True)
+    elif weights == 'none':
+        # FIXME: support for none weights
+        model = model_utils.which_architecture(network_name)
     else:
         model = model_utils.which_network(weights, 'classification', num_classes=1000)
     return model

@@ -45,7 +45,7 @@ def _prepare_training(args, model):
 def _make_optimizer(args, model):
     if args.classifier == 'nn':
         # if transfer_weights, only train the fc layer, otherwise all parameters
-        if args.transfer_weights is None:
+        if args.transfer_weights[0] is None or args.transfer_weights[0] == 'none':
             params_to_optimize = [{'params': [p for p in model.parameters()]}]
         else:
             for p in model.backbone.parameters():
