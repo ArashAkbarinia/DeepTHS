@@ -5,6 +5,7 @@ Set of utility functions common across datasets.
 import numpy as np
 import os
 import sys
+import random
 
 import torchvision.transforms as torch_transforms
 from torchvision import datasets as torch_datasets
@@ -28,6 +29,39 @@ def background_img(bg_type, bg_size, num_chns=3):
         bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + int(bg_type)
     bg_img = bg_img.astype('float32') / 255
     return bg_img
+
+
+def random_place(fg_size, bg_size):
+    srow = random.randint(0, bg_size[0] - fg_size[0])
+    scol = random.randint(0, bg_size[1] - fg_size[1])
+    return srow, scol
+
+
+def centre_place(fg_size, bg_size):
+    srow = (bg_size[0] - fg_size[0]) // 2
+    scol = (bg_size[1] - fg_size[1]) // 2
+    return srow, scol
+
+
+def merge_fg_bg(bg, fg, place_fun):
+    if isinstance(place_fun, str):
+        place_fun = centre_place if place_fun == 'centre' else random_place
+    srow, scol = place_fun(fg.shape[:2], bg.shape[:2])
+    return merge_fg_bg_at_loc(bg, fg, srow, scol)
+
+
+def merge_fg_bg_at_loc(bg, fg, srow, scol):
+    bg = bg.copy()
+    erow = srow + fg.shape[0]
+    ecol = scol + fg.shape[1]
+    bg[srow:erow, scol:ecol] = fg.copy()
+    return bg
+
+
+def crop_fg_from_bg(bg, fg_size, srow, scol):
+    erow = srow + fg_size[0]
+    ecol = scol + fg_size[1]
+    return bg[srow:erow, scol:ecol].copy()
 
 
 def cv2_loader(path):

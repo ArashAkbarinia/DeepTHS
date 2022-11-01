@@ -21,18 +21,6 @@ def _create_bg_img(bg, mask_size, full_size):
     return mask_img, full_img
 
 
-def _random_place(mask_size, target_size):
-    srow = random.randint(0, target_size[0] - mask_size[0])
-    scol = random.randint(0, target_size[1] - mask_size[1])
-    return srow, scol
-
-
-def _centre_place(mask_size, target_size):
-    srow = (target_size[0] - mask_size[0]) // 2
-    scol = (target_size[1] - mask_size[1]) // 2
-    return srow, scol
-
-
 class ShapeDataset(torch_data.Dataset):
     def __init__(self, root, transform=None, background=None, target_size=None, mask_size=None):
         self.root = root
@@ -54,13 +42,7 @@ class ShapeDataset(torch_data.Dataset):
             current_chn = mask_img[:, :, chn_ind]
             current_chn[mask == 255] = colour[chn_ind]
 
-        if isinstance(place_fun, str):
-            place_fun = _centre_place if place_fun == 'centre' else _random_place
-
-        srow, scol = place_fun(self.mask_size, self.target_size)
-        erow = srow + self.mask_size[0]
-        ecol = scol + self.mask_size[1]
-        img[srow:erow, scol:ecol] = mask_img
+        img = dataset_utils.merge_fg_bg(img, mask_img, place_fun)
         return img
 
     def _one_out_img_uint8(self, mask, colour, place_fun):
@@ -69,7 +51,7 @@ class ShapeDataset(torch_data.Dataset):
 
     def _one_train_img_uint8(self, mask_img, colour):
         colour = np.array(colour).astype('float32') / 255
-        return self._one_out_img_uint8(mask_img, colour, _random_place)
+        return self._one_out_img_uint8(mask_img, colour, dataset_utils.random_place)
 
 
 class ShapeMultipleOut(ShapeDataset):
@@ -105,7 +87,7 @@ class ShapeTrain(ShapeMultipleOut):
     def _mul_train_imgs(self, masks, others_colour, target_colour):
         others_colour = np.array(others_colour).astype('float32') / 255
         target_colour = np.array(target_colour).astype('float32') / 255
-        imgs = self._mul_out_imgs(masks, others_colour, target_colour, _random_place)
+        imgs = self._mul_out_imgs(masks, others_colour, target_colour, dataset_utils.random_place)
         return imgs
 
     def _get_target_colour(self):
@@ -140,7 +122,7 @@ class ShapeSingleOut(ShapeDataset):
 
     def __getitem__(self, item):
         mask = dataset_utils.cv2_loader(self.stimuli[item])
-        img = self._one_out_img(mask, self.colour.squeeze(), _centre_place)
+        img = self._one_out_img(mask, self.colour.squeeze(), dataset_utils.centre_place)
         if self.transform is not None:
             img = self.transform(img)
         return img, ntpath.basename(self.stimuli[item])
