@@ -5,8 +5,8 @@ Supported arguments for train and evaluation.
 import argparse
 
 
-def colour_discrimination_arg_parser(argvs, extra_args_fun=None):
-    parser = _common_arg_parser(description='Colour discrimination training')
+def master_arg_parser(argvs, task, extra_args_fun=None):
+    parser = _common_arg_parser(description=task)
 
     _add_optimisation_group(parser)
 
@@ -15,7 +15,12 @@ def colour_discrimination_arg_parser(argvs, extra_args_fun=None):
 
     args = parser.parse_args(argvs)
 
-    args.paradigm = args.paradigm if args.paradigm == '2afc' else 'odd4'
+    # task dependent
+    if task == 'odd_one_out':
+        args.paradigm = int(args.paradigm)
+    elif task == 'colour_discrimination':
+        args.paradigm = args.paradigm if args.paradigm == '2afc' else 'odd4'
+
     if args.colour_space is None:
         args.colour_space = 'imagenet_rgb'
     args.colour_space = _check_dataset_space(args)

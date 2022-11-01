@@ -16,7 +16,7 @@ from .utils import common_routines, system_utils
 
 
 def main(argv):
-    args = argument_handler.colour_discrimination_arg_parser(argv)
+    args = argument_handler.master_arg_parser(argv, 'colour_discrimination')
     args = common_routines.prepare_starting(args, 'colour_discrimination')
     _main_worker(args)
 
