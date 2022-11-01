@@ -192,7 +192,7 @@ def _global_img_processing(img, contrast):
 def _local_img_drawing(img, shape, length, thickness, colour):
     shape_kwargs = _polygon_kwargs(shape, length, img.shape, thickness)
     draw_fun, params = polygon_params(shape, **shape_kwargs)
-    return draw_polygon_params(draw_fun, img, params, colour, thickness)
+    return draw_polygon_params(draw_fun, img, params, thickness, colour)
 
 
 def _rnd_contrast():
@@ -215,8 +215,9 @@ def _rnd_thickness(thickness_range=(4, 7)):
 def _fg_img(fg_type, bg_img, fg_size):
     if fg_type is None:
         fg_img = bg_img.copy()
-    elif fg_type in ['rnd_img', 'rnd_uniform']:
+    elif fg_type in ['rnd_img', 'rnd_uniform'] or type(fg_type) == int:
         fg_img = dataset_utils.background_img(fg_type, fg_size)
+        fg_img = (fg_img * 255).astype('uint8')
     else:
         sys.exit('Unsupported feature type %s' % fg_type)
     return fg_img
@@ -271,6 +272,9 @@ class OddOneOutTrain(torch_data.Dataset):
 
     def size_feature(self, img_in):
         fg_type = np.random.choice(self.fg_paths)
+        if fg_type == 'rnd_uniform':
+            fg_type = _randint(0, 256)
+
         # creating a random size for the odd image
         odd_size = (
             _rnd_scale(img_in.shape[0], self.fg_scale),

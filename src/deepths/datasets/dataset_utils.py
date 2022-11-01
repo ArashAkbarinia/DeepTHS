@@ -17,7 +17,7 @@ from ..utils import colour_spaces
 
 
 def background_img(bg_type, bg_size, num_chns=3):
-    if os.path.exists(bg_type):
+    if type(bg_type) == str and os.path.exists(bg_type):
         bg_img = cv2_loader(bg_type)
         bg_img = cv2.resize(bg_img, bg_size, interpolation=cv2.INTER_NEAREST)
     elif bg_type == 'rnd_img':
