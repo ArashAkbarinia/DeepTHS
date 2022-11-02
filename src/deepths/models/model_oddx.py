@@ -13,7 +13,7 @@ def oddx_net(args):
 
 
 class OddOneOut(readout.ClassifierNet):
-    def __init__(self, classifier_args, **readout_kwargs):
+    def __init__(self, *classifier_args, **readout_kwargs):
         super(OddOneOut, self).__init__(3, 1, *classifier_args, **readout_kwargs)
 
     def forward(self, x0, x1, x2, x3):
