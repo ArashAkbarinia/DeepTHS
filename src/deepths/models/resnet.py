@@ -31,15 +31,13 @@ model_urls = {
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False,
-                     dilation=dilation)
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=dilation,
+                     groups=groups, bias=False, dilation=dilation)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
-                     bias=False)
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
 def conv_avg(in_planes, kernel_size, stride=1, groups=None, dilation=1):
@@ -48,8 +46,7 @@ def conv_avg(in_planes, kernel_size, stride=1, groups=None, dilation=1):
     num_pixels = kernel_size * kernel_size * (in_planes / groups)
     initial_value = 1.0 / num_pixels
     conv_kernel = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=stride,
-                            padding=dilation, groups=groups, bias=False,
-                            dilation=dilation)
+                            padding=dilation, groups=groups, bias=False, dilation=dilation)
     nn.init.constant_(conv_kernel.weight, initial_value)
     conv_kernel.requires_grad = False
     return conv_kernel
@@ -59,8 +56,7 @@ class LocalContrastBlock(nn.Module):
 
     def __init__(self, planes, kernel_size=3, stride=1, groups=None):
         super(LocalContrastBlock, self).__init__()
-        self.conv_average = conv_avg(planes, kernel_size=kernel_size,
-                                     stride=stride, groups=groups)
+        self.conv_average = conv_avg(planes, kernel_size=kernel_size, stride=stride, groups=groups)
 
     def forward(self, x):
         x_avg = self.conv_average(x)
@@ -80,10 +76,8 @@ class ContrastPoolingBlock(nn.Module):
                  padding=1):
         super(ContrastPoolingBlock, self).__init__()
         self.pooling_type = pooling_type
-        self.max_pool = nn.MaxPool2d(kernel_size=kernel_size, stride=stride,
-                                     padding=padding)
-        self.avg_pool = nn.AvgPool2d(kernel_size=kernel_size, stride=stride,
-                                     padding=padding)
+        self.max_pool = nn.MaxPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
+        self.avg_pool = nn.AvgPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
         # TODO: merge all reductions to one type
         if self.pooling_type in {'mix', 'contrast'}:
             self.reduction = conv1x1(planes * 2, planes)
@@ -96,9 +90,7 @@ class ContrastPoolingBlock(nn.Module):
             self.bn = nn.BatchNorm2d(planes)
 
     def _local_contrast(self, planes, kernel_size=3, stride=1):
-        layers = []
-        layers.append(
-            LocalContrastBlock(planes, kernel_size=kernel_size, stride=stride))
+        layers = [LocalContrastBlock(planes, kernel_size=kernel_size, stride=stride)]
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -220,12 +212,9 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000,
-                 zero_init_residual=False,
-                 groups=1, width_per_group=64,
-                 replace_stride_with_dilation=None,
-                 norm_layer=None, pooling_type='max', in_chns=3,
-                 inplanes=64, kernel_size=7, stride=2):
+    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, groups=1,
+                 width_per_group=64, replace_stride_with_dilation=None, norm_layer=None,
+                 pooling_type='max', in_chns=3, inplanes=64, kernel_size=7, stride=2):
         # TODO: pass pooling_type as an argument
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -242,17 +231,14 @@ class ResNet(nn.Module):
         if len(replace_stride_with_dilation) != 3:
             raise ValueError(
                 "replace_stride_with_dilation should be None "
-                "or a 3-element tuple, got {}".format(
-                    replace_stride_with_dilation
-                )
+                "or a 3-element tuple, got {}".format(replace_stride_with_dilation)
             )
         self.groups = groups
         self.base_width = width_per_group
         # FIXME: bad hack for CIFAR and MNIST, please fix me
         if num_classes == 10:
             self.conv1 = nn.Conv2d(
-                self.in_chns, self.inplanes, kernel_size=3, stride=1, padding=1,
-                bias=False
+                self.in_chns, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False
             )
             pooling_type = 'none'
         else:
@@ -267,16 +253,13 @@ class ResNet(nn.Module):
         )
         self.layer1 = self._make_layer(block, self.inplanes, layers[0])
         self.layer2 = self._make_layer(
-            block, inplanes * 2, layers[1], stride=stride,
-            dilate=replace_stride_with_dilation[0]
+            block, inplanes * 2, layers[1], stride=stride, dilate=replace_stride_with_dilation[0]
         )
         self.layer3 = self._make_layer(
-            block, inplanes * 4, layers[2], stride=stride,
-            dilate=replace_stride_with_dilation[1]
+            block, inplanes * 4, layers[2], stride=stride, dilate=replace_stride_with_dilation[1]
         )
         self.layer4 = self._make_layer(
-            block, inplanes * 8, layers[3], stride=stride,
-            dilate=replace_stride_with_dilation[2]
+            block, inplanes * 8, layers[3], stride=stride, dilate=replace_stride_with_dilation[2]
         )
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         fcm = 8
@@ -292,9 +275,7 @@ class ResNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode='fan_out', nonlinearity='relu'
-                )
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -335,23 +316,17 @@ class ResNet(nn.Module):
             for _ in range(1, blocks):
                 layers.append(
                     block(
-                        self.inplanes, planes, groups=self.groups,
-                        base_width=self.base_width, dilation=self.dilation,
-                        norm_layer=norm_layer
+                        self.inplanes, planes, groups=self.groups, base_width=self.base_width,
+                        dilation=self.dilation, norm_layer=norm_layer
                     )
                 )
 
         return nn.Sequential(*layers)
 
-    def _contrast_pooling(self, planes, pooling_type, kernel_size=3, stride=2,
-                          padding=1):
-        layers = []
-        layers.append(
-            ContrastPoolingBlock(
-                planes, pooling_type, kernel_size=kernel_size,
-                stride=stride, padding=padding
-            )
-        )
+    def _contrast_pooling(self, planes, pooling_type, kernel_size=3, stride=2, padding=1):
+        layers = [ContrastPoolingBlock(
+            planes, pooling_type, kernel_size=kernel_size, stride=stride, padding=padding
+        )]
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -375,8 +350,7 @@ class ResNet(nn.Module):
 def _resnet(arch, block_type, planes, pretrained, progress, **kwargs):
     model = ResNet(block_type, planes, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
-                                              progress=progress)
+        state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
         model.load_state_dict(state_dict)
     return model
 
@@ -399,8 +373,7 @@ def resnet_basic_1111(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet_basic_1111', BasicBlock, [1, 1, 1, 1], pretrained,
-                   progress, **kwargs)
+    return _resnet('resnet_basic_1111', BasicBlock, [1, 1, 1, 1], pretrained, progress, **kwargs)
 
 
 def resnet_basic_2111(pretrained=False, progress=True, **kwargs):
@@ -410,8 +383,7 @@ def resnet_basic_2111(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet_basic_2111', BasicBlock, [2, 1, 1, 1], pretrained,
-                   progress, **kwargs)
+    return _resnet('resnet_basic_2111', BasicBlock, [2, 1, 1, 1], pretrained, progress, **kwargs)
 
 
 def resnet_basic_2211(pretrained=False, progress=True, **kwargs):
@@ -421,8 +393,7 @@ def resnet_basic_2211(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet_basic_2211', BasicBlock, [2, 2, 1, 1], pretrained,
-                   progress, **kwargs)
+    return _resnet('resnet_basic_2211', BasicBlock, [2, 2, 1, 1], pretrained, progress, **kwargs)
 
 
 def resnet_basic_2221(pretrained=False, progress=True, **kwargs):
@@ -432,8 +403,7 @@ def resnet_basic_2221(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet_basic_2221', BasicBlock, [2, 2, 2, 1], pretrained,
-                   progress, **kwargs)
+    return _resnet('resnet_basic_2221', BasicBlock, [2, 2, 2, 1], pretrained, progress, **kwargs)
 
 
 def resnet18(pretrained=False, progress=True, **kwargs):
@@ -443,8 +413,7 @@ def resnet18(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
-                   **kwargs)
+    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress, **kwargs)
 
 
 def resnet34(pretrained=False, progress=True, **kwargs):
@@ -454,8 +423,7 @@ def resnet34(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress,
-                   **kwargs)
+    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress, **kwargs)
 
 
 def resnet_bottleneck_custom(planes, pretrained=False, progress=True, **kwargs):
@@ -531,8 +499,7 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
-                   **kwargs)
+    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress, **kwargs)
 
 
 def resnet101(pretrained=False, progress=True, **kwargs):
@@ -542,8 +509,7 @@ def resnet101(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained, progress,
-                   **kwargs)
+    return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained, progress, **kwargs)
 
 
 def resnet152(pretrained=False, progress=True, **kwargs):
@@ -553,8 +519,7 @@ def resnet152(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet152', Bottleneck, [3, 8, 36, 3], pretrained, progress,
-                   **kwargs)
+    return _resnet('resnet152', Bottleneck, [3, 8, 36, 3], pretrained, progress, **kwargs)
 
 
 def resnext50_32x4d(**kwargs):
