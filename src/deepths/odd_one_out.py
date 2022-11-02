@@ -10,7 +10,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader_colour, dataloader_oddx
-from .models import model_colour as networks
+from .models import model_oddx
 from .utils import report_utils, argument_handler, colour_spaces
 from .utils import common_routines, system_utils
 
@@ -23,10 +23,7 @@ def main(argv):
 
 def _main_worker(args):
     # FIXME args.paradigm
-    model = networks.colour_discrimination_net(
-        'odd4', args.test_net, args.architecture, args.target_size,
-        args.transfer_weights, args.classifier
-    )
+    model = model_oddx.oddx_net(args)
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
