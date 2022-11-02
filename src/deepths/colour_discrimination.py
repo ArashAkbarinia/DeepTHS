@@ -22,12 +22,8 @@ def main(argv):
 
 
 def _main_worker(args):
-    model = networks.colour_discrimination_net(
-        args.paradigm, args.test_net, args.architecture, args.target_size,
-        args.transfer_weights, args.classifier
-    )
-
     torch.cuda.set_device(args.gpu)
+    model = networks.colour_discrimination_net(args)
     model = model.cuda(args.gpu)
 
     # setting the quadrant points

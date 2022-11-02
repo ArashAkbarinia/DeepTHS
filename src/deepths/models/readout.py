@@ -63,9 +63,8 @@ class FeatureExtractor(ReadOutNet):
 
 
 class ClassifierNet(ReadOutNet):
-    def __init__(self, architecture, target_size, transfer_weights, input_nodes, classifier,
-                 num_classes, pooling=None):
-        super(ClassifierNet, self).__init__(architecture, target_size, transfer_weights)
+    def __init__(self, input_nodes, num_classes, classifier, pooling=None, **kwargs):
+        super(ClassifierNet, self).__init__(**kwargs)
 
         self.input_nodes = input_nodes
         if pooling is not None and len(self.out_dim) == 3:
@@ -96,12 +95,28 @@ class ClassifierNet(ReadOutNet):
         return x if self.fc is None else self.fc(x)
 
 
-def load_model(weights, target_size, net_class, classifier):
+def load_model(net_class, weights, target_size):
     print('Loading test model from %s!' % weights)
     checkpoint = torch.load(weights, map_location='cpu')
     architecture = checkpoint['arch']
     transfer_weights = checkpoint['transfer_weights']
+    classifier = checkpoint['net']['classifier']
+    pooling = checkpoint['net']['pooling']
 
-    model = net_class(architecture, target_size, transfer_weights, classifier)
+    readout_kwargs = {
+        'architecture': architecture,
+        'target_size': target_size,
+        'transfer_weights': transfer_weights
+    }
+    model = net_class(classifier, pooling, **readout_kwargs)
     model.load_state_dict(checkpoint['state_dict'], strict=False)
     return model
+
+
+def make_model(net_class, args):
+    readout_kwargs = {
+        'architecture': args.architecture,
+        'target_size': args.target_size,
+        'transfer_weights': args.transfer_weights
+    }
+    return net_class(args.classifier, args.pooling, **readout_kwargs)

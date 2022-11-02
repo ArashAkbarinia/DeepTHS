@@ -112,7 +112,7 @@ def main(argv):
         net_t = model_csf.load_grating_detector
     else:
         net_t = model_csf.load_contrast_discrimination
-    model = net_t(args.architecture, args.target_size, args.classifier)
+    model = net_t(args.architecture, args.target_size)
 
     model = lesion_utils.lesion_kernels(
         model, args.lesion_kernels, args.lesion_planes, args.lesion_lines

@@ -12,21 +12,20 @@ def network_class(paradigm):
     return ColourDiscrimination2AFC if paradigm == '2afc' else ColourDiscriminationOddOneOut
 
 
-def colour_discrimination_net(paradigm, test_net, architecture, target_size, transfer_weights,
-                              classifier):
-    net_class = network_class(paradigm)
+def colour_discrimination_net(args):
+    net_class = network_class(args.paradigm)
 
-    if test_net:
-        model = readout.load_model(test_net, target_size, net_class, classifier)
+    if args.test_net:
+        model = readout.load_model(net_class, args.test_net, args.target_size)
     else:
-        model = net_class(architecture, target_size, transfer_weights, classifier)
+        model = readout.make_model(net_class, args)
     return model
 
 
 class ColourDiscriminationOddOneOut(readout.ClassifierNet):
-    def __init__(self, architecture, target_size, transfer_weights, classifier):
+    def __init__(self, *classifier_args, **readout_kwargs):
         super(ColourDiscriminationOddOneOut, self).__init__(
-            architecture, target_size, transfer_weights, 3, classifier, 1
+            3, 1, *classifier_args, **readout_kwargs
         )
 
     def forward(self, x0, x1, x2, x3):
@@ -50,10 +49,8 @@ class ColourDiscriminationOddOneOut(readout.ClassifierNet):
 
 
 class ColourDiscrimination2AFC(readout.ClassifierNet):
-    def __init__(self, architecture, target_size, transfer_weights, classifier):
-        super(ColourDiscrimination2AFC, self).__init__(
-            architecture, target_size, transfer_weights, 1, classifier, 1
-        )
+    def __init__(self, *classifier_args, **readout_kwargs):
+        super(ColourDiscrimination2AFC, self).__init__(1, 1, *classifier_args, **readout_kwargs)
 
     def forward(self, x0, x1):
         x0 = self.do_features(x0)

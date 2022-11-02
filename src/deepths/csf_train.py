@@ -13,7 +13,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 
 from .datasets import dataloader_csf
-from .models import model_csf
+from .models import model_csf, readout
 from .utils import argument_handler
 from .utils import common_routines
 
@@ -27,7 +27,7 @@ def main(argv):
 def _main_worker(args):
     # create model
     net_t = model_csf.GratingDetector if args.grating_detector else model_csf.ContrastDiscrimination
-    model = net_t(args.architecture, args.target_size, args.transfer_weights, args.classifier)
+    model = readout.make_model(net_t, args)
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
