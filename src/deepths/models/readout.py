@@ -2,6 +2,7 @@
 
 """
 
+import sys
 import numpy as np
 
 import torch
@@ -63,16 +64,33 @@ class FeatureExtractor(ReadOutNet):
 
 class ClassifierNet(ReadOutNet):
     def __init__(self, architecture, target_size, transfer_weights, input_nodes, classifier,
-                 num_classes):
+                 num_classes, pooling=None):
         super(ClassifierNet, self).__init__(architecture, target_size, transfer_weights)
 
         self.input_nodes = input_nodes
+        if pooling is not None and len(self.out_dim) == 3:
+            pool_size = pooling.split('_')[1:]
+            pool_size = (int(pool_size[0]), int(pool_size[1]))
+            self.out_dim = (self.out_dim[0], *pool_size)
+            if 'avg' in pooling:
+                self.pool = nn.AdaptiveAvgPool2d(pool_size)
+            elif 'max' in pooling:
+                self.pool = nn.AdaptiveMaxPool2d(pool_size)
+            else:
+                sys.exit('Pooling %s not supported!' % pooling)
+        else:
+            self.pool = None
 
         if classifier == 'nn':
             org_classes = np.prod(self.out_dim)
             self.fc = nn.Linear(int(org_classes * self.input_nodes), num_classes)
         else:
             self.fc = None  # e.g. for SVM
+
+    def do_features(self, x):
+        x = self.extract_features(x)
+        x = x if self.pool is None else self.pool(x)
+        return torch.flatten(x, start_dim=1)
 
     def do_classifier(self, x):
         return x if self.fc is None else self.fc(x)

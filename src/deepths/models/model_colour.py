@@ -30,10 +30,10 @@ class ColourDiscriminationOddOneOut(readout.ClassifierNet):
         )
 
     def forward(self, x0, x1, x2, x3):
-        x0 = self.extract_features_flatten(x0)
-        x1 = self.extract_features_flatten(x1)
-        x2 = self.extract_features_flatten(x2)
-        x3 = self.extract_features_flatten(x3)
+        x0 = self.do_features(x0)
+        x1 = self.do_features(x1)
+        x2 = self.do_features(x2)
+        x3 = self.do_features(x3)
 
         comp3 = self.do_classifier(torch.abs(torch.cat([x3 - x0, x3 - x1, x3 - x2], dim=1)))
         comp2 = self.do_classifier(torch.abs(torch.cat([x2 - x0, x2 - x1, x2 - x3], dim=1)))
@@ -56,12 +56,9 @@ class ColourDiscrimination2AFC(readout.ClassifierNet):
         )
 
     def forward(self, x0, x1):
-        x0 = self.extract_features_flatten(x0)
-        x1 = self.extract_features_flatten(x1)
-
-        # x = self.fc(torch.cat([x0, x1], dim=1))
+        x0 = self.do_features(x0)
+        x1 = self.do_features(x1)
         x = torch.abs(x0 - x1)
-
         return self.do_classifier(x)
 
     def loss_function(self, output, target):
