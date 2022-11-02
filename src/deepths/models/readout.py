@@ -114,9 +114,12 @@ def load_model(net_class, weights, target_size):
 
 
 def make_model(net_class, args):
-    readout_kwargs = {
-        'architecture': args.architecture,
-        'target_size': args.target_size,
-        'transfer_weights': args.transfer_weights
-    }
-    return net_class(args.classifier, args.pooling, **readout_kwargs)
+    if args.test_net:
+        return load_model(net_class, args.test_net, args.target_size)
+    else:
+        readout_kwargs = {
+            'architecture': args.architecture,
+            'target_size': args.target_size,
+            'transfer_weights': args.transfer_weights
+        }
+        return net_class(args.classifier, args.pooling, **readout_kwargs)

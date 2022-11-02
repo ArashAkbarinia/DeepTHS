@@ -13,13 +13,7 @@ def network_class(paradigm):
 
 
 def colour_discrimination_net(args):
-    net_class = network_class(args.paradigm)
-
-    if args.test_net:
-        model = readout.load_model(net_class, args.test_net, args.target_size)
-    else:
-        model = readout.make_model(net_class, args)
-    return model
+    return readout.make_model(network_class(args.paradigm), args)
 
 
 class ColourDiscriminationOddOneOut(readout.ClassifierNet):

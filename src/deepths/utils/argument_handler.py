@@ -235,6 +235,12 @@ def _add_network_group(parser):
         type=str,
         help='Whether transferring weights from a model (default: None)'
     )
+    network_group.add_argument(
+        '--pooling',
+        default=None,
+        type=str,
+        help='Type of the pooling on top of extracted features (default: None)'
+    )
 
 
 def _add_optimisation_group(parser):
