@@ -19,11 +19,11 @@ from .taskonomy import taskonomy_network
 
 
 class ViTLayers(nn.Module):
-    def __init__(self, parent_model, encoder_layer):
+    def __init__(self, parent_model, block):
         super().__init__()
         self.parent_model = parent_model
-        encoder_layer = encoder_layer + 1
-        self.parent_model.encoder.layers = self.parent_model.encoder.layers[:encoder_layer]
+        block = block + 1
+        self.parent_model.encoder.layers = self.parent_model.encoder.layers[:block]
         del self.parent_model.heads
 
     def forward(self, x):
@@ -34,20 +34,15 @@ class ViTLayers(nn.Module):
         # Expand the class token to the full batch
         batch_class_token = self.parent_model.class_token.expand(n, -1, -1)
         x = torch.cat([batch_class_token, x], dim=1)
-
         x = self.parent_model.encoder(x)
-
-        # Classifier "token" as used by standard language architectures
-        x = x[:, 0]
-
         return x
 
 
 class ViTClipLayers(nn.Module):
-    def __init__(self, parent_model, encoder_layer):
+    def __init__(self, parent_model, block):
         super().__init__()
         self.parent_model = parent_model
-        block = encoder_layer + 1
+        block = block + 1
         self.parent_model.transformer.resblocks = self.parent_model.transformer.resblocks[:block]
         del self.parent_model.proj
         del self.parent_model.ln_post
@@ -67,15 +62,11 @@ class ViTClipLayers(nn.Module):
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.parent_model.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
-
-        x = x[:, 0, :]
-
         return x
 
 
 def vit_features(model, layer, target_size):
-    encoder_layer = int(layer.replace('encoder', ''))
-    features = ViTLayers(model, encoder_layer)
+    features = ViTLayers(model, int(layer.replace('block', '')))
     out_dim = generic_features_size(features, target_size)
     return features, out_dim
 
@@ -123,8 +114,7 @@ def clip_features(model, network_name, layer, target_size):
             l_ind = pretrained_features.resnet_slice(layer, is_clip=True)
             features = nn.Sequential(*list(model.children())[:l_ind])
         else:
-            block_layer = int(layer.replace('block', ''))
-            features = ViTClipLayers(model, block_layer)
+            features = ViTClipLayers(model, int(layer.replace('block', '')))
         out_dim = generic_features_size(features, target_size, model.conv1.weight.dtype)
     return features, out_dim
 

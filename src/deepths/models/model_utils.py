@@ -218,7 +218,7 @@ def vit_hooks(model, layers):
         elif layer == 'conv_proj':
             layer_hook = model.conv_proj
         else:
-            block_ind = int(layer.replace('encoder', ''))
+            block_ind = int(layer.replace('block', ''))
             layer_hook = model.encoder.layers[block_ind]
         rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, 'vit'))
     return act_dict, rf_hooks
