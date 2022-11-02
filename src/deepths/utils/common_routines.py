@@ -119,6 +119,7 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
             {
                 'epoch': epoch,
                 'arch': args.architecture,
+                'net': {'classifier': args.classifier, 'pooling': args.pooling},
                 'transfer_weights': args.transfer_weights,
                 'preprocessing': {'mean': args.mean, 'std': args.std},
                 'state_dict': _extract_altered_state_dict(model, args.classifier),
