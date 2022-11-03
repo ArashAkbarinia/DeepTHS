@@ -122,7 +122,7 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
                 'net': {'classifier': args.classifier, 'pooling': args.pooling},
                 'transfer_weights': args.transfer_weights,
                 'preprocessing': {'mean': args.mean, 'std': args.std},
-                'state_dict': _extract_altered_state_dict(model, args.classifier),
+                'state_dict': _extract_altered_state_dict(model, args),
                 'best_acc1': best_acc1,
                 'optimizer': optimizer.state_dict() if args.classifier == 'nn' else [],
                 'target_size': args.target_size,
@@ -137,11 +137,13 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
         args.tb_writers[mode].close()
 
 
-def _extract_altered_state_dict(model, classifier):
+def _extract_altered_state_dict(model, args):
+    if args.transfer_weights[0] == 'none':
+        return model.state_dict()
     altered_state_dict = collections.OrderedDict()
     for key, _ in model.named_buffers():
         altered_state_dict[key] = model.state_dict()[key]
-    if classifier == 'nn':
+    if args.classifier == 'nn':
         for key in ['fc.weight', 'fc.bias']:
             altered_state_dict[key] = model.state_dict()[key]
     return altered_state_dict
