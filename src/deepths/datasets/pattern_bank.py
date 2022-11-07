@@ -37,6 +37,12 @@ def herringbone(img_size, height, peak=1, length=1):
     return repeat_to_img_size(herringbone_img, img_size)
 
 
+def diamond(img_size, height, peak=1, length=1):
+    diamond_img = wave(None, height, 0, peak, length)
+    diamond_img = np.concatenate([diamond_img, diamond_img[::-1]], axis=0)
+    return repeat_to_img_size(diamond_img, img_size)
+
+
 def line(img_size, gap, thickness=1):
     line_img = np.zeros((thickness + gap, img_size[1]))
     line_img[0:thickness] = 1
