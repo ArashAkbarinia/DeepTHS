@@ -7,15 +7,10 @@ import sys
 import numpy as np
 import random
 
-import cv2
-
 from torch.utils import data as torch_data
 import torchvision.transforms as torch_transforms
 
-from . import dataset_utils, imutils, pattern_bank
-
-CV2_BASIC_SHAPES = ['circle', 'ellipse', 'square', 'rectangle']
-CV2_CUSTOM_SHAPES = ['triangle']
+from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
 
 def _img_centre(img_size):
@@ -61,7 +56,7 @@ def _randint(low, high):
 
 def _polygon_kwargs(polygon, length, img_size, thickness):
     kwargs = dict()
-    if polygon in CV2_BASIC_SHAPES:
+    if polygon in polygon_bank.CV2_BASIC_SHAPES:
         kwargs['ref_pt'] = _ref_point(length, polygon, img_size, thickness)
         kwargs['length'] = _random_length(length, polygon)
     elif polygon == 'triangle':
@@ -76,45 +71,6 @@ def _polygon_kwargs(polygon, length, img_size, thickness):
         pt3 = (pt1[0] + sx, pt1[1] + sy)
         kwargs['pts'] = [np.array([pt1, pt2, pt3])]
     return kwargs
-
-
-def cv2_filled_polygons(img, pts, color, thickness):
-    img = cv2.polylines(img, pts=pts, color=color, thickness=abs(thickness), isClosed=True)
-    if thickness < 0:
-        img = cv2.fillPoly(img, pts=pts, color=color)
-    return img
-
-
-def cv2_polygons(pts):
-    return cv2_filled_polygons, {'pts': pts}
-
-
-def cv2_shapes(polygon, length, ref_pt):
-    if polygon == 'circle':
-        params = {'center': ref_pt, 'radius': length}
-        draw_fun = cv2.circle
-    elif polygon == 'ellipse':
-        params = {'center': ref_pt, 'axes': length, 'angle': 0, 'startAngle': 0, 'endAngle': 360}
-        draw_fun = cv2.ellipse
-    elif polygon == 'square':
-        params = {'pt1': ref_pt, 'pt2': (ref_pt[0] + length, ref_pt[1] + length)}
-        draw_fun = cv2.rectangle
-    elif polygon == 'rectangle':
-        params = {'pt1': ref_pt, 'pt2': (ref_pt[0] + length[0], ref_pt[1] + length[1])}
-        draw_fun = cv2.rectangle
-    else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return draw_fun, params
-
-
-def polygon_params(polygon, **kwargs):
-    if polygon in CV2_BASIC_SHAPES:
-        draw_fun, params = cv2_shapes(polygon, **kwargs)
-    elif polygon in ['triangle']:
-        draw_fun, params = cv2_polygons(**kwargs)
-    else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return draw_fun, params
 
 
 def draw_polygon_params(draw_fun, img, params, thickness, colour, texture):
@@ -202,7 +158,7 @@ def _global_img_processing(img, contrast):
 
 def _local_img_drawing(img, shape, length, thickness, colour, texture):
     shape_kwargs = _polygon_kwargs(shape, length, img.shape, thickness)
-    draw_fun, params = polygon_params(shape, **shape_kwargs)
+    draw_fun, params = polygon_bank.polygon_params(shape, **shape_kwargs)
     return draw_polygon_params(draw_fun, img, params, thickness, colour, texture)
 
 
@@ -310,9 +266,7 @@ class OddOneOutTrain(torch_data.Dataset):
             _rnd_scale(img_in.shape[1], self.fg_scale)
         )
 
-        polygons = [*CV2_BASIC_SHAPES, *CV2_CUSTOM_SHAPES]
-
-        odd_shape = np.random.choice(polygons)
+        odd_shape = np.random.choice(polygon_bank.SHAPES)
         odd_colour = _rnd_colour()
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
@@ -320,7 +274,7 @@ class OddOneOutTrain(torch_data.Dataset):
 
         length = np.minimum(odd_size[0], odd_size[1])
         shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
-        draw_fun, shape_params = polygon_params(odd_shape, **shape_kwargs)
+        draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
         shape_draw = [draw_fun, shape_params]
         odd_img = _make_img_shape(
             img_in, fg_type, odd_size, contrasts[0], odd_thick[0], odd_colour, texture, shape_draw
@@ -349,7 +303,7 @@ class OddOneOutTrain(torch_data.Dataset):
         return [odd_img, *com_imgs]
 
     def colour_feature(self, img_in):
-        polygons = [*CV2_BASIC_SHAPES, *CV2_CUSTOM_SHAPES]
+        polygons = polygon_bank.SHAPES.copy()
         length = _rnd_scale(img_in.shape[0], self.fg_scale)
 
         # this two colours can be identical, the probability is very slim, considered as DB noise
@@ -375,7 +329,7 @@ class OddOneOutTrain(torch_data.Dataset):
         return [odd_img, *com_imgs]
 
     def shape_feature(self, img_in):
-        polygons = [*CV2_BASIC_SHAPES, *CV2_CUSTOM_SHAPES]
+        polygons = polygon_bank.SHAPES.copy()
         length = _rnd_scale(img_in.shape[0], self.fg_scale)
 
         com_shape = _choose_rand_remove(polygons)
@@ -399,7 +353,7 @@ class OddOneOutTrain(torch_data.Dataset):
 
     def texture_feature(self, img_in):
         textures = pattern_bank.__all__.copy()
-        polygons = [*CV2_BASIC_SHAPES, *CV2_CUSTOM_SHAPES]
+        polygons = polygon_bank.SHAPES.copy()
         length = _rnd_scale(img_in.shape[0], self.fg_scale)
 
         com_texture = _random_texture(_choose_rand_remove(textures))
