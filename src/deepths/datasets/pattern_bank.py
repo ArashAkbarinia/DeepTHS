@@ -4,7 +4,7 @@ Generating different patterns/textures.
 
 import numpy as np
 
-__all__ = ['wave', 'herringbone', 'diamond', 'line', 'brick']
+__all__ = ['wave', 'herringbone', 'diamond', 'line', 'grid', 'brick']
 
 
 def _repeat_to_img_size(pattern_img, img_size):

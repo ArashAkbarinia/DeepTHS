@@ -69,7 +69,7 @@ def _main_worker(args):
         args.train_dir = args.data_dir + '/training_set/'
 
     # loading the training set
-    train_kwargs = {'features': ['size', 'colour', 'shape']}
+    train_kwargs = {'features': ['size', 'colour', 'shape', 'texture']}
     train_dataset = dataloader_oddx.oddx_bg_folder(
         args.train_dir, args.paradigm, args.target_size, args.preprocess, **train_kwargs
     )
