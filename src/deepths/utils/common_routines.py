@@ -191,11 +191,10 @@ class EpochHelper:
             self.all_xs.append(output.detach().cpu().numpy().copy())
             self.all_ys.append(target.detach().cpu().numpy().copy())
         else:
-            loss = criterion(output, target)
-
             # measure accuracy and record loss
-            acc1 = report_utils.accuracy(output, target_acc)
+            loss = criterion(output, target)
             self.log_loss.update(loss.item(), batch.size(0))
+            acc1 = report_utils.accuracy(output, target_acc)
             self.log_acc.update(acc1[0].cpu().numpy()[0], batch.size(0))
 
             if self.is_train:
@@ -243,7 +242,7 @@ class EpochHelper:
             clf = system_utils.read_pickle(pickle_path)
         return self.log_acc.update(np.mean(clf.predict(all_xs) == all_ys) * 100, len(all_xs))
 
-    def print_epoch(self, db_loader, batch_ind):
+    def print_epoch(self, db_loader, batch_ind, end="\n"):
         print(
             '{0}: [{1}][{2}/{3}]\t'
             'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -252,7 +251,7 @@ class EpochHelper:
             'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
                 self.epoch_type, self.epoch, batch_ind, len(db_loader), batch_time=self.log_batch_t,
                 data_time=self.log_data_t, loss=self.log_loss, top1=self.log_acc
-            )
+            ), end=end
         )
 
     def tb_write_images(self, cu_batch, mean, std, name_gen=None):

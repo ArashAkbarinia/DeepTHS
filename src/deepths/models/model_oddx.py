@@ -8,8 +8,8 @@ from torch.nn import functional as t_functional
 from . import readout
 
 
-def oddx_net(args):
-    args.net_params = [4]
+def oddx_net(args, num_features):
+    args.net_params = [num_features]
     return readout.make_model(OddOneOut, args, *args.net_params)
 
 
