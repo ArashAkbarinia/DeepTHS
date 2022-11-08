@@ -80,9 +80,9 @@ class ClassifierNet(ReadOutNet):
         else:
             self.pool = None
 
+        self.feature_units = np.prod(self.out_dim)
         if classifier == 'nn':
-            org_classes = np.prod(self.out_dim)
-            self.fc = nn.Linear(int(org_classes * self.input_nodes), num_classes)
+            self.fc = nn.Linear(int(self.feature_units * self.input_nodes), num_classes)
         else:
             self.fc = None  # e.g. for SVM
 
@@ -102,24 +102,33 @@ def load_model(net_class, weights, target_size):
     transfer_weights = checkpoint['transfer_weights']
     classifier = checkpoint['net']['classifier']
     pooling = checkpoint['net']['pooling']
+    extra_params = checkpoint['net']['extra']
 
-    readout_kwargs = {
-        'architecture': architecture,
-        'target_size': target_size,
-        'transfer_weights': transfer_weights
+    readout_kwargs = _readout_kwargs(architecture, target_size, transfer_weights)
+    classifier_kwargs = {
+        'classifier': classifier,
+        'pooling': pooling
     }
-    model = net_class(classifier, pooling, **readout_kwargs)
+    model = net_class(*extra_params, classifier_kwargs, readout_kwargs)
     model.load_state_dict(checkpoint['state_dict'], strict=False)
     return model
 
 
-def make_model(net_class, args):
+def make_model(net_class, args, *extra_params):
     if args.test_net:
         return load_model(net_class, args.test_net, args.target_size)
     else:
-        readout_kwargs = {
-            'architecture': args.architecture,
-            'target_size': args.target_size,
-            'transfer_weights': args.transfer_weights
+        readout_kwargs = _readout_kwargs(args.architecture, args.target_size, args.transfer_weights)
+        classifier_kwargs = {
+            'classifier': args.classifier,
+            'pooling': args.pooling
         }
-        return net_class(args.classifier, args.pooling, **readout_kwargs)
+        return net_class(*extra_params, classifier_kwargs, readout_kwargs)
+
+
+def _readout_kwargs(architecture, target_size, transfer_weights):
+    return {
+        'architecture': architecture,
+        'target_size': target_size,
+        'transfer_weights': transfer_weights
+    }

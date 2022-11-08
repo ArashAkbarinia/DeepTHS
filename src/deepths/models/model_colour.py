@@ -17,9 +17,9 @@ def colour_discrimination_net(args):
 
 
 class ColourDiscriminationOddOneOut(readout.ClassifierNet):
-    def __init__(self, *classifier_args, **readout_kwargs):
+    def __init__(self, classifier_kwargs, readout_kwargs):
         super(ColourDiscriminationOddOneOut, self).__init__(
-            3, 1, *classifier_args, **readout_kwargs
+            3, 1, **classifier_kwargs, **readout_kwargs
         )
 
     def forward(self, x0, x1, x2, x3):
@@ -43,8 +43,8 @@ class ColourDiscriminationOddOneOut(readout.ClassifierNet):
 
 
 class ColourDiscrimination2AFC(readout.ClassifierNet):
-    def __init__(self, *classifier_args, **readout_kwargs):
-        super(ColourDiscrimination2AFC, self).__init__(1, 1, *classifier_args, **readout_kwargs)
+    def __init__(self, classifier_kwargs, readout_kwargs):
+        super(ColourDiscrimination2AFC, self).__init__(1, 1, **classifier_kwargs, **readout_kwargs)
 
     def forward(self, x0, x1):
         x0 = self.do_features(x0)

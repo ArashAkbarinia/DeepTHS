@@ -5,6 +5,15 @@ Supported arguments for train and evaluation.
 import argparse
 
 
+def parse_args(parser, argvs, colour_space):
+    args = parser.parse_args(argvs)
+    args.net_params = []
+    if args.colour_space is None:
+        args.colour_space = colour_space
+    args.colour_space = _check_dataset_space(args)
+    return args
+
+
 def master_arg_parser(argvs, task, extra_args_fun=None):
     parser = _common_arg_parser(description=task)
 
@@ -13,17 +22,13 @@ def master_arg_parser(argvs, task, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parser.parse_args(argvs)
+    args = parse_args(parser, argvs, 'imagenet_rgb')
 
     # task dependent
     if task == 'odd_one_out':
         args.paradigm = int(args.paradigm)
     elif task == 'colour_discrimination':
         args.paradigm = args.paradigm if args.paradigm == '2afc' else 'odd4'
-
-    if args.colour_space is None:
-        args.colour_space = 'imagenet_rgb'
-    args.colour_space = _check_dataset_space(args)
     return args
 
 
@@ -35,7 +40,7 @@ def csf_train_arg_parser(argvs, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parser.parse_args(argvs)
+    args = parse_args(parser, argvs, 'rgb')
     args = _check_csf_params(args)
     return args
 
@@ -58,16 +63,13 @@ def csf_test_arg_parser(argvs, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parser.parse_args(argvs)
+    args = parse_args(parser, argvs, 'rgb')
     args = _check_csf_params(args)
     return args
 
 
 def _check_csf_params(args):
     args.grating_detector = args.paradigm == 'grating_detector'
-    if args.colour_space is None:
-        args.colour_space = 'rgb'
-    args.colour_space = _check_dataset_space(args)
     return args
 
 

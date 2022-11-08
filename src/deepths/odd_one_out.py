@@ -79,7 +79,7 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
 
-    common_routines.do_epochs(args, _train_val, train_loader, val_loader, model)
+    common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
 
 
 def _organise_test_points(test_pts):
@@ -122,17 +122,22 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             # measure data loading time
             ep_helper.log_data_t.update(time.time() - end)
 
-            odd_ind = cu_batch[-1]
+            input_signal = cu_batch[:-2]
             # preparing the target
-            target = torch.zeros(odd_ind.shape[0], 4)
-            target[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
+            odd_class = cu_batch[-1]
+            odd_ind = cu_batch[-2]
+            odd_ind_arr = torch.zeros(odd_ind.shape[0], 4)
+            odd_ind_arr[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
+            # moving them to CUDA
+            odd_class = odd_class.cuda(args.gpu, non_blocking=True)
             odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
-            target = target.cuda(args.gpu, non_blocking=True)
-            output = ep_helper.model(*cu_batch[:-1])
+            odd_ind_arr = odd_ind_arr.cuda(args.gpu, non_blocking=True)
+            output = ep_helper.model(*input_signal)
 
             if batch_ind == 0:
-                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
+                ep_helper.tb_write_images(input_signal, args.mean, args.std)
 
+            target = (odd_ind_arr, odd_class)
             ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
 
             # measure elapsed time
@@ -141,7 +146,12 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
 
             # to use for correlations
             pred_outs = np.concatenate(
-                [output.detach().cpu().numpy(), odd_ind.unsqueeze(dim=1).cpu().numpy()], axis=1
+                [
+                    output[0].detach().cpu().numpy(),
+                    output[1].detach().cpu().numpy(),
+                    odd_ind.unsqueeze(dim=1).cpu().numpy(),
+                    odd_class.unsqueeze(dim=1).cpu().numpy()
+                ], axis=1
             )
             # I'm not sure if this is all necessary, copied from keras
             if not isinstance(pred_outs, list):

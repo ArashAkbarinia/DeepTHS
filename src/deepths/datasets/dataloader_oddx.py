@@ -141,7 +141,7 @@ def _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, tex
     if fg_type is None:
         img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
     else:
-        img_out = dataset_utils.merge_fg_bg(img_in, img_out, 'radnom')
+        img_out = dataset_utils.merge_fg_bg(img_in, img_out, 'random')
     return img_out
 
 
@@ -230,7 +230,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'rnd_img', 'rnd_uniform']
-        self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.30, 0.40)
+        self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.33, 0.66)
 
     def __getitem__(self, item):
         bg_img = self.bg_db.__getitem__(item)
@@ -239,6 +239,7 @@ class OddOneOutTrain(torch_data.Dataset):
 
         # selecting the unique features shared among all except one image
         unique_feature = np.random.choice(self.features)
+        odd_class = self.features.index(unique_feature)
         # drawing the foreground content
         imgs = self.__getattribute__('%s_feature' % unique_feature)(bg_img)
 
@@ -250,7 +251,7 @@ class OddOneOutTrain(torch_data.Dataset):
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         imgs = [imgs[i] for i in inds]
-        return *imgs, target
+        return *imgs, target, odd_class
 
     def __len__(self):
         return self.bg_db.__len__()
@@ -281,7 +282,8 @@ class OddOneOutTrain(torch_data.Dataset):
         )
 
         # creating a bigger/smaller size for the common images
-        magnitude = (np.random.choice([-1, 1]), np.random.uniform(0.5, 0.75))
+        max_scale = (1 - self.fg_scale[1]) / self.fg_scale[1]
+        magnitude = (np.random.choice([-1, 1]), np.random.uniform(max_scale / 2, max_scale))
         com_size = (
             int(_change_scale(odd_size[0], magnitude)),
             int(_change_scale(odd_size[1], magnitude))

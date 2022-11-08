@@ -21,8 +21,8 @@ def load_grating_detector(weights, target_size):
 
 
 class ContrastDiscrimination(readout.ClassifierNet):
-    def __init__(self, *classifier_args, **readout_kwargs):
-        super(ContrastDiscrimination, self).__init__(2, 2, *classifier_args, **readout_kwargs)
+    def __init__(self, classifier_kwargs, readout_kwargs):
+        super(ContrastDiscrimination, self).__init__(2, 2, **classifier_kwargs, **readout_kwargs)
 
     def forward(self, x0, x1):
         x0 = self.do_features(x0)
@@ -32,8 +32,8 @@ class ContrastDiscrimination(readout.ClassifierNet):
 
 
 class GratingDetector(readout.ClassifierNet):
-    def __init__(self, *classifier_args, **readout_kwargs):
-        super(GratingDetector, self).__init__(1, 2, *classifier_args, **readout_kwargs)
+    def __init__(self, classifier_kwargs, readout_kwargs):
+        super(GratingDetector, self).__init__(1, 2, **classifier_kwargs, **readout_kwargs)
 
     def forward(self, x):
         x = self.do_features(x)
