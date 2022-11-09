@@ -4,9 +4,11 @@ Training datasets of odd-one-out task across several visual features.
 
 import sys
 
+import cv2
 import numpy as np
 import random
 
+import torch
 from torch.utils import data as torch_data
 import torchvision.transforms as torch_transforms
 
@@ -226,6 +228,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.num_imgs = num_imgs
         self.transform = transform
         self.bg_transform = bg_transform
+        self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
         self.features = kwargs['features'] if 'features' in kwargs else supported_features
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
@@ -242,6 +245,9 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_class = self.features.index(unique_feature)
         # drawing the foreground content
         imgs = self.__getattribute__('%s_feature' % unique_feature)(bg_img)
+        if self.single_img is not None:
+            # FIXME: hardcoded here only for 224 224!
+            imgs = [cv2.resize(img, (56, 56)) for img in imgs]
 
         if self.transform is not None:
             imgs = self.transform(imgs)
@@ -251,6 +257,10 @@ class OddOneOutTrain(torch_data.Dataset):
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         imgs = [imgs[i] for i in inds]
+        if self.single_img is not None:
+            imgs = [torch.cat(
+                [torch.cat([imgs[0], imgs[1]], dim=2), torch.cat([imgs[2], imgs[3]], dim=2)], dim=1
+            )]
         return *imgs, target, odd_class
 
     def __len__(self):

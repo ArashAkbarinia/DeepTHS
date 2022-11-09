@@ -22,9 +22,9 @@ def main(argv):
 
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
-    # FIXME args.paradigm
-    train_kwargs = {'features': ['size', 'colour', 'shape', 'texture']}
-    model = model_oddx.oddx_net(args, len(train_kwargs['features']))
+    # FIXME args.paradigm, single_img
+    train_kwargs = {'features': ['size', 'colour', 'shape', 'texture'], 'single_img': True}
+    model = model_oddx.oddx_net(args, train_kwargs)
     model = model.cuda(args.gpu)
 
     # defining validation set here so if only test don't do the rest
@@ -50,6 +50,8 @@ def _main_worker(args):
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
     log_acc_class = report_utils.AverageMeter()
+    log_loss_ind = report_utils.AverageMeter()
+    log_loss_class = report_utils.AverageMeter()
     criterion = ep_helper.model.loss_function
 
     all_predictions = []
@@ -78,7 +80,10 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             target = (odd_ind_arr, odd_class)
 
             ##
-            loss = criterion(output, target)
+            loss_ind, loss_class = criterion(output, target)
+            log_loss_class.update(loss_class.item(), cu_batch[0].size(0))
+            log_loss_ind.update(loss_ind.item(), cu_batch[0].size(0))
+            loss = 0.5 * loss_ind + 0.5 * loss_class
             ep_helper.log_loss.update(loss.item(), cu_batch[0].size(0))
 
             # measure accuracy and record loss
@@ -123,7 +128,13 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
             elif batch_ind % args.print_freq == 0:
                 ep_helper.print_epoch(db_loader, batch_ind, end="\t")
-                print('Acc@Class {top1.val:.3f} ({top1.avg:.3f})'.format(top1=log_acc_class))
+                print(
+                    'Acc@Class {top1.val:.3f} ({top1.avg:.3f})\t'
+                    'Loss@Ind {loss_ind.val:.3f} ({loss_ind.avg:.3f})\t'
+                    'Loss@Class {loss_class.val:.3f} ({loss_class.avg:.3f})\t'.format(
+                        top1=log_acc_class, loss_ind=log_loss_ind, loss_class=log_loss_class,
+                    )
+                )
             if ep_helper.break_batch(batch_ind, cu_batch[0]):
                 break
 

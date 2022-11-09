@@ -8,9 +8,11 @@ from torch.nn import functional as t_functional
 from . import readout
 
 
-def oddx_net(args, num_features):
+def oddx_net(args, train_kwargs):
+    num_features = len(train_kwargs['features'])
     args.net_params = [num_features]
-    return readout.make_model(OddOneOut, args, *args.net_params)
+    net_class = OddOneOutSingle if train_kwargs['single_img'] is not None else OddOneOut
+    return readout.make_model(net_class, args, *args.net_params)
 
 
 class OddOneOut(readout.ClassifierNet):
@@ -41,4 +43,23 @@ class OddOneOut(readout.ClassifierNet):
                 out_odd_ind[:, i], target_odd_ind[:, i])
         loss_odd_ind = loss_odd_ind / (4 * out_odd_ind.shape[0])
         loss_odd_class = t_functional.cross_entropy(out_odd_class, target_odd_class)
-        return 0.5 * loss_odd_ind + 0.5 * loss_odd_class
+        return loss_odd_ind, loss_odd_class
+
+
+class OddOneOutSingle(readout.ClassifierNet):
+    def __init__(self, num_features, classifier_kwargs, readout_kwargs):
+        super(OddOneOutSingle, self).__init__(1, 4, **classifier_kwargs, **readout_kwargs)
+        self.odd_fc = torch.nn.Linear(self.feature_units, num_features)
+
+    def forward(self, x):
+        x = self.do_features(x)
+        odd_ind = self.do_classifier(x)
+        odd_class = self.odd_fc(x)
+        return odd_ind, odd_class
+
+    def loss_function(self, output, target):
+        out_odd_ind, out_odd_class = output
+        target_odd_ind, target_odd_class = target
+        loss_odd_ind = t_functional.cross_entropy(out_odd_ind, target_odd_ind)
+        loss_odd_class = t_functional.cross_entropy(out_odd_class, target_odd_class)
+        return loss_odd_ind, loss_odd_class
