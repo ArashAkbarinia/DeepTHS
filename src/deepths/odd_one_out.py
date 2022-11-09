@@ -68,7 +68,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             odd_ind = cu_batch[-2]
             if len(input_signal) > 1:
                 odd_ind_arr = torch.zeros(odd_ind.shape[0], len(input_signal))
-                odd_ind_arr[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
+                odd_ind_arr[torch.arange(odd_ind.shape[0]), odd_ind] = 1
             else:
                 odd_ind_arr = odd_ind
             # moving them to CUDA
