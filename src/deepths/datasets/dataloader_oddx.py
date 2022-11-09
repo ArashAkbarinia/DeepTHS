@@ -245,9 +245,6 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_class = self.features.index(unique_feature)
         # drawing the foreground content
         imgs = self.__getattribute__('%s_feature' % unique_feature)(bg_img)
-        if self.single_img is not None:
-            # FIXME: hardcoded here only for 224 224!
-            imgs = [cv2.resize(img, (56, 56)) for img in imgs]
 
         if self.transform is not None:
             imgs = self.transform(imgs)
@@ -391,6 +388,10 @@ class OddOneOutTrain(torch_data.Dataset):
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
     scale = (0.08, 1.0)
+    single_img = kwargs['single_img'] if 'single_img' in kwargs else None
+    if single_img is not None:
+        # FIXME: hardcoded here only for 224 224!
+        target_size = (56, 56)
     bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
     bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader)
