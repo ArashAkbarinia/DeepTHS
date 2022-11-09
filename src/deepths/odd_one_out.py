@@ -142,6 +142,9 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
                 break
 
     ep_helper.finish_epoch()
+    ep_helper.tb_writer.add_scalar("{}".format('loss_ind'), log_loss_ind.avg, epoch)
+    ep_helper.tb_writer.add_scalar("{}".format('loss_class'), log_loss_class.avg, epoch)
+    ep_helper.tb_writer.add_scalar("{}".format('acc_class'), log_acc_class.avg, epoch)
 
     if len(all_predictions) == 1:
         prediction_output = np.concatenate(all_predictions[0])
