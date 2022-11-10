@@ -2,27 +2,31 @@
 Generating different polygons and geometrical shapes.
 """
 
+import numpy as np
 import sys
 
 import cv2
 
-CV2_BASIC_SHAPES = ['circle', 'ellipse', 'square', 'rectangle']
-CV2_CUSTOM_SHAPES = ['triangle']
+CV2_OVAL_SHAPES = ['circle', 'ellipse']
+CV2_POLYGON_SHAPES = ['square', 'rectangle', 'triangle']
 
-SHAPES = [*CV2_BASIC_SHAPES, *CV2_CUSTOM_SHAPES]
+SHAPES = [*CV2_OVAL_SHAPES, *CV2_POLYGON_SHAPES]
 
 
 def polygon_params(polygon, **kwargs):
-    if polygon in CV2_BASIC_SHAPES:
+    if polygon in CV2_OVAL_SHAPES:
         draw_fun, params = cv2_shapes(polygon, **kwargs)
-    elif polygon in CV2_CUSTOM_SHAPES:
+    elif polygon in CV2_POLYGON_SHAPES:
         draw_fun, params = cv2_polygons(**kwargs)
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
     return draw_fun, params
 
 
-def cv2_polygons(pts):
+def cv2_polygons(pts, rotation=0):
+    if rotation != 0:
+        old_pts = pts[0]
+        pts = [rotate2d(old_pts, np.mean(old_pts, axis=0), angle=rotation).astype(int)]
     return cv2_filled_polygons, {'pts': pts}
 
 
@@ -33,19 +37,26 @@ def cv2_filled_polygons(img, pts, color, thickness):
     return img
 
 
-def cv2_shapes(polygon, length, ref_pt):
+def cv2_shapes(polygon, length, ref_pt, rotation=0):
     if polygon == 'circle':
         params = {'center': ref_pt, 'radius': length}
         draw_fun = cv2.circle
     elif polygon == 'ellipse':
-        params = {'center': ref_pt, 'axes': length, 'angle': 0, 'startAngle': 0, 'endAngle': 360}
+        params = {
+            'center': ref_pt, 'axes': length, 'angle': np.rad2deg(rotation),
+            'startAngle': 0, 'endAngle': 360
+        }
         draw_fun = cv2.ellipse
-    elif polygon == 'square':
-        params = {'pt1': ref_pt, 'pt2': (ref_pt[0] + length, ref_pt[1] + length)}
-        draw_fun = cv2.rectangle
-    elif polygon == 'rectangle':
-        params = {'pt1': ref_pt, 'pt2': (ref_pt[0] + length[0], ref_pt[1] + length[1])}
-        draw_fun = cv2.rectangle
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
     return draw_fun, params
+
+
+def rotate2d(pts, centre, angle):
+    return np.dot(
+        pts - centre,
+        np.array([
+            [np.cos(angle), np.sin(angle)],
+            [-np.sin(angle), np.cos(angle)]
+        ])
+    ) + centre

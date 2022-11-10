@@ -23,7 +23,10 @@ def main(argv):
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
     # FIXME args.paradigm, single_img
-    train_kwargs = {'features': ['size', 'colour', 'shape', 'texture'], 'single_img': True}
+    train_kwargs = {
+        'features': ['size', 'colour', 'shape', 'texture', 'rotation'],
+        'single_img': True
+    }
     model = model_oddx.oddx_net(args, train_kwargs)
     model = model.cuda(args.gpu)
 

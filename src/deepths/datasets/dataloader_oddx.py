@@ -45,7 +45,7 @@ def _ref_point(length, polygon, img_size, thickness):
         else:
             diff = diff // 2
             ref_pt = (_randint(cx - diff, cx + diff), _randint(cy - diff, cy + diff))
-    elif polygon in ['square', 'rectangle', 'triangle']:
+    elif polygon in ['square', 'rectangle']:
         ref_pt = (_randint(0, diff), _randint(0, diff))
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
@@ -58,9 +58,18 @@ def _randint(low, high):
 
 def _polygon_kwargs(polygon, length, img_size, thickness):
     kwargs = dict()
-    if polygon in polygon_bank.CV2_BASIC_SHAPES:
+    if polygon in polygon_bank.CV2_OVAL_SHAPES:
         kwargs['ref_pt'] = _ref_point(length, polygon, img_size, thickness)
         kwargs['length'] = _random_length(length, polygon)
+    elif polygon in ['square', 'rectangle']:
+        rnd_length = _random_length(length, polygon)
+        if polygon == 'square':
+            rnd_length = (rnd_length, rnd_length)
+        pt1 = _ref_point(length, polygon, img_size, thickness)
+        pt2 = (pt1[0] + 0, pt1[1] + rnd_length[1])
+        pt3 = (pt1[0] + rnd_length[0], pt1[1] + rnd_length[1])
+        pt4 = (pt1[0] + rnd_length[0], pt1[1] + 0)
+        kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4])]
     elif polygon == 'triangle':
         ymax, xmax = img_size[:2]
         pt1 = (_randint(0, xmax - length), _randint(0, ymax - length))
@@ -99,6 +108,13 @@ def _change_scale(value, magnitude, ref=0):
     return value + big_or_small * (value * size_change)
 
 
+def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
+    return (
+        int(_change_scale(old_pt[0], magnitude, ref=ref[0])),
+        int(_change_scale(old_pt[1], magnitude, ref=ref[1])),
+    )
+
+
 def _enlarge_polygon(magnitude, shape_params, shape, out_size):
     shape_params = shape_params.copy()
     if shape == 'circle':
@@ -110,24 +126,11 @@ def _enlarge_polygon(magnitude, shape_params, shape, out_size):
             int(_change_scale(shape_params['axes'][1], magnitude)),
         )
         shape_params['center'] = (out_size[0] // 2, out_size[1] // 2)
-    elif shape in ['square', 'rectangle']:
-        shape_params['pt1'] = (0, 0)
-        shape_params['pt2'] = (
-            int(_change_scale(shape_params['pt2'][0], magnitude)),
-            int(_change_scale(shape_params['pt2'][1], magnitude)),
-        )
-    elif shape in ['triangle']:
+    else:
         old_pts = shape_params['pts'][0]
         pt1 = (0, 0)
-        pt2 = (
-            int(_change_scale(old_pts[1][0], magnitude, ref=old_pts[0][0])),
-            int(_change_scale(old_pts[1][1], magnitude, ref=old_pts[0][1])),
-        )
-        pt3 = (
-            int(_change_scale(old_pts[2][0], magnitude, ref=old_pts[0][0])),
-            int(_change_scale(old_pts[2][1], magnitude, ref=old_pts[0][1])),
-        )
-        shape_params['pts'] = [np.array([pt1, pt2, pt3])]
+        other_pts = [_change_scale_pt(pt, old_pts[0]) for pt in old_pts[1:]]
+        shape_params['pts'] = [np.array([pt1, *other_pts])]
     return shape_params
 
 
@@ -175,7 +178,7 @@ def _rnd_scale(size, scale):
     return int(size * rnd_scale)
 
 
-def _rnd_thickness(thickness_range=(4, 7)):
+def _rnd_thickness(thickness_range=(1, 3)):
     thicknesses = [-1, _randint(*thickness_range)]
     random.shuffle(thicknesses)
     return thicknesses
@@ -201,9 +204,9 @@ def _choose_rand_remove(elements):
 def _random_texture(texture=None):
     fun = np.random.choice(pattern_bank.__all__) if texture is None else texture
     params = dict()
-    thickness = _randint(1, 4)
+    thickness = 1
     if fun in ['wave', 'herringbone', 'diamond']:
-        params['height'] = _randint(3, 10)
+        params['height'] = _randint(3, 6)
         params['length'] = thickness
         if fun == 'wave':
             params['gap'] = _randint(0, 3)
@@ -220,8 +223,8 @@ class OddOneOutTrain(torch_data.Dataset):
 
     def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
         supported_features = [
-            'shape', 'size', 'colour', 'texture',
-            # 'spatial_pos', 'symmetry', 'rotation', 'material', 'contrast'
+            'shape', 'size', 'colour', 'texture', 'rotation'
+            # 'spatial_pos', 'symmetry', 'material', 'contrast'
         ]
 
         self.bg_db = bg_db
@@ -262,6 +265,52 @@ class OddOneOutTrain(torch_data.Dataset):
 
     def __len__(self):
         return self.bg_db.__len__()
+
+    def rotation_feature(self, img_in):
+        fg_type = np.random.choice(self.fg_paths)
+        if fg_type == 'rnd_uniform':
+            fg_type = _randint(0, 256)
+
+        # creating a random size for the odd image
+        odd_size = (
+            _rnd_scale(img_in.shape[0], self.fg_scale),
+            _rnd_scale(img_in.shape[1], self.fg_scale)
+        )
+
+        # FIXME: removed the circle
+        odd_shape = np.random.choice(polygon_bank.SHAPES[1:])
+        rot_angles = [0, 30, 45, 60, 90]
+        odd_angle = np.deg2rad(_choose_rand_remove(rot_angles))
+        com_angle = np.deg2rad(np.random.choice(rot_angles))
+        odd_colour = _rnd_colour()
+        odd_thick = _rnd_thickness()
+        contrasts = _rnd_contrast()
+        texture = _random_texture()
+
+        length = np.minimum(odd_size[0], odd_size[1])
+        shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
+        shape_kwargs['rotation'] = odd_angle
+        draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
+        shape_draw = [draw_fun, shape_params]
+        odd_img = _make_img_shape(
+            img_in, fg_type, odd_size, contrasts[0], odd_thick[0], odd_colour, texture, shape_draw
+        )
+
+        com_imgs = []
+        for i in range(self.num_imgs - 1):
+            colour = odd_colour if i == 0 else _rnd_colour()
+            thick = odd_thick[0] if i == 1 else odd_thick[1]
+            contrast = contrasts[0] if i == 2 else contrasts[1]
+
+            shape_kwargs['rotation'] = com_angle
+            draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
+            shape_draw = [draw_fun, shape_params]
+            com_imgs.append(
+                _make_img_shape(img_in, fg_type, odd_size, contrast, thick, colour, texture,
+                                shape_draw)
+            )
+
+        return [odd_img, *com_imgs]
 
     def size_feature(self, img_in):
         fg_type = np.random.choice(self.fg_paths)
@@ -391,7 +440,7 @@ def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
     single_img = kwargs['single_img'] if 'single_img' in kwargs else None
     if single_img is not None:
         # FIXME: hardcoded here only for 224 224!
-        target_size = (56, 56)
+        target_size = (112, 112)
     bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
     bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader)
