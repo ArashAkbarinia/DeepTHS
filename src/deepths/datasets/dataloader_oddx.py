@@ -64,7 +64,7 @@ def _ref_point(length, polygon, img_size, thickness):
 def _ref_point_rotation(length, polygon, img_size, thickness):
     half_size = (img_size[0] / 2, img_size[1] / 2)
     ref_pt = _ref_point(length, polygon, half_size, thickness)
-    return int(ref_pt[0] + half_size[0] / 2), int(ref_pt[1] + half_size[1] / 2)
+    return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
 def _polygon_kwargs(polygon, length, img_size, thickness):
@@ -271,7 +271,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.features = kwargs['features'] if 'features' in kwargs else supported_features
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
-        self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img',
+        self.fg_paths = ['rnd_uniform']  # 'rnd_img', *self.fg_paths, None,
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
