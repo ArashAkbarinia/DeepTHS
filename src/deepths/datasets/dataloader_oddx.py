@@ -271,7 +271,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.features = kwargs['features'] if 'features' in kwargs else supported_features
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
-        self.fg_paths = ['rnd_uniform']  # 'rnd_img', *self.fg_paths, None,
+        self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img'
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
