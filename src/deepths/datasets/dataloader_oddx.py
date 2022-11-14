@@ -164,15 +164,6 @@ def _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, tex
     return img_out
 
 
-def _make_img(img_in, fg_type, crop_size, contrast, shape, length, thickness, colour, texture):
-    shape_kwargs = _polygon_kwargs(shape, length, crop_size, thickness)
-    draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
-    shape_draw = [draw_fun, shape_params]
-
-    return _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, texture,
-                           shape_draw)
-
-
 def _global_img_processing(img, contrast):
     img = imutils.adjust_contrast(img, contrast)
     return img
@@ -380,8 +371,6 @@ class OddOneOutTrain(torch_data.Dataset):
         return [odd_img, *com_imgs]
 
     def colour_feature(self, img_in):
-        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-
         # this two colours can be identical, the probability is very slim, considered as DB noise
         odd_colour = _rnd_colour()
         com_colour = _rnd_colour()
@@ -391,9 +380,9 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
-
-        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
-                            odd_thick[0], odd_colour, texture)
+        odd_img = self._make_img(
+            img_in, contrasts[0], odd_shape, odd_thick[0], odd_colour, texture
+        )
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -401,15 +390,11 @@ class OddOneOutTrain(torch_data.Dataset):
             thick = odd_thick[0] if i == 1 else odd_thick[1]
             contrast = contrasts[0] if i == 2 else contrasts[1]
             com_imgs.append(
-                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, thick,
-                          com_colour, texture)
+                self._make_img(img_in, contrast, com_shape, thick, com_colour, texture)
             )
-
         return [odd_img, *com_imgs]
 
     def shape_feature(self, img_in):
-        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-
         polygons = polygon_bank.SHAPES.copy()
         com_shape = _choose_rand_remove(polygons)
         odd_shape = np.random.choice(polygons)
@@ -418,8 +403,9 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         odd_colour = _rnd_colour()
         texture = _random_texture()
-        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
-                            odd_thick[0], odd_colour, texture)
+        odd_img = self._make_img(
+            img_in, contrasts[0], odd_shape, odd_thick[0], odd_colour, texture
+        )
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -427,26 +413,23 @@ class OddOneOutTrain(torch_data.Dataset):
             thick = odd_thick[0] if i == 1 else odd_thick[1]
             contrast = contrasts[0] if i == 2 else contrasts[1]
             com_imgs.append(
-                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, thick, colour,
-                          texture)
+                self._make_img(img_in, contrast, com_shape, thick, colour, texture)
             )
-
         return [odd_img, *com_imgs]
 
     def texture_feature(self, img_in):
-        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-
         textures = pattern_bank.__all__.copy()
         com_texture = _random_texture(_choose_rand_remove(textures))
         odd_texture = _random_texture(np.random.choice(textures))
 
         contrasts = _rnd_contrast()
-        odd_thick = 1  # _randint(1, 3)
+        thickness = 1
         polygons = polygon_bank.SHAPES.copy()
         odd_shape = _choose_rand_remove(polygons)
         odd_colour = _rnd_colour()
-        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
-                            odd_thick, odd_colour, odd_texture)
+        odd_img = self._make_img(
+            img_in, contrasts[0], odd_shape, thickness, odd_colour, odd_texture
+        )
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -454,11 +437,16 @@ class OddOneOutTrain(torch_data.Dataset):
             com_shape = odd_shape if i == 1 else np.random.choice(polygons)
             contrast = contrasts[0] if i == 2 else contrasts[1]
             com_imgs.append(
-                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, odd_thick,
-                          colour, com_texture)
+                self._make_img(img_in, contrast, com_shape, thickness, colour, com_texture)
             )
-
         return [odd_img, *com_imgs]
+
+    def _make_img(self, img, contrast, shape, thickness, colour, texture):
+        fg, canvas_size, length = _random_canvas(img.shape, self.fg_paths, self.fg_scale)
+        shape_kwargs = _polygon_kwargs(shape, length, canvas_size, thickness)
+        draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
+        draw = [draw_fun, shape_params]
+        return _make_img_shape(img, fg, canvas_size, contrast, thickness, colour, texture, draw)
 
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
