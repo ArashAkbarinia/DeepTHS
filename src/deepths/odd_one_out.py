@@ -50,6 +50,11 @@ def _main_worker(args):
     common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
 
 
+def _gen_img_name(gt_settings, img_ind):
+    odd_ind, odd_class = gt_settings
+    return 'gt_%.3d_%.3d' % (odd_ind, odd_class)
+
+
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
     log_acc_class = report_utils.AverageMeter()
@@ -81,7 +86,9 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             output = ep_helper.model(*input_signal)
 
             if batch_ind == 0:
-                ep_helper.tb_write_images(input_signal, args.mean, args.std)
+                def name_gen(x): return _gen_img_name(cu_batch[-2:], x)
+
+                ep_helper.tb_write_images(input_signal, args.mean, args.std, name_gen)
 
             target = (odd_ind_arr, odd_class)
 

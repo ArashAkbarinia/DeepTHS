@@ -225,6 +225,14 @@ def _random_texture(texture=None):
     return {'fun': fun, 'params': params}
 
 
+def _random_angle(rot_angles=None):
+    if rot_angles is None:
+        rot_angles = [15, 30, 45, 60, 75, 90]
+    odd_angle = _randint(0, 90)
+    com_angle = odd_angle + np.random.choice(rot_angles)
+    return [np.deg2rad(odd_angle), np.deg2rad(com_angle)]
+
+
 def _fg_img(fg_type, bg_img, fg_size):
     if fg_type is None:
         fg_img = bg_img.copy()
@@ -300,11 +308,7 @@ class OddOneOutTrain(torch_data.Dataset):
         polygons = polygon_bank.SHAPES.copy()
         polygons.remove('circle')
         odd_shape = np.random.choice(polygons)
-        rot_angles = [15, 30, 45, 60, 75, 90]
-        odd_angle = _randint(0, 90)
-        com_angle = odd_angle + np.random.choice(rot_angles)
-        odd_angle = np.deg2rad(odd_angle)
-        com_angle = np.deg2rad(com_angle)
+        odd_angle, com_angle = _random_angle()
         odd_colour = _rnd_colour()
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
