@@ -4,7 +4,6 @@ Training datasets of odd-one-out task across several visual features.
 
 import sys
 
-import cv2
 import numpy as np
 import random
 
@@ -67,9 +66,10 @@ def _ref_point_rotation(length, polygon, img_size, thickness):
     return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
-def _polygon_kwargs(polygon, length, img_size, thickness):
+def _polygon_kwargs(stimuli):
+    polygon, length = stimuli.shape, stimuli.length
     kwargs = dict()
-    ref_pt = _ref_point_rotation(length, polygon, img_size, thickness)
+    ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas, stimuli.thickness)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
@@ -152,14 +152,16 @@ def _enlarge_polygon(magnitude, shape_params, shape, out_size, length, thickness
     return shape_params
 
 
-def _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, texture, shape_draw):
-    img_in = _global_img_processing(img_in.copy(), contrast)
-    srow, scol = dataset_utils.random_place(crop_size, img_in.shape)
-    img_out = dataset_utils.crop_fg_from_bg(img_in, crop_size, srow, scol)
-    if fg_type is not None:
-        img_out = (1 - fg_type[1]) * _fg_img(fg_type[0], img_in, crop_size) + fg_type[1] * img_out
+def _make_img_shape(img_in, stimuli, shape_draw):
+    img_in = _global_img_processing(img_in.copy(), stimuli.contrast)
+    srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
+    img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
+    if stimuli.fg is not None:
+        bg_lum, alpha = stimuli.fg
+        img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
     draw_fun, shape_params = shape_draw
-    img_out = draw_polygon_params(draw_fun, img_out, shape_params, thickness, colour, texture)
+    img_out = draw_polygon_params(
+        draw_fun, img_out, shape_params, stimuli.thickness, stimuli.colour, stimuli.texture)
     img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
     return img_out
 
@@ -167,12 +169,6 @@ def _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, tex
 def _global_img_processing(img, contrast):
     img = imutils.adjust_contrast(img, contrast)
     return img
-
-
-def _local_img_drawing(img, shape, length, thickness, colour, texture):
-    shape_kwargs = _polygon_kwargs(shape, length, img.shape, thickness)
-    draw_fun, params = polygon_bank.polygon_params(shape, **shape_kwargs)
-    return draw_polygon_params(draw_fun, img, params, thickness, colour, texture)
 
 
 def _rnd_contrast():
@@ -246,6 +242,25 @@ def _random_canvas(img_size, fg_paths, fg_scale):
     return fg_type, canvas_size, length
 
 
+class StimuliSettings:
+
+    def __init__(self, contrast, shape, thickness, colour, texture, fg, canvas_size, length):
+        self.contrast = contrast
+        self.shape = shape
+        self.thickness = thickness
+        self.colour = colour
+        self.texture = texture
+
+        self.fg, self.canvas, self.length = fg, canvas_size, length
+
+
+def _make_img(img, stimuli):
+    shape_kwargs = _polygon_kwargs(stimuli)
+    draw_fun, shape_params = polygon_bank.polygon_params(stimuli.shape, **shape_kwargs)
+    draw = [draw_fun, shape_params]
+    return _make_img_shape(img, stimuli, draw)
+
+
 class OddOneOutTrain(torch_data.Dataset):
 
     def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
@@ -298,34 +313,30 @@ class OddOneOutTrain(torch_data.Dataset):
 
         polygons = polygon_bank.SHAPES.copy()
         polygons.remove('circle')
-        odd_shape = np.random.choice(polygons)
+        shape = np.random.choice(polygons)
         odd_angle, com_angle = _random_angle()
         odd_colour = _rnd_colour()
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
-
-        shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
-        shape_kwargs['rotation'] = odd_angle
-        draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
-        shape_draw = [draw_fun, shape_params]
-        odd_img = _make_img_shape(
-            img_in, fg_type, odd_size, contrasts[0], odd_thick[0], odd_colour, texture, shape_draw
+        stimuli = StimuliSettings(
+            contrasts[0], shape, odd_thick[0], odd_colour, texture, fg_type, odd_size, length
         )
+        shape_kwargs = _polygon_kwargs(stimuli)
+        shape_kwargs['rotation'] = odd_angle
+        draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
+        shape_draw = [draw_fun, shape_params]
+        odd_img = _make_img_shape(img_in, stimuli, shape_draw)
 
+        shape_kwargs['rotation'] = com_angle
         com_imgs = []
         for i in range(self.num_imgs - 1):
-            colour = odd_colour if i == 0 else _rnd_colour()
-            thick = odd_thick[0] if i == 1 else odd_thick[1]
-            contrast = contrasts[0] if i == 2 else contrasts[1]
-
-            shape_kwargs['rotation'] = com_angle
-            draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
+            stimuli.colour = odd_colour if i == 0 else _rnd_colour()
+            stimuli.thickness = odd_thick[0] if i == 1 else odd_thick[1]
+            stimuli.contrast = contrasts[0] if i == 2 else contrasts[1]
+            draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
             shape_draw = [draw_fun, shape_params]
-            com_imgs.append(
-                _make_img_shape(img_in, fg_type, odd_size, contrast, thick, colour, texture,
-                                shape_draw)
-            )
+            com_imgs.append(_make_img_shape(img_in, stimuli, shape_draw))
 
         return [odd_img, *com_imgs]
 
@@ -343,34 +354,29 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
-
-        shape_kwargs = _polygon_kwargs(shape, length, odd_size, odd_thick[0])
+        stimuli = StimuliSettings(
+            contrasts[0], shape, odd_thick[0], odd_colour, texture, fg_type, odd_size, length
+        )
+        shape_kwargs = _polygon_kwargs(stimuli)
         draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
         shape_draw = [draw_fun, shape_params]
-        odd_img = _make_img_shape(
-            img_in, fg_type, odd_size, contrasts[0], odd_thick[0], odd_colour, texture, shape_draw
-        )
+        odd_img = _make_img_shape(img_in, stimuli, shape_draw)
 
         # creating a bigger/smaller size for the common images
         magnitude = (mag_dir, mag_val)
-
         com_imgs = []
         for i in range(self.num_imgs - 1):
-            colour = odd_colour if i == 0 else _rnd_colour()
-            thick = odd_thick[0] if i == 1 else odd_thick[1]
-            contrast = contrasts[0] if i == 2 else contrasts[1]
-
+            stimuli.colour = odd_colour if i == 0 else _rnd_colour()
+            stimuli.thickness = odd_thick[0] if i == 1 else odd_thick[1]
+            stimuli.contrast = contrasts[0] if i == 2 else contrasts[1]
             com_shape_params = _enlarge_polygon(magnitude, shape_params, shape, odd_size, length,
                                                 np.max(odd_thick))
             shape_draw = [draw_fun, com_shape_params]
-            com_imgs.append(
-                _make_img_shape(img_in, fg_type, odd_size, contrast, thick, colour, texture,
-                                shape_draw)
-            )
-
+            com_imgs.append(_make_img_shape(img_in, stimuli, shape_draw))
         return [odd_img, *com_imgs]
 
     def colour_feature(self, img_in):
+        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         # this two colours can be identical, the probability is very slim, considered as DB noise
         odd_colour = _rnd_colour()
         com_colour = _rnd_colour()
@@ -380,21 +386,22 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
-        odd_img = self._make_img(
-            img_in, contrasts[0], odd_shape, odd_thick[0], odd_colour, texture
+        stimuli = StimuliSettings(
+            contrasts[0], odd_shape, odd_thick[0], odd_colour, texture, fg, canvas_size, length
         )
+        odd_img = _make_img(img_in, stimuli)
 
+        stimuli.colour = com_colour
         com_imgs = []
         for i in range(self.num_imgs - 1):
-            com_shape = odd_shape if i == 0 else np.random.choice(polygons)
-            thick = odd_thick[0] if i == 1 else odd_thick[1]
-            contrast = contrasts[0] if i == 2 else contrasts[1]
-            com_imgs.append(
-                self._make_img(img_in, contrast, com_shape, thick, com_colour, texture)
-            )
+            stimuli.shape = odd_shape if i == 0 else np.random.choice(polygons)
+            stimuli.thickness = odd_thick[0] if i == 1 else odd_thick[1]
+            stimuli.contrast = contrasts[0] if i == 2 else contrasts[1]
+            com_imgs.append(_make_img(img_in, stimuli))
         return [odd_img, *com_imgs]
 
     def shape_feature(self, img_in):
+        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         polygons = polygon_bank.SHAPES.copy()
         com_shape = _choose_rand_remove(polygons)
         odd_shape = np.random.choice(polygons)
@@ -403,21 +410,23 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         odd_colour = _rnd_colour()
         texture = _random_texture()
-        odd_img = self._make_img(
-            img_in, contrasts[0], odd_shape, odd_thick[0], odd_colour, texture
+        stimuli = StimuliSettings(
+            contrasts[0], odd_shape, odd_thick[0], odd_colour, texture, fg, canvas_size, length
         )
+        odd_img = _make_img(img_in, stimuli)
 
+        stimuli.shape = com_shape
         com_imgs = []
         for i in range(self.num_imgs - 1):
-            colour = odd_colour if i == 0 else _rnd_colour()
-            thick = odd_thick[0] if i == 1 else odd_thick[1]
-            contrast = contrasts[0] if i == 2 else contrasts[1]
-            com_imgs.append(
-                self._make_img(img_in, contrast, com_shape, thick, colour, texture)
-            )
+            stimuli.colour = odd_colour if i == 0 else _rnd_colour()
+            stimuli.thickness = odd_thick[0] if i == 1 else odd_thick[1]
+            stimuli.contrast = contrasts[0] if i == 2 else contrasts[1]
+            com_imgs.append(_make_img(img_in, stimuli))
         return [odd_img, *com_imgs]
 
     def texture_feature(self, img_in):
+        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
+
         textures = pattern_bank.__all__.copy()
         com_texture = _random_texture(_choose_rand_remove(textures))
         odd_texture = _random_texture(np.random.choice(textures))
@@ -427,26 +436,19 @@ class OddOneOutTrain(torch_data.Dataset):
         polygons = polygon_bank.SHAPES.copy()
         odd_shape = _choose_rand_remove(polygons)
         odd_colour = _rnd_colour()
-        odd_img = self._make_img(
-            img_in, contrasts[0], odd_shape, thickness, odd_colour, odd_texture
+        stimuli = StimuliSettings(
+            contrasts[0], odd_shape, thickness, odd_colour, odd_texture, fg, canvas_size, length
         )
+        odd_img = _make_img(img_in, stimuli)
 
+        stimuli.texture = com_texture
         com_imgs = []
         for i in range(self.num_imgs - 1):
-            colour = odd_colour if i == 0 else _rnd_colour()
-            com_shape = odd_shape if i == 1 else np.random.choice(polygons)
-            contrast = contrasts[0] if i == 2 else contrasts[1]
-            com_imgs.append(
-                self._make_img(img_in, contrast, com_shape, thickness, colour, com_texture)
-            )
+            stimuli.colour = odd_colour if i == 0 else _rnd_colour()
+            stimuli.shape = odd_shape if i == 1 else np.random.choice(polygons)
+            stimuli.contrast = contrasts[0] if i == 2 else contrasts[1]
+            com_imgs.append(_make_img(img_in, stimuli))
         return [odd_img, *com_imgs]
-
-    def _make_img(self, img, contrast, shape, thickness, colour, texture):
-        fg, canvas_size, length = _random_canvas(img.shape, self.fg_paths, self.fg_scale)
-        shape_kwargs = _polygon_kwargs(shape, length, canvas_size, thickness)
-        draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
-        draw = [draw_fun, shape_params]
-        return _make_img_shape(img, fg, canvas_size, contrast, thickness, colour, texture, draw)
 
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
