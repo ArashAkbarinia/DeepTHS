@@ -43,18 +43,18 @@ def centre_place(fg_size, bg_size):
     return srow, scol
 
 
-def merge_fg_bg(bg, fg, place_fun):
+def merge_fg_bg(bg, fg, place_fun, alpha=0):
     if isinstance(place_fun, str):
         place_fun = centre_place if place_fun == 'centre' else random_place
     srow, scol = place_fun(fg.shape[:2], bg.shape[:2])
-    return merge_fg_bg_at_loc(bg, fg, srow, scol)
+    return merge_fg_bg_at_loc(bg, fg, srow, scol, alpha)
 
 
-def merge_fg_bg_at_loc(bg, fg, srow, scol):
+def merge_fg_bg_at_loc(bg, fg, srow, scol, alpha=0):
     bg = bg.copy()
     erow = srow + fg.shape[0]
     ecol = scol + fg.shape[1]
-    bg[srow:erow, scol:ecol] = fg.copy()
+    bg[srow:erow, scol:ecol] = (1 - alpha) * fg.copy() + alpha * bg[srow:erow, scol:ecol]
     return bg
 
 

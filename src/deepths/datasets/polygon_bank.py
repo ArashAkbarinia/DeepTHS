@@ -24,9 +24,11 @@ def polygon_params(polygon, **kwargs):
 
 
 def cv2_polygons(pts, rotation=0):
+    old_pts = pts[0]
     if rotation != 0:
-        old_pts = pts[0]
         pts = [rotate2d(old_pts, np.mean(old_pts, axis=0), angle=rotation).astype(int)]
+    else:
+        pts = [old_pts.astype(int)]
     return cv2_filled_polygons, {'pts': pts}
 
 

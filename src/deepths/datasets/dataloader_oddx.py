@@ -24,12 +24,14 @@ def _rnd_colour():
 
 
 def _randint(low, high):
+    low = int(low)
+    high = int(high)
     return low if low >= high else np.random.randint(low, high)
 
 
 def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
     # ellipse and circle are defined by radius of their axis
-    if polygon in ['circle', 'ellipse']:
+    if polygon in polygon_bank.CV2_OVAL_SHAPES:
         length = int(length / 2)
 
     if polygon in ['ellipse', 'rectangle']:
@@ -38,13 +40,12 @@ def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
 
 
 def _ref_point(length, polygon, img_size, thickness):
-    half_size = (img_size[0] / 2, img_size[1] / 2)
     if thickness < 0:
         thickness = 0
-    min_side = min(half_size[0], half_size[1])
+    min_side = min(img_size[0], img_size[1])
     diff = min_side - length - (thickness * 2)
-    if polygon in ['circle', 'ellipse']:
-        cy, cx = _img_centre(half_size)
+    if polygon in polygon_bank.CV2_OVAL_SHAPES:
+        cy, cx = _img_centre(img_size)
         if diff <= 0:
             ref_pt = (cx, cy)
         else:
@@ -53,29 +54,36 @@ def _ref_point(length, polygon, img_size, thickness):
     elif polygon in ['square', 'rectangle']:
         ref_pt = (_randint(0, diff), _randint(0, diff))
     elif polygon in ['triangle']:
-        ymax, xmax = half_size[:2]
+        ymax, xmax = img_size[:2]
         ref_pt = (_randint(0, xmax - length), _randint(0, ymax - length))
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
+    return ref_pt
+
+
+def _ref_point_rotation(length, polygon, img_size, thickness):
+    half_size = (img_size[0] / 2, img_size[1] / 2)
+    ref_pt = _ref_point(length, polygon, half_size, thickness)
     return int(ref_pt[0] + half_size[0] / 2), int(ref_pt[1] + half_size[1] / 2)
 
 
 def _polygon_kwargs(polygon, length, img_size, thickness):
     kwargs = dict()
+    ref_pt = _ref_point_rotation(length, polygon, img_size, thickness)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
-        kwargs['ref_pt'] = _ref_point(length, polygon, img_size, thickness)
+        kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
     elif polygon in ['square', 'rectangle']:
         rnd_length = _random_length(length, polygon)
         if polygon == 'square':
             rnd_length = (rnd_length, rnd_length)
-        pt1 = _ref_point(length, polygon, img_size, thickness)
+        pt1 = ref_pt
         pt2 = (pt1[0] + 0, pt1[1] + rnd_length[1])
         pt3 = (pt1[0] + rnd_length[0], pt1[1] + rnd_length[1])
         pt4 = (pt1[0] + rnd_length[0], pt1[1] + 0)
         kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4])]
     elif polygon == 'triangle':
-        pt1 = _ref_point(length, polygon, img_size, thickness)
+        pt1 = ref_pt
         lside = np.random.choice([0, 1])
         sx = length if lside == 0 else _randint(0, length)
         sy = length if lside == 1 else _randint(0, length)
@@ -118,45 +126,51 @@ def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
     )
 
 
-def _enlarge_polygon(magnitude, shape_params, shape, out_size):
+def _enlarge_polygon(magnitude, shape_params, shape, out_size, length, thickness):
+    if shape in polygon_bank.CV2_OVAL_SHAPES:
+        length = length * 2
+    new_length = int(_change_scale(length, magnitude))
+    ref_pt = _ref_point(new_length, shape, out_size, thickness)
     shape_params = shape_params.copy()
-    if shape == 'circle':
-        shape_params['radius'] = int(_change_scale(shape_params['radius'], magnitude))
-        shape_params['center'] = (out_size[0] // 2, out_size[1] // 2)
-    elif shape == 'ellipse':
-        shape_params['axes'] = (
-            int(_change_scale(shape_params['axes'][0], magnitude)),
-            int(_change_scale(shape_params['axes'][1], magnitude)),
-        )
-        shape_params['center'] = (out_size[0] // 2, out_size[1] // 2)
+    if shape in polygon_bank.CV2_OVAL_SHAPES:
+        if shape == 'circle':
+            shape_params['radius'] = int(_change_scale(shape_params['radius'], magnitude))
+            # length = shape_params['radius']
+        else:
+            shape_params['axes'] = (
+                int(_change_scale(shape_params['axes'][0], magnitude)),
+                int(_change_scale(shape_params['axes'][1], magnitude)),
+            )
+            # length = max(shape_params['axes'][0], shape_params['axes'][1])
+        shape_params['center'] = ref_pt
     else:
         old_pts = shape_params['pts'][0]
-        pt1 = (0, 0)
-        other_pts = [_change_scale_pt(pt, old_pts[0]) for pt in old_pts[1:]]
+        pt1 = ref_pt
+        other_pts = [_change_scale_pt(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
+        other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
         shape_params['pts'] = [np.array([pt1, *other_pts])]
     return shape_params
 
 
 def _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, texture, shape_draw):
     img_in = _global_img_processing(img_in.copy(), contrast)
-    if fg_type is None:
-        srow, scol = dataset_utils.random_place(crop_size, img_in.shape)
-        img_out = dataset_utils.crop_fg_from_bg(img_in, crop_size, srow, scol)
-    else:
-        img_out = _fg_img(fg_type, img_in, crop_size)
+    srow, scol = dataset_utils.random_place(crop_size, img_in.shape)
+    img_out = dataset_utils.crop_fg_from_bg(img_in, crop_size, srow, scol)
+    if fg_type is not None:
+        img_out = (1 - fg_type[1]) * _fg_img(fg_type[0], img_in, crop_size) + fg_type[1] * img_out
     draw_fun, shape_params = shape_draw
     img_out = draw_polygon_params(draw_fun, img_out, shape_params, thickness, colour, texture)
-    if fg_type is None:
-        img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
-    else:
-        img_out = dataset_utils.merge_fg_bg(img_in, img_out, 'random')
+    img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
     return img_out
 
 
-def _make_img(img_in, contrast, shape, length, thickness, colour, texture):
-    img_out = _global_img_processing(img_in.copy(), contrast)
-    img_out = _local_img_drawing(img_out, shape, length, thickness, colour, texture)
-    return img_out
+def _make_img(img_in, fg_type, crop_size, contrast, shape, length, thickness, colour, texture):
+    shape_kwargs = _polygon_kwargs(shape, length, crop_size, thickness)
+    draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
+    shape_draw = [draw_fun, shape_params]
+
+    return _make_img_shape(img_in, fg_type, crop_size, contrast, thickness, colour, texture,
+                           shape_draw)
 
 
 def _global_img_processing(img, contrast):
@@ -187,17 +201,6 @@ def _rnd_thickness(thickness_range=(1, 3)):
     return thicknesses
 
 
-def _fg_img(fg_type, bg_img, fg_size):
-    if fg_type is None:
-        fg_img = bg_img.copy()
-    elif fg_type in ['rnd_img', 'rnd_uniform'] or type(fg_type) == int:
-        fg_img = dataset_utils.background_img(fg_type, fg_size)
-        fg_img = (fg_img * 255).astype('uint8')
-    else:
-        sys.exit('Unsupported feature type %s' % fg_type)
-    return fg_img
-
-
 def _choose_rand_remove(elements):
     element = np.random.choice(elements)
     elements.remove(element)
@@ -212,14 +215,36 @@ def _random_texture(texture=None):
         params['height'] = _randint(3, 6)
         params['length'] = thickness
         if fun == 'wave':
-            params['gap'] = _randint(0, 3)
+            params['gap'] = 0
     elif fun in ['grid', 'brick']:
-        params['gaps'] = [_randint(3, 7), _randint(3, 7)]
+        params['gaps'] = [_randint(2, 5), _randint(2, 5)]
         params['thicknesses'] = (thickness, thickness)
     elif fun == 'line':
-        params['gap'] = _randint(2, 5)
+        params['gap'] = _randint(2, 4)
         params['thickness'] = thickness
     return {'fun': fun, 'params': params}
+
+
+def _fg_img(fg_type, bg_img, fg_size):
+    if fg_type is None:
+        fg_img = bg_img.copy()
+    elif fg_type in ['rnd_img', 'rnd_uniform'] or type(fg_type) == int:
+        fg_img = dataset_utils.background_img(fg_type, fg_size)
+        fg_img = (fg_img * 255).astype('uint8')
+    else:
+        sys.exit('Unsupported feature type %s' % fg_type)
+    return fg_img
+
+
+def _random_canvas(img_size, fg_paths, fg_scale):
+    fg_type = np.random.choice(fg_paths)
+    if fg_type == 'rnd_uniform':
+        fg_type = (_randint(0, 256), np.random.uniform(0.5))
+
+    # creating a random size for the canvas image
+    canvas_size = (_rnd_scale(img_size[0], fg_scale), _rnd_scale(img_size[1], fg_scale))
+    length = np.minimum(canvas_size[0], canvas_size[1]) / 2
+    return fg_type, canvas_size, length
 
 
 class OddOneOutTrain(torch_data.Dataset):
@@ -239,7 +264,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img',
-        self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.33, 0.66)
+        self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
         bg_img = self.bg_db.__getitem__(item)
@@ -270,15 +295,7 @@ class OddOneOutTrain(torch_data.Dataset):
         return self.bg_db.__len__()
 
     def rotation_feature(self, img_in):
-        fg_type = np.random.choice(self.fg_paths)
-        if fg_type == 'rnd_uniform':
-            fg_type = _randint(0, 256)
-
-        # creating a random size for the odd image
-        odd_size = (
-            _rnd_scale(img_in.shape[0], (0.50, 0.66)),
-            _rnd_scale(img_in.shape[1], (0.50, 0.66))
-        )
+        fg_type, odd_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
 
         polygons = polygon_bank.SHAPES.copy()
         polygons.remove('circle')
@@ -293,7 +310,6 @@ class OddOneOutTrain(torch_data.Dataset):
         contrasts = _rnd_contrast()
         texture = _random_texture()
 
-        length = np.minimum(odd_size[0], odd_size[1]) / 2
         shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
         shape_kwargs['rotation'] = odd_angle
         draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
@@ -319,37 +335,29 @@ class OddOneOutTrain(torch_data.Dataset):
         return [odd_img, *com_imgs]
 
     def size_feature(self, img_in):
-        fg_type = np.random.choice(self.fg_paths)
-        if fg_type == 'rnd_uniform':
-            fg_type = _randint(0, 256)
+        fg_type, odd_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
+        mag_dir = np.random.choice([-1, 1])
+        if mag_dir == -1:
+            length = length * 1.5
+            mag_val = np.random.uniform(0.2, 0.4)
+        else:
+            mag_val = np.random.uniform(0.6, 0.8)
 
-        # creating a random size for the odd image
-        odd_size = (
-            _rnd_scale(img_in.shape[0], self.fg_scale),
-            _rnd_scale(img_in.shape[1], self.fg_scale)
-        )
-
-        odd_shape = np.random.choice(polygon_bank.SHAPES)
+        shape = np.random.choice(polygon_bank.SHAPES)
         odd_colour = _rnd_colour()
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
 
-        length = np.minimum(odd_size[0], odd_size[1])
-        shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
-        draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
+        shape_kwargs = _polygon_kwargs(shape, length, odd_size, odd_thick[0])
+        draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
         shape_draw = [draw_fun, shape_params]
         odd_img = _make_img_shape(
             img_in, fg_type, odd_size, contrasts[0], odd_thick[0], odd_colour, texture, shape_draw
         )
 
         # creating a bigger/smaller size for the common images
-        max_scale = (1 - self.fg_scale[1]) / self.fg_scale[1]
-        magnitude = (np.random.choice([-1, 1]), np.random.uniform(max_scale / 2, max_scale))
-        com_size = (
-            int(_change_scale(odd_size[0], magnitude)),
-            int(_change_scale(odd_size[1], magnitude))
-        )
+        magnitude = (mag_dir, mag_val)
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -357,30 +365,31 @@ class OddOneOutTrain(torch_data.Dataset):
             thick = odd_thick[0] if i == 1 else odd_thick[1]
             contrast = contrasts[0] if i == 2 else contrasts[1]
 
-            com_shape_params = _enlarge_polygon(magnitude, shape_params, odd_shape, com_size)
+            com_shape_params = _enlarge_polygon(magnitude, shape_params, shape, odd_size, length,
+                                                np.max(odd_thick))
             shape_draw = [draw_fun, com_shape_params]
             com_imgs.append(
-                _make_img_shape(img_in, fg_type, com_size, contrast, thick, colour, texture,
+                _make_img_shape(img_in, fg_type, odd_size, contrast, thick, colour, texture,
                                 shape_draw)
             )
 
         return [odd_img, *com_imgs]
 
     def colour_feature(self, img_in):
-        polygons = polygon_bank.SHAPES.copy()
-        length = _rnd_scale(img_in.shape[0], self.fg_scale)
+        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
 
         # this two colours can be identical, the probability is very slim, considered as DB noise
         odd_colour = _rnd_colour()
         com_colour = _rnd_colour()
 
+        polygons = polygon_bank.SHAPES.copy()
         odd_shape = _choose_rand_remove(polygons)
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
 
-        odd_img = _make_img(img_in, contrasts[0], odd_shape, length, odd_thick[0], odd_colour,
-                            texture)
+        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
+                            odd_thick[0], odd_colour, texture)
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -388,14 +397,16 @@ class OddOneOutTrain(torch_data.Dataset):
             thick = odd_thick[0] if i == 1 else odd_thick[1]
             contrast = contrasts[0] if i == 2 else contrasts[1]
             com_imgs.append(
-                _make_img(img_in, contrast, com_shape, length, thick, com_colour, texture))
+                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, thick,
+                          com_colour, texture)
+            )
 
         return [odd_img, *com_imgs]
 
     def shape_feature(self, img_in):
-        polygons = polygon_bank.SHAPES.copy()
-        length = _rnd_scale(img_in.shape[0], self.fg_scale)
+        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
 
+        polygons = polygon_bank.SHAPES.copy()
         com_shape = _choose_rand_remove(polygons)
         odd_shape = np.random.choice(polygons)
 
@@ -403,32 +414,35 @@ class OddOneOutTrain(torch_data.Dataset):
         odd_thick = _rnd_thickness()
         odd_colour = _rnd_colour()
         texture = _random_texture()
-        odd_img = _make_img(img_in, contrasts[0], odd_shape, length, odd_thick[0], odd_colour,
-                            texture)
+        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
+                            odd_thick[0], odd_colour, texture)
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
             colour = odd_colour if i == 0 else _rnd_colour()
             thick = odd_thick[0] if i == 1 else odd_thick[1]
             contrast = contrasts[0] if i == 2 else contrasts[1]
-            com_imgs.append(_make_img(img_in, contrast, com_shape, length, thick, colour, texture))
+            com_imgs.append(
+                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, thick, colour,
+                          texture)
+            )
 
         return [odd_img, *com_imgs]
 
     def texture_feature(self, img_in):
-        textures = pattern_bank.__all__.copy()
-        polygons = polygon_bank.SHAPES.copy()
-        length = _rnd_scale(img_in.shape[0], self.fg_scale)
+        fg_type, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
 
+        textures = pattern_bank.__all__.copy()
         com_texture = _random_texture(_choose_rand_remove(textures))
         odd_texture = _random_texture(np.random.choice(textures))
 
         contrasts = _rnd_contrast()
-        odd_thick = _randint(1, 3)
+        odd_thick = 1  # _randint(1, 3)
+        polygons = polygon_bank.SHAPES.copy()
         odd_shape = _choose_rand_remove(polygons)
         odd_colour = _rnd_colour()
-        odd_img = _make_img(img_in, contrasts[0], odd_shape, length, odd_thick, odd_colour,
-                            odd_texture)
+        odd_img = _make_img(img_in, fg_type, canvas_size, contrasts[0], odd_shape, length,
+                            odd_thick, odd_colour, odd_texture)
 
         com_imgs = []
         for i in range(self.num_imgs - 1):
@@ -436,7 +450,9 @@ class OddOneOutTrain(torch_data.Dataset):
             com_shape = odd_shape if i == 1 else np.random.choice(polygons)
             contrast = contrasts[0] if i == 2 else contrasts[1]
             com_imgs.append(
-                _make_img(img_in, contrast, com_shape, length, odd_thick, colour, com_texture))
+                _make_img(img_in, fg_type, canvas_size, contrast, com_shape, length, odd_thick,
+                          colour, com_texture)
+            )
 
         return [odd_img, *com_imgs]
 
