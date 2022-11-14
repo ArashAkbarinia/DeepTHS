@@ -23,6 +23,10 @@ def _rnd_colour():
     return [random.randint(0, 255) for _ in range(3)]
 
 
+def _randint(low, high):
+    return low if low >= high else np.random.randint(low, high)
+
+
 def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
     # ellipse and circle are defined by radius of their axis
     if polygon in ['circle', 'ellipse']:
@@ -34,12 +38,13 @@ def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
 
 
 def _ref_point(length, polygon, img_size, thickness):
+    half_size = (img_size[0] / 2, img_size[1] / 2)
     if thickness < 0:
         thickness = 0
-    min_side = min(img_size[0], img_size[1])
+    min_side = min(half_size[0], half_size[1])
     diff = min_side - length - (thickness * 2)
     if polygon in ['circle', 'ellipse']:
-        cy, cx = _img_centre(img_size)
+        cy, cx = _img_centre(half_size)
         if diff <= 0:
             ref_pt = (cx, cy)
         else:
@@ -47,13 +52,12 @@ def _ref_point(length, polygon, img_size, thickness):
             ref_pt = (_randint(cx - diff, cx + diff), _randint(cy - diff, cy + diff))
     elif polygon in ['square', 'rectangle']:
         ref_pt = (_randint(0, diff), _randint(0, diff))
+    elif polygon in ['triangle']:
+        ymax, xmax = half_size[:2]
+        ref_pt = (_randint(0, xmax - length), _randint(0, ymax - length))
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return ref_pt
-
-
-def _randint(low, high):
-    return low if low >= high else np.random.randint(low, high)
+    return int(ref_pt[0] + half_size[0] / 2), int(ref_pt[1] + half_size[1] / 2)
 
 
 def _polygon_kwargs(polygon, length, img_size, thickness):
@@ -71,8 +75,7 @@ def _polygon_kwargs(polygon, length, img_size, thickness):
         pt4 = (pt1[0] + rnd_length[0], pt1[1] + 0)
         kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4])]
     elif polygon == 'triangle':
-        ymax, xmax = img_size[:2]
-        pt1 = (_randint(0, xmax - length), _randint(0, ymax - length))
+        pt1 = _ref_point(length, polygon, img_size, thickness)
         lside = np.random.choice([0, 1])
         sx = length if lside == 0 else _randint(0, length)
         sy = length if lside == 1 else _randint(0, length)
@@ -235,7 +238,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.features = kwargs['features'] if 'features' in kwargs else supported_features
         self.features = [f for f in self.features if f in supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
-        self.fg_paths = [*self.fg_paths, None, 'rnd_img', 'rnd_uniform']
+        self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img',
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.33, 0.66)
 
     def __getitem__(self, item):
@@ -273,21 +276,24 @@ class OddOneOutTrain(torch_data.Dataset):
 
         # creating a random size for the odd image
         odd_size = (
-            _rnd_scale(img_in.shape[0], self.fg_scale),
-            _rnd_scale(img_in.shape[1], self.fg_scale)
+            _rnd_scale(img_in.shape[0], (0.50, 0.66)),
+            _rnd_scale(img_in.shape[1], (0.50, 0.66))
         )
 
-        # FIXME: removed the circle
-        odd_shape = np.random.choice(polygon_bank.SHAPES[1:])
-        rot_angles = [0, 30, 45, 60, 90]
-        odd_angle = np.deg2rad(_choose_rand_remove(rot_angles))
-        com_angle = np.deg2rad(np.random.choice(rot_angles))
+        polygons = polygon_bank.SHAPES.copy()
+        polygons.remove('circle')
+        odd_shape = np.random.choice(polygons)
+        rot_angles = [15, 30, 45, 60, 75, 90]
+        odd_angle = _randint(0, 90)
+        com_angle = odd_angle + np.random.choice(rot_angles)
+        odd_angle = np.deg2rad(odd_angle)
+        com_angle = np.deg2rad(com_angle)
         odd_colour = _rnd_colour()
         odd_thick = _rnd_thickness()
         contrasts = _rnd_contrast()
         texture = _random_texture()
 
-        length = np.minimum(odd_size[0], odd_size[1])
+        length = np.minimum(odd_size[0], odd_size[1]) / 2
         shape_kwargs = _polygon_kwargs(odd_shape, length, odd_size, odd_thick[0])
         shape_kwargs['rotation'] = odd_angle
         draw_fun, shape_params = polygon_bank.polygon_params(odd_shape, **shape_kwargs)
@@ -436,7 +442,7 @@ class OddOneOutTrain(torch_data.Dataset):
 
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
-    scale = (0.08, 1.0)
+    scale = (0.5, 1.0)
     single_img = kwargs['single_img'] if 'single_img' in kwargs else None
     if single_img is not None:
         # FIXME: hardcoded here only for 224 224!
