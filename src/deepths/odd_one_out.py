@@ -52,7 +52,7 @@ def _main_worker(args):
 
 def _gen_img_name(gt_settings, img_ind):
     odd_ind, odd_class = gt_settings
-    return 'gt_%.3d_%.3d' % (odd_ind, odd_class)
+    return 'gt_%.3d_%.3d' % (odd_ind[img_ind], odd_class[img_ind])
 
 
 def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
