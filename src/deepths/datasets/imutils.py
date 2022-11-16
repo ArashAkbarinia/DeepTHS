@@ -94,3 +94,7 @@ def ring_mask(img, inner, outer):
 
     mask_img = np.logical_and(mask_in, mask_out)
     return mask_img
+
+
+def centre_pixel(img_size):
+    return img_size[0] // 2, img_size[1] // 2

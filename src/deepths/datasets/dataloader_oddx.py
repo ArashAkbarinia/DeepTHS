@@ -14,10 +14,6 @@ import torchvision.transforms as torch_transforms
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
 
-def _img_centre(img_size):
-    return img_size[0] // 2, img_size[1] // 2
-
-
 def _randint(low, high):
     low = int(low)
     high = int(high)
@@ -40,7 +36,7 @@ def _ref_point(length, polygon, img_size, thickness):
     min_side = min(img_size[0], img_size[1])
     diff = min_side - length - (thickness * 2)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
-        cy, cx = _img_centre(img_size)
+        cy, cx = imutils.centre_pixel(img_size)
         if diff <= 0:
             ref_pt = (cx, cy)
         else:
