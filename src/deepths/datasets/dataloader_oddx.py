@@ -90,6 +90,8 @@ def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
 
 
 def _enlarge_polygon(magnitude, shape_params, stimuli, thickness):
+    if magnitude is None:
+        return shape_params
     shape, out_size, length = stimuli.shape, stimuli.canvas, stimuli.length
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         length = length * 2
@@ -134,6 +136,7 @@ def _make_img(img, stimuli):
     shape_kwargs = stimuli.fixme if hasattr(stimuli, 'fixme') else create_shape(stimuli)
     shape_kwargs['rotation'] = stimuli.rotation
     draw_fun, shape_params = polygon_bank.polygon_params(stimuli.shape, **shape_kwargs)
+    shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli, 1)
     draw = [draw_fun, shape_params]
     return _make_img_shape(img, stimuli, draw)
 
@@ -231,6 +234,13 @@ def create_shape(stimuli):
     return kwargs
 
 
+def _rnd_size():
+    mag_dir = np.random.choice([-1, 1])
+    mag_val = np.random.uniform(0.2, 0.4) if mag_dir == -1 else np.random.uniform(0.6, 0.8)
+    # creating a bigger/smaller size for the common images
+    return [None, (mag_dir, mag_val)]
+
+
 def _rnd_rotation(rot_angles=None):
     if rot_angles is None:
         rot_angles = [15, 30, 45, 60, 75, 90]
@@ -255,8 +265,10 @@ def _rnd_texture():
 
 def _rnd_colour():
     colour1 = [random.randint(0, 255) for _ in range(3)]
-    colour2 = [random.randint(0, 255) for _ in range(3)]
-    return [colour1, colour2]
+    while True:
+        colour2 = [random.randint(0, 255) for _ in range(3)]
+        if colour1 != colour2:
+            return [colour1, colour2]
 
 
 def _rnd_thickness(thickness_range=(1, 3)):
@@ -274,35 +286,42 @@ def _rnd_contrast(contrast_range=(0.3, 0.7)):
 class StimuliSettings:
 
     def __init__(self, fg, canvas, length, settings, **kwargs):
+        self.fg = fg
+        self.canvas = canvas
+        self.length = length
+        self.settings = settings
+
         self.contrast = kwargs.get("contrast", None)
         self.shape = kwargs.get("shape", None)
         self.thickness = kwargs.get("thickness", 1)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
+        self.size = kwargs.get("size", None)
         self.rotation = kwargs.get("rotation", 0)
-
-        self.fg = fg
-        self.canvas = canvas
-        self.length = length
-        self.settings = settings
 
         self.fill_in_rand_settings()
         self.paired_attrs = [_choose_rand_remove(self.settings['pair']) for _ in range(3)]
         print(self.paired_attrs)
 
     def fill_in_rand_settings(self):
-        for attr in self.settings['pair']:
+        for attr in [*self.settings['pair'], self.settings['unique']]:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr]())
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
+
+        if self.settings['unique'] == 'size' and self.__getattribute__('rnd_size')[1][1] == -1:
+            self.length = self.length * 1.5
 
         for attr in self.settings['fixed']:
             # FIXME: hack only for rotation
             polygons = polygon_bank.SHAPES.copy()
-            polygons.remove('circle')
+            if self.settings['unique'] == 'rotation':
+                polygons.remove('circle')
             self.shape = np.random.choice(polygons)
             self.fixme = create_shape(self)
 
     def common_settings(self, item):
+        unique_attr = self.settings['unique']
+        self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
         for i, attr in enumerate(self.paired_attrs):
             ind = 0 if i == item else 1
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
@@ -358,98 +377,66 @@ class OddOneOutTrain(torch_data.Dataset):
     def rotation_feature(self, img_in):
         fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         stimuli_settings = {
+            'unique': 'rotation',
             'fixed': ['shape'],
             'pair': ['contrast', 'colour', 'texture'],
             'excluded': ['thickness']
         }
 
-        odd_rotation, com_rotation = _rnd_rotation()
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings, rotation=odd_rotation)
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
         odd_img = _make_img(img_in, stimuli)
-
-        stimuli.rotation = com_rotation
         return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
 
     def size_feature(self, img_in):
         fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         stimuli_settings = {
-            'fixed': [],
+            'unique': 'size',
+            'fixed': ['shape'],
             'pair': ['contrast', 'colour', 'texture'],
             'excluded': ['thickness']
         }
 
-        mag_dir = np.random.choice([-1, 1])
-        if mag_dir == -1:
-            length = length * 1.5
-            mag_val = np.random.uniform(0.2, 0.4)
-        else:
-            mag_val = np.random.uniform(0.6, 0.8)
-
-        shape = np.random.choice(polygon_bank.SHAPES)
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings, shape=shape)
-        shape_kwargs = create_shape(stimuli)
-        draw_fun, shape_params = polygon_bank.polygon_params(shape, **shape_kwargs)
-        shape_draw = [draw_fun, shape_params]
-        odd_img = _make_img_shape(img_in, stimuli, shape_draw)
-
-        # creating a bigger/smaller size for the common images
-        magnitude = (mag_dir, mag_val)
-        com_imgs = []
-        for i in range(self.num_imgs - 1):
-            stimuli.common_settings(i)
-            com_shape_params = _enlarge_polygon(magnitude, shape_params, stimuli, 1)
-            shape_draw = [draw_fun, com_shape_params]
-            com_imgs.append(_make_img_shape(img_in, stimuli, shape_draw))
-        return [odd_img, *com_imgs]
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
+        odd_img = _make_img(img_in, stimuli)
+        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
 
     def colour_feature(self, img_in):
         fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         stimuli_settings = {
+            'unique': 'colour',
             'fixed': [],
             'pair': ['contrast', 'shape', 'texture'],
             'excluded': ['rotation', 'thickness']
         }
 
-        # this two colours can be identical, the probability is very slim, considered as DB noise
-        odd_colour, com_colour = _rnd_colour()
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings, colour=odd_colour)
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
         odd_img = _make_img(img_in, stimuli)
-
-        stimuli.colour = com_colour
         return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
 
     def shape_feature(self, img_in):
         fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         stimuli_settings = {
+            'unique': 'shape',
             'fixed': [],
             'pair': ['contrast', 'colour', 'texture'],
             'excluded': ['rotation', 'thickness']
         }
 
-        odd_shape, com_shape = _rnd_shape()
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings, shape=odd_shape)
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
         odd_img = _make_img(img_in, stimuli)
-
-        stimuli.shape = com_shape
         return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
 
     def texture_feature(self, img_in):
         fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
         stimuli_settings = {
+            'unique': 'texture',
             'fixed': [],
             'pair': ['contrast', 'colour', 'shape'],
             'excluded': ['rotation', 'thickness']
         }
 
-        odd_texture, com_texture = _rnd_texture()
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings, texture=odd_texture)
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
         odd_img = _make_img(img_in, stimuli)
-
-        stimuli.texture = com_texture
         return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
 
 
