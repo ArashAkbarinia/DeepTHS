@@ -351,11 +351,14 @@ class OddOneOutTrain(torch_data.Dataset):
         if self.bg_transform is not None:
             bg_img = self.bg_transform(bg_img)
 
-        # selecting the unique features shared among all except one image
-        unique_feature = np.random.choice(self.features)
-        odd_class = self.features.index(unique_feature)
+        # getting the feature settings
+        stimuli_settings, odd_class = self.feature_settings()
         # drawing the foreground content
-        imgs = self.__getattribute__('%s_feature' % unique_feature)(bg_img)
+        fg, canvas_size, length = _random_canvas(bg_img.shape, self.fg_paths, self.fg_scale)
+        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
+        odd_img = _make_img(bg_img, stimuli)
+        common_imgs = _make_common_imgs(bg_img, self.num_imgs, stimuli)
+        imgs = [odd_img, *common_imgs]
 
         if self.transform is not None:
             imgs = self.transform(imgs)
@@ -374,70 +377,41 @@ class OddOneOutTrain(torch_data.Dataset):
     def __len__(self):
         return self.bg_db.__len__()
 
-    def rotation_feature(self, img_in):
-        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
+    def feature_settings(self):
+        # selecting the unique features shared among all except one image
+        unique_feature = np.random.choice(self.features)
+        odd_class = self.features.index(unique_feature)
+
         stimuli_settings = {
-            'unique': 'rotation',
-            'fixed': ['shape'],
-            'pair': ['contrast', 'colour', 'texture'],
-            'excluded': ['thickness']
+            'rotation': {
+                'fixed': ['shape'],
+                'pair': ['contrast', 'colour', 'texture'],
+                'excluded': ['thickness']
+            },
+            'size': {
+                'fixed': ['shape'],
+                'pair': ['contrast', 'colour', 'texture'],
+                'excluded': ['thickness']
+            },
+            'colour': {
+                'fixed': [],
+                'pair': ['contrast', 'shape', 'texture'],
+                'excluded': ['rotation', 'thickness']
+            },
+            'shape': {
+                'fixed': [],
+                'pair': ['contrast', 'colour', 'texture'],
+                'excluded': ['rotation', 'thickness']
+            },
+            'texture': {
+                'fixed': [],
+                'pair': ['contrast', 'colour', 'shape'],
+                'excluded': ['rotation', 'thickness']
+            }
         }
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
-        odd_img = _make_img(img_in, stimuli)
-        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
-
-    def size_feature(self, img_in):
-        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-        stimuli_settings = {
-            'unique': 'size',
-            'fixed': ['shape'],
-            'pair': ['contrast', 'colour', 'texture'],
-            'excluded': ['thickness']
-        }
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
-        odd_img = _make_img(img_in, stimuli)
-        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
-
-    def colour_feature(self, img_in):
-        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-        stimuli_settings = {
-            'unique': 'colour',
-            'fixed': [],
-            'pair': ['contrast', 'shape', 'texture'],
-            'excluded': ['rotation', 'thickness']
-        }
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
-        odd_img = _make_img(img_in, stimuli)
-        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
-
-    def shape_feature(self, img_in):
-        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-        stimuli_settings = {
-            'unique': 'shape',
-            'fixed': [],
-            'pair': ['contrast', 'colour', 'texture'],
-            'excluded': ['rotation', 'thickness']
-        }
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
-        odd_img = _make_img(img_in, stimuli)
-        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
-
-    def texture_feature(self, img_in):
-        fg, canvas_size, length = _random_canvas(img_in.shape, self.fg_paths, self.fg_scale)
-        stimuli_settings = {
-            'unique': 'texture',
-            'fixed': [],
-            'pair': ['contrast', 'colour', 'shape'],
-            'excluded': ['rotation', 'thickness']
-        }
-
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
-        odd_img = _make_img(img_in, stimuli)
-        return [odd_img, *_make_common_imgs(img_in, self.num_imgs, stimuli)]
+        settings = stimuli_settings[unique_feature]
+        settings['unique'] = unique_feature
+        return settings, odd_class
 
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
