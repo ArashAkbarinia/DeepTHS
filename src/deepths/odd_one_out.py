@@ -16,18 +16,18 @@ from .utils import common_routines, report_utils
 
 def main(argv):
     args = argument_handler.master_arg_parser(argv, 'odd_one_out')
+    # FIXME args.paradigm, single_img
+    args.train_kwargs = {
+        'features': ['size', 'colour', 'shape', 'texture', 'rotation'],
+        'single_img': True
+    }
     args = common_routines.prepare_starting(args, 'odd_one_out')
     _main_worker(args)
 
 
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
-    # FIXME args.paradigm, single_img
-    train_kwargs = {
-        'features': ['size', 'colour', 'shape', 'texture', 'rotation'],
-        'single_img': True
-    }
-    model = model_oddx.oddx_net(args, train_kwargs)
+    model = model_oddx.oddx_net(args, args.train_kwargs)
     model = model.cuda(args.gpu)
 
     # defining validation set here so if only test don't do the rest
@@ -39,7 +39,7 @@ def _main_worker(args):
 
     # loading the training set
     train_dataset = dataloader_oddx.oddx_bg_folder(
-        args.train_dir, args.paradigm, args.target_size, args.preprocess, **train_kwargs
+        args.train_dir, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
     )
 
     train_loader = torch.utils.data.DataLoader(
