@@ -90,7 +90,7 @@ def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
 def _enlarge_polygon(magnitude, shape_params, stimuli):
     if magnitude is None:
         return shape_params
-    shape, out_size, length = stimuli.shape, stimuli.canvas, stimuli.length
+    shape, out_size, length = stimuli.shape['name'], stimuli.canvas, stimuli.length
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         length = length * 2
     new_length = int(_change_scale(length, magnitude))
@@ -130,9 +130,9 @@ def _make_img_shape(img_in, stimuli, shape_draw):
 
 
 def _make_img(img, stimuli):
-    shape_kwargs = stimuli.fixme if hasattr(stimuli, 'fixme') else create_shape(stimuli)
-    shape_kwargs['rotation'] = stimuli.rotation
-    draw_fun, shape_params = polygon_bank.polygon_params(stimuli.shape, **shape_kwargs)
+    shape = stimuli.shape
+    shape['kwargs']['rotation'] = stimuli.rotation
+    draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape['kwargs'])
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     draw = [draw_fun, shape_params]
     return _make_img_shape(img, stimuli, draw)
@@ -202,8 +202,8 @@ def create_texture(texture=None):
     return {'fun': fun, 'params': params}
 
 
-def create_shape(stimuli):
-    polygon, length = stimuli.shape, stimuli.length
+def create_shape(polygon, stimuli):
+    length = stimuli.length
     kwargs = dict()
     ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
@@ -231,14 +231,14 @@ def create_shape(stimuli):
     return kwargs
 
 
-def _rnd_size():
+def _rnd_size(*_args):
     mag_dir = np.random.choice([-1, 1])
     mag_val = np.random.uniform(0.2, 0.4) if mag_dir == -1 else np.random.uniform(0.6, 0.8)
     # creating a bigger/smaller size for the common images
     return [None, (mag_dir, mag_val)]
 
 
-def _rnd_rotation(rot_angles=None):
+def _rnd_rotation(*_args, rot_angles=None):
     if rot_angles is None:
         rot_angles = [15, 30, 45, 60, 75, 90]
     angle1 = _randint(0, 90)
@@ -246,21 +246,25 @@ def _rnd_rotation(rot_angles=None):
     return [np.deg2rad(angle1), np.deg2rad(angle2)]
 
 
-def _rnd_shape():
+def _rnd_shape(stimuli):
     polygons = polygon_bank.SHAPES.copy()
-    shape1 = _choose_rand_remove(polygons)
-    shape2 = np.random.choice(polygons)
+    if stimuli.settings['unique'] == 'rotation':
+        polygons.remove('circle')
+    shape1_name = _choose_rand_remove(polygons)
+    shape2_name = np.random.choice(polygons)
+    shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli)}
+    shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli)}
     return [shape1, shape2]
 
 
-def _rnd_texture():
+def _rnd_texture(*_args):
     textures = pattern_bank.__all__.copy()
     texture1 = create_texture(_choose_rand_remove(textures))
     texture2 = create_texture(np.random.choice(textures))
     return [texture1, texture2]
 
 
-def _rnd_colour():
+def _rnd_colour(*_args):
     colour1 = [random.randint(0, 255) for _ in range(3)]
     while True:
         colour2 = [random.randint(0, 255) for _ in range(3)]
@@ -268,7 +272,7 @@ def _rnd_colour():
             return [colour1, colour2]
 
 
-def _rnd_contrast(contrast_range=(0.3, 0.7)):
+def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
     contrasts = [1, np.random.uniform(*contrast_range)]
     random.shuffle(contrasts)
     return contrasts
@@ -291,23 +295,18 @@ class StimuliSettings:
 
         self.fill_in_rand_settings()
         self.paired_attrs = [_choose_rand_remove(self.settings['pair']) for _ in range(3)]
-        print(self.paired_attrs)
 
     def fill_in_rand_settings(self):
         for attr in [*self.settings['pair'], self.settings['unique']]:
-            self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr]())
+            self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
+        # FIXME: size should be set before shape
         if self.settings['unique'] == 'size' and self.__getattribute__('rnd_size')[1][1] == -1:
             self.length = self.length * 1.5
 
         for attr in self.settings['fixed']:
-            # FIXME: hack only for rotation
-            polygons = polygon_bank.SHAPES.copy()
-            if self.settings['unique'] == 'rotation':
-                polygons.remove('circle')
-            self.shape = np.random.choice(polygons)
-            self.fixme = create_shape(self)
+            self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
 
     def common_settings(self, item):
         unique_attr = self.settings['unique']
