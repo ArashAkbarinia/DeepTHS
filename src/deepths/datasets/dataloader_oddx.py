@@ -30,11 +30,9 @@ def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
     return length
 
 
-def _ref_point(length, polygon, img_size, thickness):
-    if thickness < 0:
-        thickness = 0
+def _ref_point(length, polygon, img_size):
     min_side = min(img_size[0], img_size[1])
-    diff = min_side - length - (thickness * 2)
+    diff = min_side - length - 2
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         cy, cx = imutils.centre_pixel(img_size)
         if diff <= 0:
@@ -52,17 +50,17 @@ def _ref_point(length, polygon, img_size, thickness):
     return ref_pt
 
 
-def _ref_point_rotation(length, polygon, img_size, thickness):
+def _ref_point_rotation(length, polygon, img_size):
     half_size = (img_size[0] / 2, img_size[1] / 2)
-    ref_pt = _ref_point(length, polygon, half_size, thickness)
+    ref_pt = _ref_point(length, polygon, half_size)
     return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
-def draw_polygon_params(draw_fun, img, params, thickness, colour, texture):
+def draw_polygon_params(draw_fun, img, params, colour, texture):
     params['color'] = colour
-    params['thickness'] = thickness
+    params['thickness'] = -1 if texture['fun'] == 'filled' else 1
     img = draw_fun(img, **params)
-    if thickness == -1:
+    if texture['fun'] == 'filled':
         return img
 
     params['color'] = (1, 1, 1)
@@ -89,14 +87,14 @@ def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
     )
 
 
-def _enlarge_polygon(magnitude, shape_params, stimuli, thickness):
+def _enlarge_polygon(magnitude, shape_params, stimuli):
     if magnitude is None:
         return shape_params
     shape, out_size, length = stimuli.shape, stimuli.canvas, stimuli.length
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         length = length * 2
     new_length = int(_change_scale(length, magnitude))
-    ref_pt = _ref_point(new_length, shape, out_size, thickness)
+    ref_pt = _ref_point(new_length, shape, out_size)
     shape_params = shape_params.copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         if shape == 'circle':
@@ -126,8 +124,7 @@ def _make_img_shape(img_in, stimuli, shape_draw):
         bg_lum, alpha = stimuli.fg
         img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
     draw_fun, shape_params = shape_draw
-    img_out = draw_polygon_params(
-        draw_fun, img_out, shape_params, stimuli.thickness, stimuli.colour, stimuli.texture)
+    img_out = draw_polygon_params(draw_fun, img_out, shape_params, stimuli.colour, stimuli.texture)
     img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
     return img_out
 
@@ -136,7 +133,7 @@ def _make_img(img, stimuli):
     shape_kwargs = stimuli.fixme if hasattr(stimuli, 'fixme') else create_shape(stimuli)
     shape_kwargs['rotation'] = stimuli.rotation
     draw_fun, shape_params = polygon_bank.polygon_params(stimuli.shape, **shape_kwargs)
-    shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli, 1)
+    shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     draw = [draw_fun, shape_params]
     return _make_img_shape(img, stimuli, draw)
 
@@ -208,7 +205,7 @@ def create_texture(texture=None):
 def create_shape(stimuli):
     polygon, length = stimuli.shape, stimuli.length
     kwargs = dict()
-    ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas, stimuli.thickness)
+    ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
@@ -271,12 +268,6 @@ def _rnd_colour():
             return [colour1, colour2]
 
 
-def _rnd_thickness(thickness_range=(1, 3)):
-    thicknesses = [-1, _randint(*thickness_range)]
-    random.shuffle(thicknesses)
-    return thicknesses
-
-
 def _rnd_contrast(contrast_range=(0.3, 0.7)):
     contrasts = [1, np.random.uniform(*contrast_range)]
     random.shuffle(contrasts)
@@ -293,7 +284,6 @@ class StimuliSettings:
 
         self.contrast = kwargs.get("contrast", None)
         self.shape = kwargs.get("shape", None)
-        self.thickness = kwargs.get("thickness", 1)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", None)
@@ -386,27 +376,27 @@ class OddOneOutTrain(torch_data.Dataset):
             'rotation': {
                 'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture'],
-                'excluded': ['thickness']
+                'excluded': []
             },
             'size': {
                 'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture'],
-                'excluded': ['thickness']
+                'excluded': []
             },
             'colour': {
                 'fixed': [],
                 'pair': ['contrast', 'shape', 'texture'],
-                'excluded': ['rotation', 'thickness']
+                'excluded': ['rotation']
             },
             'shape': {
                 'fixed': [],
                 'pair': ['contrast', 'colour', 'texture'],
-                'excluded': ['rotation', 'thickness']
+                'excluded': ['rotation']
             },
             'texture': {
                 'fixed': [],
                 'pair': ['contrast', 'colour', 'shape'],
-                'excluded': ['rotation', 'thickness']
+                'excluded': ['rotation']
             }
         }
         settings = stimuli_settings[unique_feature]
