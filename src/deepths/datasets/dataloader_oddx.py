@@ -73,17 +73,16 @@ def draw_polygon_params(draw_fun, img, params, colour, texture):
     return img
 
 
-def _enlarge1d(value, magnitude, ref=0):
-    # centre the value at zero
-    value = value - ref
-    return value + (value * magnitude)
-
-
-def _enlarge2d(old_pt, magnitude, ref=(0, 0)):
-    return (
-        int(_enlarge1d(old_pt[0], magnitude, ref=ref[0])),
-        int(_enlarge1d(old_pt[1], magnitude, ref=ref[1])),
-    )
+def _enlarge(value, magnitude, ref=None):
+    print(value, type(value))
+    int_in = False
+    if not hasattr(value, '__len__'):
+        value, int_in = (value,), True
+    if ref is None:
+        ref = (0,) * len(value)
+    value_centered = np.array([v - r for v, r in zip(value, ref)])
+    value_magnified = (value_centered + value_centered * magnitude).astype(int)
+    return value_magnified[0] if int_in else tuple(value_magnified)
 
 
 def _enlarge_polygon(magnitude, shape_params, stimuli):
@@ -91,22 +90,16 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
         return shape_params
     shape, out_size = stimuli.shape['name'], stimuli.canvas
     length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
-    new_length = int(_enlarge1d(length, magnitude))
-    ref_pt = _ref_point(new_length, shape, out_size)
+    ref_pt = _ref_point(_enlarge(length, magnitude), shape, out_size)
     shape_params = shape_params.copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
-        if shape == 'circle':
-            shape_params['radius'] = int(_enlarge1d(shape_params['radius'], magnitude))
-        else:
-            shape_params['axes'] = (
-                int(_enlarge1d(shape_params['axes'][0], magnitude)),
-                int(_enlarge1d(shape_params['axes'][1], magnitude)),
-            )
         shape_params['center'] = ref_pt
+        oval_length = 'radius' if shape == 'circle' else 'axes'
+        shape_params[oval_length] = _enlarge(shape_params[oval_length], magnitude)
     else:
         old_pts = shape_params['pts'][0]
         pt1 = ref_pt
-        other_pts = [_enlarge2d(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
+        other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
         other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
         shape_params['pts'] = [np.array([pt1, *other_pts])]
     return shape_params
