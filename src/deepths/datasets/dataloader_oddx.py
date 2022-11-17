@@ -15,9 +15,12 @@ from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
 
 def _randint(low, high):
-    low = int(low)
-    high = int(high)
+    low, high = int(low), int(high)
     return low if low >= high else np.random.randint(low, high)
+
+
+def _rnd_scale(size, scale):
+    return int(size * np.random.uniform(*scale))
 
 
 def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
@@ -31,8 +34,7 @@ def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
 
 
 def _ref_point(length, polygon, img_size):
-    min_side = min(img_size[0], img_size[1])
-    diff = min_side - length - 2
+    diff = min(img_size[0], img_size[1]) - length - 2
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         cy, cx = imutils.centre_pixel(img_size)
         if diff <= 0:
@@ -121,8 +123,7 @@ def _make_img(stimuli):
     shape['kwargs']['rotation'] = stimuli.rotation
     draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape['kwargs'])
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
-    draw = [draw_fun, shape_params]
-    return _make_img_on_bg(stimuli, draw)
+    return _make_img_on_bg(stimuli, [draw_fun, shape_params])
 
 
 def _make_common_imgs(stimuli, num_imgs):
@@ -136,11 +137,6 @@ def _make_common_imgs(stimuli, num_imgs):
 def _global_img_processing(img, contrast):
     img = imutils.adjust_contrast(img, contrast)
     return img
-
-
-def _rnd_scale(size, scale):
-    rnd_scale = np.random.uniform(*scale)
-    return int(size * rnd_scale)
 
 
 def _choose_rand_remove(elements):
@@ -281,7 +277,7 @@ class StimuliSettings:
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
 
-        self.paired_attrs = self.fill_in_rand_settings(all_features)
+        self.paired_attrs = self.fill_in_paired_settings(all_features)
 
     def set_settings(self, all_features):
         settings = dict()
@@ -290,7 +286,7 @@ class StimuliSettings:
         settings['unique'] = self.unique_feature
         return settings
 
-    def fill_in_rand_settings(self, all_features):
+    def fill_in_paired_settings(self, all_features):
         settings = self.set_settings(all_features)
         for attr in [*settings['pair'], self.unique_feature]:
             if attr == 'background':
