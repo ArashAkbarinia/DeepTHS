@@ -51,7 +51,7 @@ def _ref_point(length, polygon, img_size):
 
 
 def _ref_point_rotation(length, polygon, img_size):
-    half_size = (img_size[0] / 2, img_size[1] / 2)
+    half_size = imutils.centre_pixel(img_size)
     ref_pt = _ref_point(length, polygon, half_size)
     return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
@@ -73,44 +73,40 @@ def draw_polygon_params(draw_fun, img, params, colour, texture):
     return img
 
 
-def _change_scale(value, magnitude, ref=0):
-    big_or_small, size_change = magnitude
+def _enlarge1d(value, magnitude, ref=0):
     # centre the value at zero
     value = value - ref
-    return value + big_or_small * (value * size_change)
+    return value + (value * magnitude)
 
 
-def _change_scale_pt(old_pt, magnitude, ref=(0, 0)):
+def _enlarge2d(old_pt, magnitude, ref=(0, 0)):
     return (
-        int(_change_scale(old_pt[0], magnitude, ref=ref[0])),
-        int(_change_scale(old_pt[1], magnitude, ref=ref[1])),
+        int(_enlarge1d(old_pt[0], magnitude, ref=ref[0])),
+        int(_enlarge1d(old_pt[1], magnitude, ref=ref[1])),
     )
 
 
 def _enlarge_polygon(magnitude, shape_params, stimuli):
-    if magnitude is None:
+    if magnitude == 0:
         return shape_params
-    shape, out_size, length = stimuli.shape['name'], stimuli.canvas, stimuli.length
-    if shape in polygon_bank.CV2_OVAL_SHAPES:
-        length = length * 2
-    new_length = int(_change_scale(length, magnitude))
+    shape, out_size = stimuli.shape['name'], stimuli.canvas
+    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
+    new_length = int(_enlarge1d(length, magnitude))
     ref_pt = _ref_point(new_length, shape, out_size)
     shape_params = shape_params.copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         if shape == 'circle':
-            shape_params['radius'] = int(_change_scale(shape_params['radius'], magnitude))
-            # length = shape_params['radius']
+            shape_params['radius'] = int(_enlarge1d(shape_params['radius'], magnitude))
         else:
             shape_params['axes'] = (
-                int(_change_scale(shape_params['axes'][0], magnitude)),
-                int(_change_scale(shape_params['axes'][1], magnitude)),
+                int(_enlarge1d(shape_params['axes'][0], magnitude)),
+                int(_enlarge1d(shape_params['axes'][1], magnitude)),
             )
-            # length = max(shape_params['axes'][0], shape_params['axes'][1])
         shape_params['center'] = ref_pt
     else:
         old_pts = shape_params['pts'][0]
         pt1 = ref_pt
-        other_pts = [_change_scale_pt(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
+        other_pts = [_enlarge2d(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
         other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
         shape_params['pts'] = [np.array([pt1, *other_pts])]
     return shape_params
@@ -180,8 +176,7 @@ def _random_canvas(img_size, fg_paths, fg_scale):
 
     # creating a random size for the canvas image
     canvas_size = (_rnd_scale(img_size[0], fg_scale), _rnd_scale(img_size[1], fg_scale))
-    length = np.minimum(canvas_size[0], canvas_size[1]) / 2
-    return fg_type, canvas_size, length
+    return fg_type, canvas_size
 
 
 def create_texture(texture=None):
@@ -203,7 +198,7 @@ def create_texture(texture=None):
 
 
 def create_shape(polygon, stimuli):
-    length = stimuli.length
+    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
     kwargs = dict()
     ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
@@ -231,11 +226,10 @@ def create_shape(polygon, stimuli):
     return kwargs
 
 
-def _rnd_size(*_args):
-    mag_dir = np.random.choice([-1, 1])
-    mag_val = np.random.uniform(0.2, 0.4) if mag_dir == -1 else np.random.uniform(0.6, 0.8)
-    # creating a bigger/smaller size for the common images
-    return [None, (mag_dir, mag_val)]
+def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
+    size_magnitude = [0, np.random.uniform(*magnitude_range)]
+    random.shuffle(size_magnitude)
+    return size_magnitude
 
 
 def _rnd_rotation(*_args, rot_angles=None):
@@ -280,17 +274,16 @@ def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
 
 class StimuliSettings:
 
-    def __init__(self, fg, canvas, length, settings, **kwargs):
+    def __init__(self, fg, canvas, settings, **kwargs):
         self.fg = fg
         self.canvas = canvas
-        self.length = length
         self.settings = settings
 
         self.contrast = kwargs.get("contrast", None)
         self.shape = kwargs.get("shape", None)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
-        self.size = kwargs.get("size", None)
+        self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
 
         self.fill_in_rand_settings()
@@ -300,10 +293,6 @@ class StimuliSettings:
         for attr in [*self.settings['pair'], self.settings['unique']]:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
-
-        # FIXME: size should be set before shape
-        if self.settings['unique'] == 'size' and self.__getattribute__('rnd_size')[1][1] == -1:
-            self.length = self.length * 1.5
 
         for attr in self.settings['fixed']:
             self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
@@ -343,8 +332,8 @@ class OddOneOutTrain(torch_data.Dataset):
         # getting the feature settings
         stimuli_settings, odd_class = self.feature_settings()
         # drawing the foreground content
-        fg, canvas_size, length = _random_canvas(bg_img.shape, self.fg_paths, self.fg_scale)
-        stimuli = StimuliSettings(fg, canvas_size, length, stimuli_settings)
+        fg, canvas_size = _random_canvas(bg_img.shape, self.fg_paths, self.fg_scale)
+        stimuli = StimuliSettings(fg, canvas_size, stimuli_settings)
         odd_img = _make_img(bg_img, stimuli)
         common_imgs = _make_common_imgs(bg_img, self.num_imgs, stimuli)
         imgs = [odd_img, *common_imgs]
