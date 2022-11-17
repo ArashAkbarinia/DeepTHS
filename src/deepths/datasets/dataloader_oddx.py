@@ -104,7 +104,7 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     return shape_params
 
 
-def _make_img_shape(stimuli, shape_draw):
+def _make_img_on_bg(stimuli, shape_draw):
     img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
     srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
@@ -122,7 +122,7 @@ def _make_img(stimuli):
     draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape['kwargs'])
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     draw = [draw_fun, shape_params]
-    return _make_img_shape(stimuli, draw)
+    return _make_img_on_bg(stimuli, draw)
 
 
 def _make_common_imgs(stimuli, num_imgs):
@@ -266,11 +266,11 @@ def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
 class StimuliSettings:
 
     def __init__(self, fg, canvas, background, all_features, **kwargs):
-        self.fg = fg
-        self.canvas = canvas
         self.all_features = list(all_features.keys())
         self.unique_feature = np.random.choice(self.all_features)
         self.odd_class = self.all_features.index(self.unique_feature)
+        self.fg = None if self.unique_feature == 'background' else fg
+        self.canvas = canvas
 
         self.rnd_background = background
         self.background = self.rnd_background[0]
