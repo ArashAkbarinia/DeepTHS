@@ -74,7 +74,6 @@ def draw_polygon_params(draw_fun, img, params, colour, texture):
 
 
 def _enlarge(value, magnitude, ref=None):
-    print(value, type(value))
     int_in = False
     if not hasattr(value, '__len__'):
         value, int_in = (value,), True
@@ -105,8 +104,8 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     return shape_params
 
 
-def _make_img_shape(img_in, stimuli, shape_draw):
-    img_in = _global_img_processing(img_in.copy(), stimuli.contrast)
+def _make_img_shape(stimuli, shape_draw):
+    img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
     srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
@@ -114,24 +113,23 @@ def _make_img_shape(img_in, stimuli, shape_draw):
         img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
     draw_fun, shape_params = shape_draw
     img_out = draw_polygon_params(draw_fun, img_out, shape_params, stimuli.colour, stimuli.texture)
-    img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
-    return img_out
+    return dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
 
 
-def _make_img(img, stimuli):
+def _make_img(stimuli):
     shape = stimuli.shape
     shape['kwargs']['rotation'] = stimuli.rotation
     draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape['kwargs'])
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     draw = [draw_fun, shape_params]
-    return _make_img_shape(img, stimuli, draw)
+    return _make_img_shape(stimuli, draw)
 
 
-def _make_common_imgs(img_in, num_imgs, stimuli):
+def _make_common_imgs(stimuli, num_imgs):
     imgs = []
     for i in range(num_imgs - 1):
         stimuli.common_settings(i)
-        imgs.append(_make_img(img_in, stimuli))
+        imgs.append(_make_img(stimuli))
     return imgs
 
 
@@ -235,7 +233,7 @@ def _rnd_rotation(*_args, rot_angles=None):
 
 def _rnd_shape(stimuli):
     polygons = polygon_bank.SHAPES.copy()
-    if stimuli.settings['unique'] == 'rotation':
+    if stimuli.unique_feature == 'rotation':
         polygons.remove('circle')
     shape1_name = _choose_rand_remove(polygons)
     shape2_name = np.random.choice(polygons)
@@ -267,11 +265,15 @@ def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
 
 class StimuliSettings:
 
-    def __init__(self, fg, canvas, settings, **kwargs):
+    def __init__(self, fg, canvas, background, all_features, **kwargs):
         self.fg = fg
         self.canvas = canvas
-        self.settings = settings
+        self.all_features = list(all_features.keys())
+        self.unique_feature = np.random.choice(self.all_features)
+        self.odd_class = self.all_features.index(self.unique_feature)
 
+        self.rnd_background = background
+        self.background = self.rnd_background[0]
         self.contrast = kwargs.get("contrast", None)
         self.shape = kwargs.get("shape", None)
         self.colour = kwargs.get("colour", None)
@@ -279,19 +281,30 @@ class StimuliSettings:
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
 
-        self.fill_in_rand_settings()
-        self.paired_attrs = [_choose_rand_remove(self.settings['pair']) for _ in range(3)]
+        self.paired_attrs = self.fill_in_rand_settings(all_features)
 
-    def fill_in_rand_settings(self):
-        for attr in [*self.settings['pair'], self.settings['unique']]:
+    def set_settings(self, all_features):
+        settings = dict()
+        for key, val in all_features[self.unique_feature].items():
+            settings[key] = val.copy()
+        settings['unique'] = self.unique_feature
+        return settings
+
+    def fill_in_rand_settings(self, all_features):
+        settings = self.set_settings(all_features)
+        for attr in [*settings['pair'], self.unique_feature]:
+            if attr == 'background':
+                continue
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
-        for attr in self.settings['fixed']:
-            self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
+        for attr in [*settings['fixed'], *self.all_features]:
+            if self.__getattribute__(attr) is None:
+                self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
+        return [_choose_rand_remove(settings['pair']) for _ in range(3)]
 
     def common_settings(self, item):
-        unique_attr = self.settings['unique']
+        unique_attr = self.unique_feature
         self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
         for i, attr in enumerate(self.paired_attrs):
             ind = 0 if i == item else 1
@@ -301,34 +314,64 @@ class StimuliSettings:
 class OddOneOutTrain(torch_data.Dataset):
 
     def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
-        supported_features = [
-            'shape', 'size', 'colour', 'texture', 'rotation'
-            # 'spatial_pos', 'symmetry', 'material', 'contrast'
-        ]
+        # 'spatial_pos', 'symmetry', 'material', 'contrast'
+        self.supported_features = {
+            'rotation': {
+                'fixed': ['shape'],
+                'pair': ['contrast', 'colour', 'texture', 'background'],
+                'excluded': []
+            },
+            'size': {
+                'fixed': ['shape'],
+                'pair': ['contrast', 'colour', 'texture', 'background'],
+                'excluded': []
+            },
+            'colour': {
+                'fixed': [],
+                'pair': ['contrast', 'shape', 'texture', 'background'],
+                'excluded': ['rotation']
+            },
+            'shape': {
+                'fixed': [],
+                'pair': ['contrast', 'colour', 'texture', 'background'],
+                'excluded': ['rotation']
+            },
+            'texture': {
+                'fixed': [],
+                'pair': ['contrast', 'colour', 'shape', 'background'],
+                'excluded': ['rotation']
+            },
+            'background': {
+                'fixed': [],
+                'pair': ['contrast', 'colour', 'shape', 'texture'],
+                'excluded': ['rotation']
+            },
+        }
 
         self.bg_db = bg_db
         self.num_imgs = num_imgs
         self.transform = transform
         self.bg_transform = bg_transform
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
-        self.features = kwargs['features'] if 'features' in kwargs else supported_features
-        self.features = [f for f in self.features if f in supported_features]
+        self.features = kwargs['features'] if 'features' in kwargs else self.supported_features
+        self.features = [f for f in self.features if f in self.supported_features]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img'
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
-        bg_img = self.bg_db.__getitem__(item)
+        bg_img1 = self.bg_db.__getitem__(item)
+        item2 = 0 if (item + 1) == self.__len__() else item + 1
+        bg_img2 = self.bg_db.__getitem__(item2)
+        bg_imgs = [bg_img1, bg_img2]
         if self.bg_transform is not None:
-            bg_img = self.bg_transform(bg_img)
+            bg_imgs = [self.bg_transform(bg_img) for bg_img in bg_imgs]
 
-        # getting the feature settings
-        stimuli_settings, odd_class = self.feature_settings()
         # drawing the foreground content
-        fg, canvas_size = _random_canvas(bg_img.shape, self.fg_paths, self.fg_scale)
-        stimuli = StimuliSettings(fg, canvas_size, stimuli_settings)
-        odd_img = _make_img(bg_img, stimuli)
-        common_imgs = _make_common_imgs(bg_img, self.num_imgs, stimuli)
+        fg, canvas_size = _random_canvas(bg_imgs[0].shape, self.fg_paths, self.fg_scale)
+        stimuli = StimuliSettings(fg, canvas_size, bg_imgs, self.supported_features)
+        odd_img = _make_img(stimuli)
+        common_imgs = _make_common_imgs(stimuli, self.num_imgs)
         imgs = [odd_img, *common_imgs]
 
         if self.transform is not None:
@@ -343,46 +386,10 @@ class OddOneOutTrain(torch_data.Dataset):
             imgs = [torch.cat(
                 [torch.cat([imgs[0], imgs[1]], dim=2), torch.cat([imgs[2], imgs[3]], dim=2)], dim=1
             )]
-        return *imgs, target, odd_class
+        return *imgs, target, stimuli.odd_class
 
     def __len__(self):
         return self.bg_db.__len__()
-
-    def feature_settings(self):
-        # selecting the unique features shared among all except one image
-        unique_feature = np.random.choice(self.features)
-        odd_class = self.features.index(unique_feature)
-
-        stimuli_settings = {
-            'rotation': {
-                'fixed': ['shape'],
-                'pair': ['contrast', 'colour', 'texture'],
-                'excluded': []
-            },
-            'size': {
-                'fixed': ['shape'],
-                'pair': ['contrast', 'colour', 'texture'],
-                'excluded': []
-            },
-            'colour': {
-                'fixed': [],
-                'pair': ['contrast', 'shape', 'texture'],
-                'excluded': ['rotation']
-            },
-            'shape': {
-                'fixed': [],
-                'pair': ['contrast', 'colour', 'texture'],
-                'excluded': ['rotation']
-            },
-            'texture': {
-                'fixed': [],
-                'pair': ['contrast', 'colour', 'shape'],
-                'excluded': ['rotation']
-            }
-        }
-        settings = stimuli_settings[unique_feature]
-        settings['unique'] = unique_feature
-        return settings, odd_class
 
 
 def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
