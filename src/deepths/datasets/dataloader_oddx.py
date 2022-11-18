@@ -269,45 +269,34 @@ def _rnd_background(stimuli):
 class StimuliSettings:
 
     def __init__(self, fg, canvas, bg_loader, features=None, **kwargs):
-        # 'spatial_pos', 'symmetry', 'material', 'contrast'
-        features_pool = {
+        # 'spatial_pos', 'symmetry', 'material'
+        self.features_pool = {
             'rotation': {
-                'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture', 'background'],
-                'excluded': []
             },
             'size': {
-                'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture', 'background'],
-                'excluded': []
             },
             'colour': {
-                'fixed': [],
                 'pair': ['contrast', 'shape', 'texture', 'background'],
-                'excluded': ['rotation']
             },
             'shape': {
-                'fixed': [],
                 'pair': ['contrast', 'colour', 'texture', 'background'],
-                'excluded': ['rotation']
             },
             'texture': {
-                'fixed': [],
                 'pair': ['contrast', 'colour', 'shape', 'background'],
-                'excluded': ['rotation']
             },
             'background': {
-                'fixed': [],
                 'pair': ['contrast', 'colour', 'shape', 'texture'],
-                'excluded': ['rotation']
             },
+            'contrast': {
+                'pair': ['background', 'colour', 'shape', 'texture'],
+            }
         }
 
-        features = features_pool.keys() if features is None else features
-        self.features = dict((f, features_pool[f]) for f in features if f in features_pool)
-        self.features_name = list(self.features.keys())
-        self.unique_feature = np.random.choice(self.features_name)
-        self.odd_class = self.features_name.index(self.unique_feature)
+        self.features_names = list(self.features_pool.keys()) if features is None else features
+        self.unique_feature = np.random.choice(self.features_names)
+        self.odd_class = self.features_names.index(self.unique_feature)
         self.feature_settings = self.set_settings()
         self.paired_attrs = self.feature_settings['pair'][:3]
 
@@ -327,7 +316,7 @@ class StimuliSettings:
 
     def set_settings(self):
         settings = {'unique': self.unique_feature}
-        for key, val in self.features[self.unique_feature].items():
+        for key, val in self.features_pool[self.unique_feature].items():
             settings[key] = val.copy()
         random.shuffle(settings['pair'])
         return settings
@@ -337,7 +326,7 @@ class StimuliSettings:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
-        for attr in [*self.feature_settings['fixed'], *self.features_name]:
+        for attr in self.features_pool.keys():
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
 
