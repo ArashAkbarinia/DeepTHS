@@ -10,12 +10,8 @@ import cv2
 def adjust_contrast(image, amount):
     if amount == 1:
         return image
-
-    amount = np.array(amount)
-
     assert np.all(amount >= 0.0), 'contrast_level too low.'
     assert np.all(amount <= 1.0), 'contrast_level too high.'
-
     is_uint8 = image.dtype == 'uint8'
     if is_uint8:
         image = np.float32(image) / 255
@@ -23,8 +19,20 @@ def adjust_contrast(image, amount):
     if is_uint8:
         image_contrast *= 255
         image_contrast = np.uint8(image_contrast)
-
     return image_contrast
+
+
+def adjust_gamma(image, amount):
+    if amount == 1:
+        return image
+    is_uint8 = image.dtype == 'uint8'
+    if is_uint8:
+        image = np.float32(image) / 255
+    image_gamma = image ** amount
+    if is_uint8:
+        image_gamma *= 255
+        image_gamma = np.uint8(image_gamma)
+    return image_gamma
 
 
 def filter_img_sf(img, **kwargs):

@@ -106,6 +106,12 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     return shape_params
 
 
+def _global_img_processing(img, contrast):
+    fun, amount = contrast
+    fun = imutils.adjust_gamma if fun == 'gamma' else imutils.adjust_contrast
+    return fun(img, amount)
+
+
 def _make_img_on_bg(stimuli, shape_draw):
     img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
     srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
@@ -132,11 +138,6 @@ def _make_common_imgs(stimuli, num_imgs):
         stimuli.common_settings(i)
         imgs.append(_make_img(stimuli))
     return imgs
-
-
-def _global_img_processing(img, contrast):
-    img = imutils.adjust_contrast(img, contrast)
-    return img
 
 
 def _choose_rand_remove(elements):
@@ -251,8 +252,10 @@ def _rnd_colour(*_args):
             return [colour1, colour2]
 
 
-def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
-    return dataset_utils.shuffle([1, np.random.uniform(*contrast_range)])
+def _rnd_contrast(*_args):
+    fun = random.choice(['gamma', 'michelson'])
+    amount = (0.3, 0.7) if fun == 'michelson' else random.choice([(0.3, 0.7), (1.5, 2.5)])
+    return dataset_utils.shuffle([(fun, 1), (fun, np.random.uniform(*amount))])
 
 
 def _rnd_background(stimuli):
@@ -305,7 +308,7 @@ class StimuliSettings:
         self.bg_loader = bg_loader
 
         self.background = kwargs.get("background", None)
-        self.contrast = kwargs.get("contrast", 1)
+        self.contrast = kwargs.get("contrast", None)
         self.shape = kwargs.get("shape", None)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
