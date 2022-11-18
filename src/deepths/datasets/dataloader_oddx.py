@@ -166,11 +166,6 @@ def _random_canvas(img_size, fg_paths, fg_scale):
     return fg_type, canvas_size
 
 
-def shuffle(arr):
-    random.shuffle(arr)
-    return arr
-
-
 def create_texture(texture=None):
     fun = np.random.choice(pattern_bank.__all__) if texture is None else texture
     params = dict()
@@ -219,7 +214,7 @@ def create_shape(polygon, stimuli):
 
 
 def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
-    return shuffle([0, np.random.uniform(*magnitude_range)])
+    return dataset_utils.shuffle([0, np.random.uniform(*magnitude_range)])
 
 
 def _rnd_rotation(*_args, rot_angles=None):
@@ -257,7 +252,7 @@ def _rnd_colour(*_args):
 
 
 def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
-    return shuffle([1, np.random.uniform(*contrast_range)])
+    return dataset_utils.shuffle([1, np.random.uniform(*contrast_range)])
 
 
 def _rnd_background(stimuli):
@@ -378,7 +373,7 @@ class OddOneOutTrain(torch_data.Dataset):
         if self.transform is not None:
             imgs = self.transform(imgs)
 
-        inds = shuffle(list(np.arange(0, self.num_imgs)))
+        inds = dataset_utils.shuffle(list(np.arange(0, self.num_imgs)))
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         imgs = [imgs[i] for i in inds]

@@ -16,6 +16,11 @@ from . import cv2_transforms
 from ..utils import colour_spaces
 
 
+def shuffle(arr):
+    random.shuffle(arr)
+    return arr
+
+
 def background_img(bg_type, bg_size, num_chns=3):
     if type(bg_type) == str and os.path.exists(bg_type):
         bg_img = cv2_loader(bg_type)
