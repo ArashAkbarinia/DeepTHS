@@ -166,6 +166,11 @@ def _random_canvas(img_size, fg_paths, fg_scale):
     return fg_type, canvas_size
 
 
+def shuffle(arr):
+    random.shuffle(arr)
+    return arr
+
+
 def create_texture(texture=None):
     fun = np.random.choice(pattern_bank.__all__) if texture is None else texture
     params = dict()
@@ -214,9 +219,7 @@ def create_shape(polygon, stimuli):
 
 
 def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
-    size_magnitude = [0, np.random.uniform(*magnitude_range)]
-    random.shuffle(size_magnitude)
-    return size_magnitude
+    return shuffle([0, np.random.uniform(*magnitude_range)])
 
 
 def _rnd_rotation(*_args, rot_angles=None):
@@ -254,16 +257,25 @@ def _rnd_colour(*_args):
 
 
 def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
-    contrasts = [1, np.random.uniform(*contrast_range)]
-    random.shuffle(contrasts)
-    return contrasts
+    return shuffle([1, np.random.uniform(*contrast_range)])
+
+
+def _rnd_background(stimuli):
+    bg_db, bg_transform, item1 = stimuli.bg_loader
+    bg_imgs = [bg_db.__getitem__(item1)]
+    if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
+        item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
+        bg_imgs.append(bg_db.__getitem__(item2))
+    if bg_transform is not None:
+        bg_imgs = [bg_transform(bg_img) for bg_img in bg_imgs]
+    return bg_imgs
 
 
 class StimuliSettings:
 
-    def __init__(self, fg, canvas, background, features=None, **kwargs):
+    def __init__(self, fg, canvas, bg_loader, features=None, **kwargs):
         # 'spatial_pos', 'symmetry', 'material', 'contrast'
-        self.all_features = {
+        features_pool = {
             'rotation': {
                 'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture', 'background'],
@@ -296,44 +308,43 @@ class StimuliSettings:
             },
         }
 
-        features = self.all_features.keys() if features is None else features
-        self.features = dict((f, self.all_features[f]) for f in features if f in self.all_features)
+        features = features_pool.keys() if features is None else features
+        self.features = dict((f, features_pool[f]) for f in features if f in features_pool)
         self.features_name = list(self.features.keys())
         self.unique_feature = np.random.choice(self.features_name)
         self.odd_class = self.features_name.index(self.unique_feature)
+        self.feature_settings = self.set_settings()
+        self.paired_attrs = self.feature_settings['pair'][:3]
+
         self.fg = None if self.unique_feature == 'background' else fg
         self.canvas = canvas
+        self.bg_loader = bg_loader
 
-        self.rnd_background = background
-        self.background = self.rnd_background[0]
-        self.contrast = kwargs.get("contrast", None)
+        self.background = kwargs.get("background", None)
+        self.contrast = kwargs.get("contrast", 1)
         self.shape = kwargs.get("shape", None)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
 
-        self.paired_attrs = self.fill_in_paired_settings()
+        self.fill_in_paired_settings()
 
     def set_settings(self):
-        settings = dict()
+        settings = {'unique': self.unique_feature}
         for key, val in self.features[self.unique_feature].items():
             settings[key] = val.copy()
-        settings['unique'] = self.unique_feature
+        random.shuffle(settings['pair'])
         return settings
 
     def fill_in_paired_settings(self):
-        settings = self.set_settings()
-        for attr in [*settings['pair'], self.unique_feature]:
-            if attr == 'background':
-                continue
+        for attr in [*self.paired_attrs, self.unique_feature]:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
-        for attr in [*settings['fixed'], *self.features_name]:
+        for attr in [*self.feature_settings['fixed'], *self.features_name]:
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
-        return [_choose_rand_remove(settings['pair']) for _ in range(3)]
 
     def common_settings(self, item):
         unique_attr = self.unique_feature
@@ -345,11 +356,11 @@ class StimuliSettings:
 
 class OddOneOutTrain(torch_data.Dataset):
 
-    def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
-        self.bg_db = bg_db
+    def __init__(self, bg_loader, num_imgs, target_size, transform=None, **kwargs):
+        self.bg_loader = bg_loader
+        self.target_size = (target_size, target_size) if type(target_size) is int else target_size
         self.num_imgs = num_imgs
         self.transform = transform
-        self.bg_transform = bg_transform
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
         self.features = kwargs['features'] if 'features' in kwargs else None
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
@@ -357,16 +368,9 @@ class OddOneOutTrain(torch_data.Dataset):
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
-        bg_img1 = self.bg_db.__getitem__(item)
-        item2 = 0 if (item + 1) == self.__len__() else item + 1
-        bg_img2 = self.bg_db.__getitem__(item2)
-        bg_imgs = [bg_img1, bg_img2]
-        if self.bg_transform is not None:
-            bg_imgs = [self.bg_transform(bg_img) for bg_img in bg_imgs]
-
         # drawing the foreground content
-        fg, canvas_size = _random_canvas(bg_imgs[0].shape, self.fg_paths, self.fg_scale)
-        stimuli = StimuliSettings(fg, canvas_size, bg_imgs, self.features)
+        fg, canvas_size = _random_canvas(self.target_size, self.fg_paths, self.fg_scale)
+        stimuli = StimuliSettings(fg, canvas_size, (*self.bg_loader, item), self.features)
         odd_img = _make_img(stimuli)
         common_imgs = _make_common_imgs(stimuli, self.num_imgs)
         imgs = [odd_img, *common_imgs]
@@ -374,8 +378,7 @@ class OddOneOutTrain(torch_data.Dataset):
         if self.transform is not None:
             imgs = self.transform(imgs)
 
-        inds = list(np.arange(0, self.num_imgs))
-        random.shuffle(inds)
+        inds = shuffle(list(np.arange(0, self.num_imgs)))
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         imgs = [imgs[i] for i in inds]
@@ -386,11 +389,10 @@ class OddOneOutTrain(torch_data.Dataset):
         return *imgs, target, stimuli.odd_class
 
     def __len__(self):
-        return self.bg_db.__len__()
+        return self.bg_loader[0].__len__()
 
 
-def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
-    scale = (0.5, 1.0)
+def oddx_bg_folder(root, num_imgs, target_size, preprocess, scale=(0.5, 1.0), **kwargs):
     single_img = kwargs['single_img'] if 'single_img' in kwargs else None
     if single_img is not None:
         # FIXME: hardcoded here only for 224 224!
@@ -398,4 +400,5 @@ def oddx_bg_folder(root, num_imgs, target_size, preprocess, **kwargs):
     bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
     bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader)
-    return OddOneOutTrain(bg_db, num_imgs, transform, bg_transform, **kwargs)
+    bg_loader = (bg_db, bg_transform)
+    return OddOneOutTrain(bg_loader, num_imgs, target_size, transform, **kwargs)
