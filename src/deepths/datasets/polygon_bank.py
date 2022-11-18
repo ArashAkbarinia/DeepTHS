@@ -39,19 +39,17 @@ def cv2_filled_polygons(img, pts, color, thickness):
     return img
 
 
-def cv2_shapes(polygon, length, ref_pt, rotation=0):
-    if polygon == 'circle':
-        params = {'center': ref_pt, 'radius': length}
-        draw_fun = cv2.circle
-    elif polygon == 'ellipse':
+def cv2_shapes(polygon, length, ref_pt, rotation=0, start_angle=0, end_angle=360):
+    if polygon in CV2_OVAL_SHAPES:
+        if polygon == 'circle':
+            length = (length, length)
         params = {
             'center': ref_pt, 'axes': length, 'angle': np.rad2deg(rotation),
-            'startAngle': 0, 'endAngle': 360
+            'startAngle': start_angle, 'endAngle': end_angle
         }
-        draw_fun = cv2.ellipse
+        return cv2.ellipse, params
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return draw_fun, params
 
 
 def rotate2d(pts, centre, angle):

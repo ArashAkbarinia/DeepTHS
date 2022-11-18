@@ -95,8 +95,7 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     shape_params = shape_params.copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
         shape_params['center'] = ref_pt
-        oval_length = 'radius' if shape == 'circle' else 'axes'
-        shape_params[oval_length] = _enlarge(shape_params[oval_length], magnitude)
+        shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
         old_pts = shape_params['pts'][0]
         pt1 = ref_pt
@@ -192,6 +191,15 @@ def create_shape(polygon, stimuli):
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
+        # if stimuli.symmetry == 'h':
+        #     kwargs[np.random.choice(['start_angle', 'end_angle'])] = 180
+        # elif stimuli.symmetry == 'v':
+        #     angles = dataset_utils.shuffle([90, 270])
+        #     kwargs['start_angle'] = angles[0]
+        #     kwargs['end_angle'] = angles[1]
+        # elif stimuli.symmetry == 'none':
+        #     kwargs['start_angle'] = np.random.choice([45, 135])
+        #     kwargs['end_angle'] = kwargs['start_angle'] + 180
     elif polygon in ['square', 'rectangle']:
         rnd_length = _random_length(length, polygon)
         if polygon == 'square':
@@ -216,6 +224,12 @@ def create_shape(polygon, stimuli):
 
 def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
     return dataset_utils.shuffle([0, np.random.uniform(*magnitude_range)])
+
+
+def _rnd_symmetry(*_args):
+    symmetrical = np.random.choice(['h', 'v', 'hv'])
+    non_symmetrical = np.random.choice(['h', 'v']) if symmetrical == 'hv' else 'none'
+    return dataset_utils.shuffle([non_symmetrical, symmetrical])
 
 
 def _rnd_rotation(*_args, rot_angles=None):
@@ -272,8 +286,11 @@ def _rnd_background(stimuli):
 class StimuliSettings:
 
     def __init__(self, fg, canvas, bg_loader, features=None, **kwargs):
-        # 'spatial_pos', 'symmetry', 'material'
+        # 'spatial_pos', 'material'
         self.features_pool = {
+            'symmetry': {
+                'pair': ['contrast', 'colour', 'texture', 'background'],
+            },
             'rotation': {
                 'pair': ['contrast', 'colour', 'texture', 'background'],
             },
@@ -314,6 +331,7 @@ class StimuliSettings:
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
+        self.symmetry = kwargs.get("symmetry", _rnd_symmetry()[0])
 
         self.fill_in_paired_settings()
 

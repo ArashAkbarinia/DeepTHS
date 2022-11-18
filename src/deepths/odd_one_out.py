@@ -18,7 +18,10 @@ def main(argv):
     args = argument_handler.master_arg_parser(argv, 'odd_one_out')
     # FIXME args.paradigm, single_img
     args.train_kwargs = {
-        'features': ['rotation', 'size', 'colour', 'shape', 'texture', 'background', 'contrast'],
+        'features': [
+            'symmetry', 'rotation', 'size', 'colour', 'shape',
+            'texture', 'background', 'contrast'
+        ],
         'single_img': True
     }
     args = common_routines.prepare_starting(args, 'odd_one_out')
