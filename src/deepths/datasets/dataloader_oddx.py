@@ -261,57 +261,9 @@ def _rnd_contrast(*_args, contrast_range=(0.3, 0.7)):
 
 class StimuliSettings:
 
-    def __init__(self, fg, canvas, background, all_features, **kwargs):
-        self.all_features = list(all_features.keys())
-        self.unique_feature = np.random.choice(self.all_features)
-        self.odd_class = self.all_features.index(self.unique_feature)
-        self.fg = None if self.unique_feature == 'background' else fg
-        self.canvas = canvas
-
-        self.rnd_background = background
-        self.background = self.rnd_background[0]
-        self.contrast = kwargs.get("contrast", None)
-        self.shape = kwargs.get("shape", None)
-        self.colour = kwargs.get("colour", None)
-        self.texture = kwargs.get("texture", None)
-        self.size = kwargs.get("size", 0)
-        self.rotation = kwargs.get("rotation", 0)
-
-        self.paired_attrs = self.fill_in_paired_settings(all_features)
-
-    def set_settings(self, all_features):
-        settings = dict()
-        for key, val in all_features[self.unique_feature].items():
-            settings[key] = val.copy()
-        settings['unique'] = self.unique_feature
-        return settings
-
-    def fill_in_paired_settings(self, all_features):
-        settings = self.set_settings(all_features)
-        for attr in [*settings['pair'], self.unique_feature]:
-            if attr == 'background':
-                continue
-            self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
-            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
-
-        for attr in [*settings['fixed'], *self.all_features]:
-            if self.__getattribute__(attr) is None:
-                self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
-        return [_choose_rand_remove(settings['pair']) for _ in range(3)]
-
-    def common_settings(self, item):
-        unique_attr = self.unique_feature
-        self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
-        for i, attr in enumerate(self.paired_attrs):
-            ind = 0 if i == item else 1
-            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
-
-
-class OddOneOutTrain(torch_data.Dataset):
-
-    def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
+    def __init__(self, fg, canvas, background, features=None, **kwargs):
         # 'spatial_pos', 'symmetry', 'material', 'contrast'
-        self.supported_features = {
+        self.all_features = {
             'rotation': {
                 'fixed': ['shape'],
                 'pair': ['contrast', 'colour', 'texture', 'background'],
@@ -344,13 +296,62 @@ class OddOneOutTrain(torch_data.Dataset):
             },
         }
 
+        features = self.all_features.keys() if features is None else features
+        self.features = dict((f, self.all_features[f]) for f in features if f in self.all_features)
+        self.features_name = list(self.features.keys())
+        self.unique_feature = np.random.choice(self.features_name)
+        self.odd_class = self.features_name.index(self.unique_feature)
+        self.fg = None if self.unique_feature == 'background' else fg
+        self.canvas = canvas
+
+        self.rnd_background = background
+        self.background = self.rnd_background[0]
+        self.contrast = kwargs.get("contrast", None)
+        self.shape = kwargs.get("shape", None)
+        self.colour = kwargs.get("colour", None)
+        self.texture = kwargs.get("texture", None)
+        self.size = kwargs.get("size", 0)
+        self.rotation = kwargs.get("rotation", 0)
+
+        self.paired_attrs = self.fill_in_paired_settings()
+
+    def set_settings(self):
+        settings = dict()
+        for key, val in self.features[self.unique_feature].items():
+            settings[key] = val.copy()
+        settings['unique'] = self.unique_feature
+        return settings
+
+    def fill_in_paired_settings(self):
+        settings = self.set_settings()
+        for attr in [*settings['pair'], self.unique_feature]:
+            if attr == 'background':
+                continue
+            self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
+            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
+
+        for attr in [*settings['fixed'], *self.features_name]:
+            if self.__getattribute__(attr) is None:
+                self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
+        return [_choose_rand_remove(settings['pair']) for _ in range(3)]
+
+    def common_settings(self, item):
+        unique_attr = self.unique_feature
+        self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
+        for i, attr in enumerate(self.paired_attrs):
+            ind = 0 if i == item else 1
+            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
+
+
+class OddOneOutTrain(torch_data.Dataset):
+
+    def __init__(self, bg_db, num_imgs, transform=None, bg_transform=None, **kwargs):
         self.bg_db = bg_db
         self.num_imgs = num_imgs
         self.transform = transform
         self.bg_transform = bg_transform
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
-        self.features = kwargs['features'] if 'features' in kwargs else self.supported_features
-        self.features = [f for f in self.features if f in self.supported_features]
+        self.features = kwargs['features'] if 'features' in kwargs else None
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img'
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
@@ -365,7 +366,7 @@ class OddOneOutTrain(torch_data.Dataset):
 
         # drawing the foreground content
         fg, canvas_size = _random_canvas(bg_imgs[0].shape, self.fg_paths, self.fg_scale)
-        stimuli = StimuliSettings(fg, canvas_size, bg_imgs, self.supported_features)
+        stimuli = StimuliSettings(fg, canvas_size, bg_imgs, self.features)
         odd_img = _make_img(stimuli)
         common_imgs = _make_common_imgs(stimuli, self.num_imgs)
         imgs = [odd_img, *common_imgs]
