@@ -91,11 +91,12 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
     ref_pt = _ref_point(_enlarge(length, magnitude), shape, out_size)
     shape_params = shape_params.copy()
+    old_pts = shape_params['pts'][0].copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
-        shape_params['center'] = ref_pt
-        shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
+        shape_params['pts'] = polygon_bank.cv2_shapes(
+            shape, _enlarge(shape_params['axes'], magnitude), ref_pt
+        )[1]['pts']
     else:
-        old_pts = shape_params['pts'][0]
         pt1 = ref_pt
         other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
         other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
