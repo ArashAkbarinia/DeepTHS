@@ -15,14 +15,18 @@ CV2_POLYGON_SHAPES = ['square', 'rectangle', 'triangle']
 SHAPES = [*CV2_OVAL_SHAPES, *CV2_POLYGON_SHAPES]
 
 
+def draw(img, shape_params, **kwargs):
+    pts = shape_params['pts'] if 'pts' in shape_params else [cv2.ellipse2Poly(**shape_params)]
+    return cv2_filled_polygons(img, pts, **kwargs)
+
+
 def polygon_params(polygon, **kwargs):
     if polygon in CV2_OVAL_SHAPES:
-        draw_fun, params = cv2_shapes(polygon, **kwargs)
+        return cv2_shapes(polygon, **kwargs)
     elif polygon in CV2_POLYGON_SHAPES:
-        draw_fun, params = cv2_polygons(**kwargs)
+        return cv2_polygons(**kwargs)
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return draw_fun, params
 
 
 def cv2_polygons(pts, rotation=0):
@@ -31,7 +35,7 @@ def cv2_polygons(pts, rotation=0):
         pts = [rotate2d(old_pts, np.mean(old_pts, axis=0), angle=rotation).astype(int)]
     else:
         pts = [old_pts.astype(int)]
-    return cv2_filled_polygons, {'pts': pts}
+    return {'pts': pts}
 
 
 def cv2_filled_polygons(img, pts, color, thickness):
@@ -45,11 +49,10 @@ def cv2_shapes(polygon, length, ref_pt, rotation=0, arc_start=0, arc_end=360):
     if polygon in CV2_OVAL_SHAPES:
         if polygon == 'circle':
             length = (length, length)
-        params = {
+        return {
             'center': ref_pt, 'axes': length, 'angle': int(np.rad2deg(rotation)),
             'arcStart': int(arc_start), 'arcEnd': int(arc_end), 'delta': 5
         }
-        return cv2_filled_polygons, {'pts': [cv2.ellipse2Poly(**params)]}
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
 

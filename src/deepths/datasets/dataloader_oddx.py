@@ -56,16 +56,15 @@ def _ref_point_rotation(length, polygon, img_size):
     return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
-def draw_polygon_params(draw_fun, img, params, colour, texture):
-    params['color'] = colour
-    params['thickness'] = -1 if texture['fun'] == 'filled' else 1
-    img = draw_fun(img, **params)
+def draw_polygon_params(img, shape_params, colour, texture):
+    draw_params = {'color': colour, 'thickness': -1 if texture['fun'] == 'filled' else 1}
+    img = polygon_bank.draw(img, shape_params, **draw_params)
     if texture['fun'] == 'filled':
         return img
 
-    params['color'] = (1, 1, 1)
-    params['thickness'] = -1
-    shape_mask = draw_fun(np.zeros(img.shape[:2], np.uint8), **params)
+    draw_params['color'] = (1, 1, 1)
+    draw_params['thickness'] = -1
+    shape_mask = polygon_bank.draw(np.zeros(img.shape[:2], np.uint8), shape_params, **draw_params)
 
     texture_img = pattern_bank.__dict__[texture['fun']](img.shape[:2], **texture['params'])
     shape_mask[shape_mask == 1] = texture_img[shape_mask == 1]
@@ -91,12 +90,11 @@ def _enlarge_polygon(magnitude, shape_params, stimuli):
     length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
     ref_pt = _ref_point(_enlarge(length, magnitude), shape, out_size)
     shape_params = shape_params.copy()
-    old_pts = shape_params['pts'][0].copy()
     if shape in polygon_bank.CV2_OVAL_SHAPES:
-        shape_params['pts'] = polygon_bank.cv2_shapes(
-            shape, _enlarge(shape_params['axes'], magnitude), ref_pt
-        )[1]['pts']
+        shape_params['center'] = ref_pt
+        shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
+        old_pts = shape_params['pts'][0].copy()
         pt1 = ref_pt
         other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
         other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
@@ -110,15 +108,14 @@ def _global_img_processing(img, contrast):
     return fun(img, amount)
 
 
-def _make_img_on_bg(stimuli, shape_draw):
+def _make_img_on_bg(stimuli, shape_params):
     img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
     srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
         bg_lum, alpha = stimuli.fg
         img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
-    draw_fun, shape_params = shape_draw
-    img_out = draw_polygon_params(draw_fun, img_out, shape_params, stimuli.colour, stimuli.texture)
+    img_out = draw_polygon_params(img_out, shape_params, stimuli.colour, stimuli.texture)
     return dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
 
 
@@ -126,9 +123,9 @@ def _make_img(stimuli):
     shape = stimuli.shape
     shape['kwargs']['rotation'] = stimuli.rotation
     shape_kwargs = polygon_bank.handle_symmetry(stimuli.symmetry, shape['kwargs'], stimuli)
-    draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape_kwargs)
+    shape_params = polygon_bank.polygon_params(shape['name'], **shape_kwargs)
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
-    return _make_img_on_bg(stimuli, [draw_fun, shape_params])
+    return _make_img_on_bg(stimuli, shape_params)
 
 
 def _make_common_imgs(stimuli, num_imgs):
