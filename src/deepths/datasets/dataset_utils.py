@@ -16,6 +16,11 @@ from . import cv2_transforms
 from ..utils import colour_spaces
 
 
+def randint(low, high):
+    low, high = int(low), int(high)
+    return low if low >= high else np.random.randint(low, high)
+
+
 def shuffle(arr):
     random.shuffle(arr)
     return arr

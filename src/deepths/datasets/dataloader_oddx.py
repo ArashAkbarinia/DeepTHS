@@ -14,16 +14,11 @@ import torchvision.transforms as torch_transforms
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
 
-def _randint(low, high):
-    low, high = int(low), int(high)
-    return low if low >= high else np.random.randint(low, high)
-
-
 def _rnd_scale(size, scale):
     return int(size * np.random.uniform(*scale))
 
 
-def _random_length(length, polygon, scale=(0.2, 0.8), min_length=2):
+def _random_length(length, polygon, scale=(0.2, 0.8), min_length=5):
     # ellipse and circle are defined by radius of their axis
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         length = int(length / 2)
@@ -41,12 +36,15 @@ def _ref_point(length, polygon, img_size):
             ref_pt = (cx, cy)
         else:
             diff = diff // 2
-            ref_pt = (_randint(cx - diff, cx + diff), _randint(cy - diff, cy + diff))
+            ref_pt = (
+                dataset_utils.randint(cx - diff, cx + diff),
+                dataset_utils.randint(cy - diff, cy + diff)
+            )
     elif polygon in ['square', 'rectangle']:
-        ref_pt = (_randint(0, diff), _randint(0, diff))
+        ref_pt = (dataset_utils.randint(0, diff), dataset_utils.randint(0, diff))
     elif polygon in ['triangle']:
         ymax, xmax = img_size[:2]
-        ref_pt = (_randint(0, xmax - length), _randint(0, ymax - length))
+        ref_pt = (dataset_utils.randint(0, xmax - length), dataset_utils.randint(0, ymax - length))
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
     return ref_pt
@@ -126,7 +124,8 @@ def _make_img_on_bg(stimuli, shape_draw):
 def _make_img(stimuli):
     shape = stimuli.shape
     shape['kwargs']['rotation'] = stimuli.rotation
-    draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape['kwargs'])
+    shape_kwargs = polygon_bank.handle_symmetry(stimuli.symmetry, shape['kwargs'], stimuli)
+    draw_fun, shape_params = polygon_bank.polygon_params(shape['name'], **shape_kwargs)
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     return _make_img_on_bg(stimuli, [draw_fun, shape_params])
 
@@ -159,7 +158,7 @@ def _fg_img(fg_type, bg_img, fg_size):
 def _random_canvas(img_size, fg_paths, fg_scale):
     fg_type = np.random.choice(fg_paths)
     if fg_type == 'rnd_uniform':
-        fg_type = (_randint(0, 256), np.random.uniform(0.5))
+        fg_type = (dataset_utils.randint(0, 256), np.random.uniform(0.5))
 
     # creating a random size for the canvas image
     canvas_size = (_rnd_scale(img_size[0], fg_scale), _rnd_scale(img_size[1], fg_scale))
@@ -171,54 +170,45 @@ def create_texture(texture=None):
     params = dict()
     thickness = 1
     if fun in ['wave', 'herringbone', 'diamond']:
-        params['height'] = _randint(3, 6)
+        params['height'] = dataset_utils.randint(3, 6)
         params['length'] = thickness
         if fun == 'wave':
             params['gap'] = 0
     elif fun in ['grid', 'brick']:
-        params['gaps'] = [_randint(2, 5), _randint(2, 5)]
+        params['gaps'] = [dataset_utils.randint(2, 5), dataset_utils.randint(2, 5)]
         params['thicknesses'] = (thickness, thickness)
     elif fun == 'line':
-        params['gap'] = _randint(2, 4)
+        params['gap'] = dataset_utils.randint(2, 4)
         params['thickness'] = thickness
     return {'fun': fun, 'params': params}
 
 
-def create_shape(polygon, stimuli):
-    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
+def create_shape(polygon, canvas):
+    length = np.minimum(canvas[0], canvas[1]) / 2
     kwargs = dict()
-    ref_pt = _ref_point_rotation(length, polygon, stimuli.canvas)
+    ref_pt = _ref_point_rotation(length, polygon, canvas)
     if polygon in polygon_bank.CV2_OVAL_SHAPES:
         kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
-        # if stimuli.symmetry == 'h':
-        #     kwargs[np.random.choice(['start_angle', 'end_angle'])] = 180
-        # elif stimuli.symmetry == 'v':
-        #     angles = dataset_utils.shuffle([90, 270])
-        #     kwargs['start_angle'] = angles[0]
-        #     kwargs['end_angle'] = angles[1]
-        # elif stimuli.symmetry == 'none':
-        #     kwargs['start_angle'] = np.random.choice([45, 135])
-        #     kwargs['end_angle'] = kwargs['start_angle'] + 180
     elif polygon in ['square', 'rectangle']:
         rnd_length = _random_length(length, polygon)
         if polygon == 'square':
             rnd_length = (rnd_length, rnd_length)
         pt1 = ref_pt
-        pt2 = (pt1[0] + 0, pt1[1] + rnd_length[1])
+        pt2 = (pt1[0], pt1[1] + rnd_length[1])
         pt3 = (pt1[0] + rnd_length[0], pt1[1] + rnd_length[1])
-        pt4 = (pt1[0] + rnd_length[0], pt1[1] + 0)
-        kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4])]
+        pt4 = (pt1[0] + rnd_length[0], pt1[1])
+        kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4]).astype('int')]
     elif polygon == 'triangle':
         pt1 = ref_pt
         lside = np.random.choice([0, 1])
-        sx = length if lside == 0 else _randint(0, length)
-        sy = length if lside == 1 else _randint(0, length)
+        sx = length if lside == 0 else dataset_utils.randint(4, 7)
+        sy = length if lside == 1 else dataset_utils.randint(4, 7)
         pt2 = (pt1[0] + sx, pt1[1] + sy)
-        sx = length if lside == 1 else _randint(0, length)
-        sy = length if lside == 0 else _randint(0, length)
+        sx = length if lside == 1 else dataset_utils.randint(4, 7)
+        sy = length if lside == 0 else dataset_utils.randint(4, 7)
         pt3 = (pt1[0] + sx, pt1[1] + sy)
-        kwargs['pts'] = [np.array([pt1, pt2, pt3])]
+        kwargs['pts'] = [np.array([pt1, pt2, pt3]).astype('int')]
     return kwargs
 
 
@@ -227,15 +217,15 @@ def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
 
 
 def _rnd_symmetry(*_args):
-    symmetrical = np.random.choice(['h', 'v', 'hv'])
-    non_symmetrical = np.random.choice(['h', 'v']) if symmetrical == 'hv' else 'none'
+    symmetrical = np.random.choice(['h', 'v', 'both'])
+    non_symmetrical = np.random.choice(['h', 'v', 'none']) if symmetrical == 'both' else 'none'
     return dataset_utils.shuffle([non_symmetrical, symmetrical])
 
 
 def _rnd_rotation(*_args, rot_angles=None):
     if rot_angles is None:
         rot_angles = [15, 30, 45, 60, 75, 90]
-    angle1 = _randint(0, 90)
+    angle1 = dataset_utils.randint(0, 90)
     angle2 = angle1 + np.random.choice(rot_angles)
     return [np.deg2rad(angle1), np.deg2rad(angle2)]
 
@@ -246,8 +236,8 @@ def _rnd_shape(stimuli):
         polygons.remove('circle')
     shape1_name = _choose_rand_remove(polygons)
     shape2_name = np.random.choice(polygons)
-    shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli)}
-    shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli)}
+    shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli.canvas)}
+    shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli.canvas)}
     return [shape1, shape2]
 
 
@@ -318,7 +308,10 @@ class StimuliSettings:
         self.unique_feature = np.random.choice(self.features_names)
         self.odd_class = self.features_names.index(self.unique_feature)
         self.feature_settings = self.set_settings()
-        self.paired_attrs = self.feature_settings['pair'][:3]
+        self.num_commons = 3
+        self.paired_attrs = self.feature_settings['pair'][:self.num_commons]
+        if self.unique_feature == 'symmetry':
+            self.paired_attrs = ['shape', *self.paired_attrs]
 
         self.fg = None if self.unique_feature == 'background' else fg
         self.canvas = canvas
@@ -331,7 +324,7 @@ class StimuliSettings:
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
-        self.symmetry = kwargs.get("symmetry", _rnd_symmetry()[0])
+        self.symmetry = kwargs.get("symmetry", "n/a")
 
         self.fill_in_paired_settings()
 
@@ -355,7 +348,7 @@ class StimuliSettings:
         unique_attr = self.unique_feature
         self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
         for i, attr in enumerate(self.paired_attrs):
-            ind = 0 if i == item else 1
+            ind = 0 if (i % self.num_commons) == item else 1
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
 
 

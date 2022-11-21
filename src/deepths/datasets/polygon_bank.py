@@ -7,6 +7,8 @@ import sys
 
 import cv2
 
+from . import dataset_utils
+
 CV2_OVAL_SHAPES = ['circle', 'ellipse']
 CV2_POLYGON_SHAPES = ['square', 'rectangle', 'triangle']
 
@@ -39,15 +41,15 @@ def cv2_filled_polygons(img, pts, color, thickness):
     return img
 
 
-def cv2_shapes(polygon, length, ref_pt, rotation=0, start_angle=0, end_angle=360):
+def cv2_shapes(polygon, length, ref_pt, rotation=0, arc_start=0, arc_end=360):
     if polygon in CV2_OVAL_SHAPES:
         if polygon == 'circle':
             length = (length, length)
         params = {
-            'center': ref_pt, 'axes': length, 'angle': np.rad2deg(rotation),
-            'startAngle': start_angle, 'endAngle': end_angle
+            'center': ref_pt, 'axes': length, 'angle': int(np.rad2deg(rotation)),
+            'arcStart': int(arc_start), 'arcEnd': int(arc_end), 'delta': 5
         }
-        return cv2.ellipse, params
+        return cv2_filled_polygons, {'pts': [cv2.ellipse2Poly(**params)]}
     else:
         sys.exit('Unsupported polygon to draw: %s' % polygon)
 
@@ -60,3 +62,64 @@ def rotate2d(pts, centre, angle):
             [-np.sin(angle), np.cos(angle)]
         ])
     ) + centre
+
+
+def handle_symmetry(symmetry, org_kwargs, stimuli):
+    if symmetry == "n/a":
+        return org_kwargs
+    shape_kwargs = dict()
+    for key, val in org_kwargs.items():
+        shape_kwargs[key] = val
+    polygon = stimuli.shape['name']
+    if polygon in CV2_OVAL_SHAPES:
+        if symmetry == 'v':
+            shape_kwargs[np.random.choice(['arc_start', 'arc_end'])] = 180
+        elif symmetry == 'h':
+            shape_kwargs['arc_start'], shape_kwargs['arc_end'] = dataset_utils.shuffle([90, 270])
+        elif symmetry == 'none':
+            shape_kwargs['arc_start'] = np.random.choice([11, 22, 34, 45, 101, 112, 124, 135])
+            shape_kwargs['arc_end'] = shape_kwargs['arc_start'] + 180
+    elif polygon in ['square', 'rectangle']:
+        if symmetry != 'both':
+            pts = shape_kwargs['pts'][0].copy()
+            length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
+            val = dataset_utils.randint(2, int(length * 0.25))
+            if symmetry == 'v':
+                v0, v1 = np.random.choice([{0, 3}, {1, 2}])
+                pts[v0] = (pts[v0][0] + val, pts[v0][1])
+                pts[v1] = (pts[v1][0] - val, pts[v1][1])
+            elif symmetry == 'h':
+                v0, v1 = np.random.choice([{0, 1}, {2, 3}])
+                pts[v0] = (pts[v0][0], pts[v0][1] + val)
+                pts[v1] = (pts[v1][0], pts[v1][1] - val)
+            elif symmetry == 'none':
+                v0 = np.random.choice([0, 1, 2, 3])
+                val = val if v0 in [0, 1] else -val
+                pts[v0] = (pts[v0][0] + val, pts[v0][1])
+            shape_kwargs['pts'] = [pts]
+    elif polygon == 'triangle':
+        if symmetry != ' none':
+            pts = shape_kwargs['pts'][0].copy()
+            v0, v1, v2 = dataset_utils.shuffle([0, 1, 2])
+            if symmetry in ['h', 'both']:
+                xind = np.argmax([abs(pts[v2][0] - pts[v0][0]), abs(pts[v2][0] - pts[v1][0])])
+                xval = pts[v0][0] if xind == 0 else pts[v1][0]
+                pts[v0] = (xval, pts[v0][1])
+                pts[v1] = (xval, pts[v1][1])
+                pts[v2] = (pts[v2][0], (pts[v0][1] + pts[v1][1]) / 2)
+                if symmetry == 'both':
+                    pts = np.array([
+                        pts[v0], pts[v1], pts[v2], pts[v0],
+                        (xval, (pts[v0][1] + pts[v1][1]) / 2),
+                        (pts[v2][0], pts[v0][1]),
+                        (pts[v2][0], pts[v1][1]),
+                        (xval, (pts[v0][1] + pts[v1][1]) / 2)
+                    ])
+            elif symmetry == 'v':
+                yind = np.argmax([abs(pts[v2][1] - pts[v0][1]), abs(pts[v2][1] - pts[v1][1])])
+                yval = pts[v0][1] if yind == 0 else pts[v1][1]
+                pts[v0] = (pts[v0][1], yval)
+                pts[v1] = (pts[v1][1], yval)
+                pts[v2] = ((pts[v0][0] + pts[v1][0]) / 2, pts[v2][1])
+            shape_kwargs['pts'] = [pts]
+    return shape_kwargs
