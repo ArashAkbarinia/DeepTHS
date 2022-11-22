@@ -122,7 +122,9 @@ def _make_img_on_bg(stimuli, shape_params):
 def _make_img(stimuli):
     shape = stimuli.shape
     shape['kwargs']['rotation'] = stimuli.rotation
-    shape_kwargs = polygon_bank.handle_symmetry(stimuli.symmetry, shape['kwargs'], stimuli)
+    shape_kwargs = shape['kwargs'] if stimuli.unique_feature == 'shape' else (
+        polygon_bank.handle_symmetry(stimuli.symmetry, shape['kwargs'], shape['name'],
+                                     stimuli.canvas))
     shape_params = polygon_bank.polygon_params(shape['name'], **shape_kwargs)
     shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
     return _make_img_on_bg(stimuli, shape_params)
@@ -233,9 +235,22 @@ def _rnd_shape(stimuli):
     if stimuli.unique_feature == 'rotation':
         polygons.remove('circle')
     shape1_name = _choose_rand_remove(polygons)
+    if shape1_name == 'square':
+        polygons.remove('rectangle')
+    elif shape1_name == 'rectangle':
+        polygons.remove('square')
+    elif shape1_name == 'circle':
+        polygons.remove('ellipse')
+    elif shape1_name == 'ellipse' and 'circle' in polygons:
+        polygons.remove('circle')
     shape2_name = np.random.choice(polygons)
     shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli.canvas)}
     shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli.canvas)}
+    if stimuli.unique_feature == 'shape':
+        shape1['kwargs'] = polygon_bank.handle_symmetry(stimuli.symmetry, shape1['kwargs'],
+                                                        shape1_name, stimuli.canvas)
+        shape2['kwargs'] = polygon_bank.handle_symmetry(stimuli.symmetry, shape2['kwargs'],
+                                                        shape2_name, stimuli.canvas)
     return [shape1, shape2]
 
 
@@ -323,6 +338,8 @@ class StimuliSettings:
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
         self.symmetry = kwargs.get("symmetry", "n/a")
+        if self.unique_feature == 'shape':
+            self.symmetry = _rnd_symmetry()[0]
 
         self.fill_in_paired_settings()
 
@@ -392,7 +409,7 @@ def oddx_bg_folder(root, num_imgs, target_size, preprocess, scale=(0.5, 1.0), **
     single_img = kwargs['single_img'] if 'single_img' in kwargs else None
     if single_img is not None:
         # FIXME: hardcoded here only for 224 224!
-        target_size = (112, 112)
+        target_size = (target_size // 2, target_size // 2)
     bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
     bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader)

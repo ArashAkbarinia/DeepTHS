@@ -67,13 +67,12 @@ def rotate2d(pts, centre, angle):
     ) + centre
 
 
-def handle_symmetry(symmetry, org_kwargs, stimuli):
+def handle_symmetry(symmetry, org_kwargs, polygon, canvas):
     if symmetry == "n/a":
         return org_kwargs
     shape_kwargs = dict()
     for key, val in org_kwargs.items():
         shape_kwargs[key] = val
-    polygon = stimuli.shape['name']
     if polygon in CV2_OVAL_SHAPES:
         if symmetry == 'v':
             shape_kwargs[np.random.choice(['arc_start', 'arc_end'])] = 180
@@ -85,7 +84,7 @@ def handle_symmetry(symmetry, org_kwargs, stimuli):
     elif polygon in ['square', 'rectangle']:
         if symmetry != 'both':
             pts = shape_kwargs['pts'][0].copy()
-            length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
+            length = np.minimum(canvas[0], canvas[1]) / 2
             val = dataset_utils.randint(2, int(length * 0.25))
             if symmetry == 'v':
                 v0, v1 = np.random.choice([{0, 3}, {1, 2}])
