@@ -9,10 +9,11 @@ import cv2
 
 from . import dataset_utils, imutils
 
-CV2_OVAL_SHAPES = ['circle', 'ellipse']
-CV2_POLYGON_SHAPES = ['square', 'rectangle', 'triangle']
+SHAPES_OVAL = ['circle', 'ellipse']
+SHAPES_TRIANGLE = ['triangle', ]  # 'scalene', 'equilateral', 'isosceles']
+SHAPES_QUADRILATERAL = ['square', 'rectangle', ]  # 'parallelogram', 'rhombus', 'kite', 'quadri']
 
-SHAPES = [*CV2_OVAL_SHAPES, *CV2_POLYGON_SHAPES]
+SHAPES = [*SHAPES_OVAL, *SHAPES_TRIANGLE, *SHAPES_QUADRILATERAL]
 
 
 def draw(img, shape_params, **kwargs):
@@ -21,21 +22,64 @@ def draw(img, shape_params, **kwargs):
 
 
 def polygon_params(polygon, **kwargs):
-    if polygon in CV2_OVAL_SHAPES:
-        return cv2_shapes(polygon, **kwargs)
-    elif polygon in CV2_POLYGON_SHAPES:
-        return cv2_polygons(**kwargs)
-    else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
+    return ovals(polygon, **kwargs) if polygon in SHAPES_OVAL else polygons(polygon, **kwargs)
 
 
-def cv2_polygons(pts, rotation=0):
-    old_pts = pts[0]
-    if rotation != 0:
-        pts = [rotate2d(old_pts, np.mean(old_pts, axis=0), angle=rotation).astype(int)]
+def quadrilaterals(polygon, length, ref_pt, angle=0):
+    angle_rad = np.deg2rad(abs(angle))
+    if polygon in ['square', 'rhombus']:
+        length = (length, length)
+    if polygon in ['square', 'rectangle']:
+        length = ((0, length[0]), (length[1], 0), (0, -length[0]))
+    elif polygon in ['parallelogram', 'rhombus', 'kite']:
+        angle_pt = (length[1] * np.cos(angle_rad), length[1] * np.sin(angle_rad))
+        if polygon in ['parallelogram', 'rhombus']:
+            length = ((0, length[0]), angle_pt, (0, -length[0]))
+        else:
+            length = (angle_pt, (-angle_pt[0], length[0]), (-angle_pt[0], -length[0]))
+        if angle < 0:
+            length = tuple([(tmp_l[1], tmp_l[0]) for tmp_l in length])
+    pts = [ref_pt]
+    for i in range(3):
+        pts.append((pts[i][0] + length[i][0], pts[i][1] + length[i][1]))
+    return np.array(pts), {'length': length, 'angle': angle}
+
+
+def generate_quadrilaterals(polygon, canvas):
+    length = np.minimum(canvas[0], canvas[1]) / 2
+    kwargs = dict()
+    if polygon in ['parallelogram', 'rhombus', 'kite']:
+        kwargs['angle'] = np.random.choice([1, -1]) * np.random.randint(15, 60)
+    kwargs['ref_pt'] = ref_point(length, polygon, canvas)
+    scale = (0.2, 0.8)
+    min_length = 5
+    if polygon in ['rectangle', 'parallelogram', 'kite']:
+        length = (length, max(int(length * np.random.uniform(*scale)), min_length))
+    elif polygon == 'quadri':
+        length = [(
+            signs[0] * max(int(length * np.random.uniform(*scale)), min_length),
+            signs[1] * max(int(length * np.random.uniform(*scale)), min_length)
+        ) for signs in [(1, -1), (-1, -1), (1, 1)]]
+    kwargs['length'] = length
+    return kwargs
+
+
+def triangles(polygon, pts):
+    return pts, {}
+
+
+def polygons(polygon, rotation=0, **kwargs):
+    if polygon in SHAPES_QUADRILATERAL:
+        pts, org_def = quadrilaterals(polygon, **kwargs)
     else:
-        pts = [old_pts.astype(int)]
-    return {'pts': pts}
+        pts, org_def = triangles(polygon, **kwargs)
+
+    pts = rotated_polygons(pts, rotation)
+    return {'pts': [pts.astype(int)], 'def': org_def, 'name': polygon}
+
+
+def rotated_polygons(pts, rotation=0):
+    return pts if rotation == 0 else rotate2d(pts, np.mean(pts, axis=0), angle=rotation)
 
 
 def cv2_filled_polygons(img, pts, color, thickness):
@@ -45,16 +89,13 @@ def cv2_filled_polygons(img, pts, color, thickness):
     return img
 
 
-def cv2_shapes(polygon, length, ref_pt, rotation=0, arc_start=0, arc_end=360):
-    if polygon in CV2_OVAL_SHAPES:
-        if polygon == 'circle':
-            length = (length, length)
-        return {
-            'center': ref_pt, 'axes': length, 'angle': int(np.rad2deg(rotation)),
-            'arcStart': int(arc_start), 'arcEnd': int(arc_end), 'delta': 5
-        }
-    else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
+def ovals(polygon, length, ref_pt, rotation=0, arc_start=0, arc_end=360):
+    if polygon == 'circle':
+        length = (length, length)
+    return {
+        'center': ref_pt, 'axes': length, 'angle': int(np.rad2deg(rotation)),
+        'arcStart': int(arc_start), 'arcEnd': int(arc_end), 'delta': 5
+    }
 
 
 def rotate2d(pts, centre, angle):
@@ -73,7 +114,7 @@ def handle_symmetry(symmetry, org_kwargs, polygon, canvas):
     shape_kwargs = dict()
     for key, val in org_kwargs.items():
         shape_kwargs[key] = val
-    if polygon in CV2_OVAL_SHAPES:
+    if polygon in SHAPES_OVAL:
         if symmetry == 'v':
             shape_kwargs[np.random.choice(['arc_start', 'arc_end'])] = 180
         elif symmetry == 'h':
@@ -145,7 +186,7 @@ def enlarge_polygon(magnitude, shape_params, stimuli):
     length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
     ref_pt = ref_point(_enlarge(length, magnitude), shape, out_size)
     shape_params = shape_params.copy()
-    if shape in CV2_OVAL_SHAPES:
+    if shape in SHAPES_OVAL:
         shape_params['center'] = ref_pt
         shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
@@ -159,7 +200,7 @@ def enlarge_polygon(magnitude, shape_params, stimuli):
 
 def ref_point(length, polygon, img_size):
     diff = min(img_size[0], img_size[1]) - length - 2
-    if polygon in CV2_OVAL_SHAPES:
+    if polygon in SHAPES_OVAL:
         cy, cx = imutils.centre_pixel(img_size)
         if diff <= 0:
             ref_pt = (cx, cy)
@@ -169,7 +210,7 @@ def ref_point(length, polygon, img_size):
                 dataset_utils.randint(cx - diff, cx + diff),
                 dataset_utils.randint(cy - diff, cy + diff)
             )
-    elif polygon in ['square', 'rectangle']:
+    elif polygon in SHAPES_QUADRILATERAL:  # FIXME
         ref_pt = (dataset_utils.randint(0, diff), dataset_utils.randint(0, diff))
     elif polygon in ['triangle']:
         ymax, xmax = img_size[:2]

@@ -20,18 +20,12 @@ def _rnd_scale(size, scale):
 
 def _random_length(length, polygon, scale=(0.2, 0.8), min_length=5):
     # ellipse and circle are defined by radius of their axis
-    if polygon in polygon_bank.CV2_OVAL_SHAPES:
+    if polygon in polygon_bank.SHAPES_OVAL:
         length = int(length / 2)
 
-    if polygon in ['ellipse', 'rectangle']:
+    if polygon in ['ellipse']:
         length = (length, max(int(length * np.random.uniform(*scale)), min_length))
     return length
-
-
-def _ref_point_rotation(length, polygon, img_size):
-    half_size = imutils.centre_pixel(img_size)
-    ref_pt = polygon_bank.ref_point(length, polygon, half_size)
-    return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
 def draw_polygon_params(img, shape_params, colour, texture):
@@ -124,19 +118,14 @@ def create_texture(texture=None):
 def create_shape(polygon, canvas):
     length = np.minimum(canvas[0], canvas[1]) / 2
     kwargs = dict()
-    ref_pt = _ref_point_rotation(length, polygon, canvas)
-    if polygon in polygon_bank.CV2_OVAL_SHAPES:
+    half_canvas = imutils.centre_pixel(canvas)
+    ref_pt = polygon_bank.ref_point(length, polygon, half_canvas)
+    if polygon in polygon_bank.SHAPES_OVAL:
         kwargs['ref_pt'] = ref_pt
         kwargs['length'] = _random_length(length, polygon)
-    elif polygon in ['square', 'rectangle']:
-        rnd_length = _random_length(length, polygon)
-        if polygon == 'square':
-            rnd_length = (rnd_length, rnd_length)
-        pt1 = ref_pt
-        pt2 = (pt1[0], pt1[1] + rnd_length[1])
-        pt3 = (pt1[0] + rnd_length[0], pt1[1] + rnd_length[1])
-        pt4 = (pt1[0] + rnd_length[0], pt1[1])
-        kwargs['pts'] = [np.array([pt1, pt2, pt3, pt4]).astype('int')]
+    elif polygon in polygon_bank.SHAPES_QUADRILATERAL:
+        kwargs = polygon_bank.generate_quadrilaterals(polygon, half_canvas)
+        ref_pt = kwargs['ref_pt']
     elif polygon == 'triangle':
         pt1 = ref_pt
         lside = np.random.choice([0, 1])
@@ -147,6 +136,7 @@ def create_shape(polygon, canvas):
         sy = length if lside == 0 else dataset_utils.randint(4, 7)
         pt3 = (pt1[0] + sx, pt1[1] + sy)
         kwargs['pts'] = [np.array([pt1, pt2, pt3]).astype('int')]
+    kwargs['ref_pt'] = int(ref_pt[0] + half_canvas[1] / 2), int(ref_pt[1] + half_canvas[0] / 2)
     return kwargs
 
 
@@ -290,7 +280,7 @@ class StimuliSettings:
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
 
-        # if shape if the unique feature, we should make sure the symmetry is identical in all
+        # if shape is the unique feature, we should make sure the symmetry is identical in all
         if self.unique_feature == 'shape':
             self.symmetry = _rnd_symmetry()[0]
             for shape in self.rnd_shape:
