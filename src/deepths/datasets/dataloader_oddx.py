@@ -28,31 +28,9 @@ def _random_length(length, polygon, scale=(0.2, 0.8), min_length=5):
     return length
 
 
-def _ref_point(length, polygon, img_size):
-    diff = min(img_size[0], img_size[1]) - length - 2
-    if polygon in polygon_bank.CV2_OVAL_SHAPES:
-        cy, cx = imutils.centre_pixel(img_size)
-        if diff <= 0:
-            ref_pt = (cx, cy)
-        else:
-            diff = diff // 2
-            ref_pt = (
-                dataset_utils.randint(cx - diff, cx + diff),
-                dataset_utils.randint(cy - diff, cy + diff)
-            )
-    elif polygon in ['square', 'rectangle']:
-        ref_pt = (dataset_utils.randint(0, diff), dataset_utils.randint(0, diff))
-    elif polygon in ['triangle']:
-        ymax, xmax = img_size[:2]
-        ref_pt = (dataset_utils.randint(0, xmax - length), dataset_utils.randint(0, ymax - length))
-    else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
-    return ref_pt
-
-
 def _ref_point_rotation(length, polygon, img_size):
     half_size = imutils.centre_pixel(img_size)
-    ref_pt = _ref_point(length, polygon, half_size)
+    ref_pt = polygon_bank.ref_point(length, polygon, half_size)
     return int(ref_pt[0] + half_size[1] / 2), int(ref_pt[1] + half_size[0] / 2)
 
 
@@ -72,43 +50,14 @@ def draw_polygon_params(img, shape_params, colour, texture):
     return img
 
 
-def _enlarge(value, magnitude, ref=None):
-    int_in = False
-    if not hasattr(value, '__len__'):
-        value, int_in = (value,), True
-    if ref is None:
-        ref = (0,) * len(value)
-    value_centered = np.array([v - r for v, r in zip(value, ref)])
-    value_magnified = (value_centered + value_centered * magnitude).astype(int)
-    return value_magnified[0] if int_in else tuple(value_magnified)
-
-
-def _enlarge_polygon(magnitude, shape_params, stimuli):
-    if magnitude == 0:
-        return shape_params
-    shape, out_size = stimuli.shape['name'], stimuli.canvas
-    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
-    ref_pt = _ref_point(_enlarge(length, magnitude), shape, out_size)
-    shape_params = shape_params.copy()
-    if shape in polygon_bank.CV2_OVAL_SHAPES:
-        shape_params['center'] = ref_pt
-        shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
-    else:
-        old_pts = shape_params['pts'][0].copy()
-        pt1 = ref_pt
-        other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
-        other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
-        shape_params['pts'] = [np.array([pt1, *other_pts])]
-    return shape_params
-
-
 def _global_img_processing(img, contrast):
     fun, amount = contrast
     fun = imutils.adjust_gamma if fun == 'gamma' else imutils.adjust_contrast
     return fun(img, amount)
 
 
-def _make_img_on_bg(stimuli, shape_params):
+def _make_img_on_bg(stimuli):
+    shape_params = polygon_bank.handle_shape(stimuli)
     img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
     srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
@@ -119,22 +68,11 @@ def _make_img_on_bg(stimuli, shape_params):
     return dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
 
 
-def _make_img(stimuli):
-    shape = stimuli.shape
-    shape['kwargs']['rotation'] = stimuli.rotation
-    shape_kwargs = shape['kwargs'] if stimuli.unique_feature == 'shape' else (
-        polygon_bank.handle_symmetry(stimuli.symmetry, shape['kwargs'], shape['name'],
-                                     stimuli.canvas))
-    shape_params = polygon_bank.polygon_params(shape['name'], **shape_kwargs)
-    shape_params = _enlarge_polygon(stimuli.size, shape_params, stimuli)
-    return _make_img_on_bg(stimuli, shape_params)
-
-
 def _make_common_imgs(stimuli, num_imgs):
     imgs = []
     for i in range(num_imgs - 1):
         stimuli.common_settings(i)
-        imgs.append(_make_img(stimuli))
+        imgs.append(_make_img_on_bg(stimuli))
     return imgs
 
 
@@ -246,11 +184,6 @@ def _rnd_shape(stimuli):
     shape2_name = np.random.choice(polygons)
     shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli.canvas)}
     shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli.canvas)}
-    if stimuli.unique_feature == 'shape':
-        shape1['kwargs'] = polygon_bank.handle_symmetry(stimuli.symmetry, shape1['kwargs'],
-                                                        shape1_name, stimuli.canvas)
-        shape2['kwargs'] = polygon_bank.handle_symmetry(stimuli.symmetry, shape2['kwargs'],
-                                                        shape2_name, stimuli.canvas)
     return [shape1, shape2]
 
 
@@ -338,8 +271,6 @@ class StimuliSettings:
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
         self.symmetry = kwargs.get("symmetry", "n/a")
-        if self.unique_feature == 'shape':
-            self.symmetry = _rnd_symmetry()[0]
 
         self.fill_in_paired_settings()
 
@@ -358,6 +289,14 @@ class StimuliSettings:
         for attr in self.features_pool.keys():
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
+
+        # if shape if the unique feature, we should make sure the symmetry is identical in all
+        if self.unique_feature == 'shape':
+            self.symmetry = _rnd_symmetry()[0]
+            for shape in self.rnd_shape:
+                shape['kwargs'] = polygon_bank.handle_symmetry(
+                    self.symmetry, shape['kwargs'], shape['name'], self.canvas
+                )
 
     def common_settings(self, item):
         unique_attr = self.unique_feature
@@ -384,7 +323,7 @@ class OddOneOutTrain(torch_data.Dataset):
         # drawing the foreground content
         fg, canvas_size = _random_canvas(self.target_size, self.fg_paths, self.fg_scale)
         stimuli = StimuliSettings(fg, canvas_size, (*self.bg_loader, item), self.features)
-        odd_img = _make_img(stimuli)
+        odd_img = _make_img_on_bg(stimuli)
         common_imgs = _make_common_imgs(stimuli, self.num_imgs)
         imgs = [odd_img, *common_imgs]
 

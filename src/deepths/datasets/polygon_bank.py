@@ -7,7 +7,7 @@ import sys
 
 import cv2
 
-from . import dataset_utils
+from . import dataset_utils, imutils
 
 CV2_OVAL_SHAPES = ['circle', 'ellipse']
 CV2_POLYGON_SHAPES = ['square', 'rectangle', 'triangle']
@@ -125,3 +125,64 @@ def handle_symmetry(symmetry, org_kwargs, polygon, canvas):
                 pts[v2] = ((pts[v0][0] + pts[v1][0]) / 2, pts[v2][1])
             shape_kwargs['pts'] = [pts]
     return shape_kwargs
+
+
+def _enlarge(value, magnitude, ref=None):
+    int_in = False
+    if not hasattr(value, '__len__'):
+        value, int_in = (value,), True
+    if ref is None:
+        ref = (0,) * len(value)
+    value_centered = np.array([v - r for v, r in zip(value, ref)])
+    value_magnified = (value_centered + value_centered * magnitude).astype(int)
+    return value_magnified[0] if int_in else tuple(value_magnified)
+
+
+def enlarge_polygon(magnitude, shape_params, stimuli):
+    if magnitude == 0:
+        return shape_params
+    shape, out_size = stimuli.shape['name'], stimuli.canvas
+    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
+    ref_pt = ref_point(_enlarge(length, magnitude), shape, out_size)
+    shape_params = shape_params.copy()
+    if shape in CV2_OVAL_SHAPES:
+        shape_params['center'] = ref_pt
+        shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
+    else:
+        old_pts = shape_params['pts'][0].copy()
+        pt1 = ref_pt
+        other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
+        other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
+        shape_params['pts'] = [np.array([pt1, *other_pts])]
+    return shape_params
+
+
+def ref_point(length, polygon, img_size):
+    diff = min(img_size[0], img_size[1]) - length - 2
+    if polygon in CV2_OVAL_SHAPES:
+        cy, cx = imutils.centre_pixel(img_size)
+        if diff <= 0:
+            ref_pt = (cx, cy)
+        else:
+            diff = diff // 2
+            ref_pt = (
+                dataset_utils.randint(cx - diff, cx + diff),
+                dataset_utils.randint(cy - diff, cy + diff)
+            )
+    elif polygon in ['square', 'rectangle']:
+        ref_pt = (dataset_utils.randint(0, diff), dataset_utils.randint(0, diff))
+    elif polygon in ['triangle']:
+        ymax, xmax = img_size[:2]
+        ref_pt = (dataset_utils.randint(0, xmax - length), dataset_utils.randint(0, ymax - length))
+    else:
+        sys.exit('Unsupported polygon to draw: %s' % polygon)
+    return ref_pt
+
+
+def handle_shape(stimuli):
+    shape = stimuli.shape
+    shape['kwargs']['rotation'] = stimuli.rotation
+    shape_kwargs = shape['kwargs'] if stimuli.unique_feature == 'shape' else handle_symmetry(
+        stimuli.symmetry, shape['kwargs'], shape['name'], stimuli.canvas)
+    shape_params = polygon_params(shape['name'], **shape_kwargs)
+    return enlarge_polygon(stimuli.size, shape_params, stimuli)
