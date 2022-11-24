@@ -18,16 +18,6 @@ def _rnd_scale(size, scale):
     return int(size * np.random.uniform(*scale))
 
 
-def _random_length(length, polygon, scale=(0.2, 0.8), min_length=5):
-    # ellipse and circle are defined by radius of their axis
-    if polygon in polygon_bank.SHAPES_OVAL:
-        length = int(length / 2)
-
-    if polygon in ['ellipse']:
-        length = (length, max(int(length * np.random.uniform(*scale)), min_length))
-    return length
-
-
 def draw_polygon_params(img, shape_params, colour, texture):
     draw_params = {'color': colour, 'thickness': -1 if texture['fun'] == 'filled' else 1}
     img = polygon_bank.draw(img, shape_params, **draw_params)
@@ -70,12 +60,6 @@ def _make_common_imgs(stimuli, num_imgs):
     return imgs
 
 
-def _choose_rand_remove(elements):
-    element = np.random.choice(elements)
-    elements.remove(element)
-    return element
-
-
 def _fg_img(fg_type, bg_img, fg_size):
     if fg_type is None:
         fg_img = bg_img.copy()
@@ -115,28 +99,16 @@ def create_texture(texture=None):
     return {'fun': fun, 'params': params}
 
 
-def create_shape(polygon, canvas):
-    length = np.minimum(canvas[0], canvas[1]) / 2
-    kwargs = dict()
+def create_shape(polygon, canvas, symmetry):
     half_canvas = imutils.centre_pixel(canvas)
-    ref_pt = polygon_bank.ref_point(length, polygon, half_canvas)
     if polygon in polygon_bank.SHAPES_OVAL:
-        kwargs['ref_pt'] = ref_pt
-        kwargs['length'] = _random_length(length, polygon)
-    elif polygon in polygon_bank.SHAPES_QUADRILATERAL:
-        kwargs = polygon_bank.generate_quadrilaterals(polygon, half_canvas)
+        kwargs = polygon_bank.generate_ovals(polygon, half_canvas, symmetry)
         ref_pt = kwargs['ref_pt']
-    elif polygon == 'triangle':
-        pt1 = ref_pt
-        lside = np.random.choice([0, 1])
-        sx = length if lside == 0 else dataset_utils.randint(4, 7)
-        sy = length if lside == 1 else dataset_utils.randint(4, 7)
-        pt2 = (pt1[0] + sx, pt1[1] + sy)
-        sx = length if lside == 1 else dataset_utils.randint(4, 7)
-        sy = length if lside == 0 else dataset_utils.randint(4, 7)
-        pt3 = (pt1[0] + sx, pt1[1] + sy)
-        kwargs['pts'] = [np.array([pt1, pt2, pt3]).astype('int')]
-    kwargs['ref_pt'] = int(ref_pt[0] + half_canvas[1] / 2), int(ref_pt[1] + half_canvas[0] / 2)
+        kwargs['ref_pt'] = int(ref_pt[0] + half_canvas[1] / 2), int(ref_pt[1] + half_canvas[0] / 2)
+    else:
+        pts = polygon_bank.generate_polygons(polygon, half_canvas, symmetry)
+        pts = [(pt[1] + half_canvas[1] / 2, pt[0] + half_canvas[0] / 2) for pt in pts]
+        kwargs = {'pts': np.array(pts)}
     return kwargs
 
 
@@ -159,29 +131,43 @@ def _rnd_rotation(*_args, rot_angles=None):
 
 
 def _rnd_shape(stimuli):
-    polygons = polygon_bank.SHAPES.copy()
-    if stimuli.unique_feature == 'rotation':
-        polygons.remove('circle')
-    shape1_name = _choose_rand_remove(polygons)
-    if shape1_name == 'square':
-        polygons.remove('rectangle')
-    elif shape1_name == 'rectangle':
-        polygons.remove('square')
-    elif shape1_name == 'circle':
-        polygons.remove('ellipse')
-    elif shape1_name == 'ellipse' and 'circle' in polygons:
-        polygons.remove('circle')
-    shape2_name = np.random.choice(polygons)
-    shape1 = {'name': shape1_name, 'kwargs': create_shape(shape1_name, stimuli.canvas)}
-    shape2 = {'name': shape2_name, 'kwargs': create_shape(shape2_name, stimuli.canvas)}
-    return [shape1, shape2]
+    if stimuli.unique_feature == 'symmetry':
+        symmetries = stimuli.__getattribute__('rnd_symmetry')
+        polygons = [
+            polygon_bank.SHAPES_SYMMETRY[symmetries[0]], polygon_bank.SHAPES_SYMMETRY[symmetries[1]]
+        ]
+    else:
+        symmetries = (stimuli.symmetry, stimuli.symmetry)
+        if stimuli.symmetry == 'n/a':
+            polygons = polygon_bank.SHAPES
+            if stimuli.unique_feature == 'rotation':
+                polygons[0].remove('circle')
+        else:
+            polygons = polygon_bank.SHAPES_SYMMETRY[stimuli.symmetry]
+    polygons = np.array(polygons, dtype=object)
+    if len(polygons.shape) > 1:
+        s1, s2 = np.random.choice(np.arange(polygons.shape[0]), size=2, replace=False)
+        set1, set2 = list(polygons[s1]), list(polygons[s2])
+    else:
+        set1, set2 = np.random.choice(polygons, size=2, replace=False)
+    shape1_name = np.random.choice(set1) if type(set1) is list else set1
+    shape1 = {'name': shape1_name, 'kwargs': create_shape(
+        shape1_name, stimuli.canvas, symmetries[0])}
+    if stimuli.unique_feature == 'symmetry':
+        shape2_names = np.random.choice(set2, size=3, replace=False)
+    else:
+        shape2_names = [np.random.choice(set2)] if type(set2) is list else [set2]
+    shape2 = []
+    for shape2_name in shape2_names:
+        shape2.append({'name': shape2_name, 'kwargs': create_shape(
+            shape2_name, stimuli.canvas, symmetries[1])})
+    return [shape1, *shape2]
 
 
 def _rnd_texture(*_args):
     textures = pattern_bank.__all__.copy()
-    texture1 = create_texture(_choose_rand_remove(textures))
-    texture2 = create_texture(np.random.choice(textures))
-    return [texture1, texture2]
+    set1, set2 = np.random.choice(textures, size=2, replace=False)
+    return [create_texture(set1), create_texture(set2)]
 
 
 def _rnd_colour(*_args):
@@ -246,8 +232,7 @@ class StimuliSettings:
         self.feature_settings = self.set_settings()
         self.num_commons = 3
         self.paired_attrs = self.feature_settings['pair'][:self.num_commons]
-        if self.unique_feature == 'symmetry':
-            self.paired_attrs = ['shape', *self.paired_attrs]
+        self.exclusive_attrs = ['shape'] if self.unique_feature == 'symmetry' else []
 
         self.fg = None if self.unique_feature == 'background' else fg
         self.canvas = canvas
@@ -260,7 +245,9 @@ class StimuliSettings:
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
-        self.symmetry = kwargs.get("symmetry", "n/a")
+        # if shape is the unique feature, we should make sure the symmetry is identical in all
+        default_symmetry = _rnd_symmetry()[0] if self.unique_feature == 'shape' else "n/a"
+        self.symmetry = kwargs.get("symmetry", default_symmetry)
 
         self.fill_in_paired_settings()
 
@@ -272,7 +259,7 @@ class StimuliSettings:
         return settings
 
     def fill_in_paired_settings(self):
-        for attr in [*self.paired_attrs, self.unique_feature]:
+        for attr in [self.unique_feature, *self.paired_attrs, *self.exclusive_attrs]:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
@@ -280,17 +267,11 @@ class StimuliSettings:
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
 
-        # if shape is the unique feature, we should make sure the symmetry is identical in all
-        if self.unique_feature == 'shape':
-            self.symmetry = _rnd_symmetry()[0]
-            for shape in self.rnd_shape:
-                shape['kwargs'] = polygon_bank.handle_symmetry(
-                    self.symmetry, shape['kwargs'], shape['name'], self.canvas
-                )
-
     def common_settings(self, item):
         unique_attr = self.unique_feature
         self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
+        for attr in self.exclusive_attrs:
+            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[item])
         for i, attr in enumerate(self.paired_attrs):
             ind = 0 if (i % self.num_commons) == item else 1
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
