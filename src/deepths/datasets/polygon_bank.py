@@ -217,9 +217,9 @@ def enlarge_polygon(magnitude, shape_params, stimuli):
         new_pts = np.array([_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts])
         (min0, min1), (max0, max1) = new_pts.min(axis=0), new_pts.max(axis=0)
         new_pts = [(pt[0] - min0, pt[1] - min1) for pt in new_pts]
-        l0, l1 = max0 - min0 + 2, max1 - min1 + 2
-        d0, d1 = dataset_utils.randint(0, canvas[0] - l0), dataset_utils.randint(0, canvas[1] - l1)
-        shape_params['pts'] = np.array([(pt[0] + d0, pt[1] + d1) for pt in new_pts])
+        lx, ly = max0 - min0 + 2, max1 - min1 + 2
+        dx, dy = dataset_utils.randint(0, canvas[1] - lx), dataset_utils.randint(0, canvas[0] - ly)
+        shape_params['pts'] = np.array([(pt[0] + dx, pt[1] + dy) for pt in new_pts])
     return shape_params
 
 
