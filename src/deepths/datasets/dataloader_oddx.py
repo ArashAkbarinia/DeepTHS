@@ -139,9 +139,10 @@ def _rnd_shape(stimuli):
     else:
         symmetries = (stimuli.symmetry, stimuli.symmetry)
         if stimuli.symmetry == 'n/a':
-            polygons = polygon_bank.SHAPES
             if stimuli.unique_feature == 'rotation':
-                polygons[0].remove('circle')
+                polygons = polygon_bank.SHAPES_ORIENTATION
+            else:
+                polygons = polygon_bank.SHAPES
         else:
             polygons = polygon_bank.SHAPES_SYMMETRY[stimuli.symmetry]
     polygons = np.array(polygons, dtype=object)

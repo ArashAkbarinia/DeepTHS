@@ -14,6 +14,7 @@ SHAPES_OVAL = ['circle', 'ellipse', 'half_circle', 'half_ellipse']
 SHAPES_TRIANGLE = ['scalene', 'equilateral', 'isosceles']
 SHAPES_QUADRILATERAL = ['square', 'rectangle', 'parallelogram', 'rhombus', 'kite', 'quadri']
 SHAPES = [SHAPES_OVAL, SHAPES_TRIANGLE, SHAPES_QUADRILATERAL]
+SHAPES_ORIENTATION = [SHAPES_OVAL[1:], SHAPES_TRIANGLE, SHAPES_QUADRILATERAL]
 
 SHAPES_SYMMETRY_BOTH = ['circle', 'ellipse', 'square', 'rectangle']
 SHAPES_SYMMETRY_ONE = ['half_circle', 'half_ellipse', 'equilateral', 'isosceles', 'rhombus', 'kite']
@@ -108,7 +109,7 @@ def generate_triangles(polygon, canvas, symmetry):
     else:  # 'equilateral' or 'isosceles'
         circum = 'circle' if polygon == 'equilateral' else 'ellipse'
         length = min(canvas[0], canvas[1])
-        centre = ref_point(length, circum, canvas)
+        centre = ref_point(length, canvas)
         radius = length / 2
         if circum == 'ellipse':
             scale, min_length = (0.3, 0.7), 5
@@ -159,7 +160,7 @@ def ovals(length, ref_pt, rotation=0, arc_start=0, arc_end=360):
 def generate_ovals(polygon, canvas, symmetry):
     kwargs = dict()
     length = min(canvas[0], canvas[1])
-    kwargs['ref_pt'] = ref_point(length, polygon, canvas)
+    kwargs['ref_pt'] = ref_point(length, canvas)
     length = length // 2  # this is the radius
     if 'ellipse' in polygon:
         scale, min_length = (0.2, 0.8), 5
@@ -210,7 +211,7 @@ def enlarge_polygon(magnitude, shape_params, stimuli):
     shape_params = shape_params.copy()
     if shape in SHAPES_OVAL:
         length = min(stimuli.canvas[0], stimuli.canvas[1]) / 2
-        shape_params['center'] = ref_point(_enlarge(length, magnitude), shape, canvas)
+        shape_params['center'] = ref_point(_enlarge(length, magnitude), canvas)
         shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
         old_pts = shape_params['pts'].copy()
@@ -223,25 +224,17 @@ def enlarge_polygon(magnitude, shape_params, stimuli):
     return shape_params
 
 
-def ref_point(length, polygon, img_size):
+def ref_point(length, img_size):
     diff = min(img_size[0], img_size[1]) - length - 2
-    if polygon in SHAPES_OVAL:
-        cy, cx = imutils.centre_pixel(img_size)
-        if diff <= 0:
-            ref_pt = (cx, cy)
-        else:
-            diff = diff // 2
-            ref_pt = (
-                dataset_utils.randint(cx - diff, cx + diff),
-                dataset_utils.randint(cy - diff, cy + diff)
-            )
-    elif polygon in SHAPES_QUADRILATERAL:  # FIXME
-        ref_pt = (dataset_utils.randint(0, diff), dataset_utils.randint(0, diff))
-    elif polygon in SHAPES_TRIANGLE:
-        ymax, xmax = img_size[:2]
-        ref_pt = (dataset_utils.randint(0, xmax - length), dataset_utils.randint(0, ymax - length))
+    cy, cx = imutils.centre_pixel(img_size)
+    if diff <= 0:
+        ref_pt = (cx, cy)
     else:
-        sys.exit('Unsupported polygon to draw: %s' % polygon)
+        diff = diff // 2
+        ref_pt = (
+            dataset_utils.randint(cx - diff, cx + diff),
+            dataset_utils.randint(cy - diff, cy + diff)
+        )
     return ref_pt
 
 
