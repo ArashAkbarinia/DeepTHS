@@ -107,7 +107,7 @@ def create_shape(polygon, canvas, symmetry):
         kwargs['ref_pt'] = int(ref_pt[0] + half_canvas[1] / 2), int(ref_pt[1] + half_canvas[0] / 2)
     else:
         pts = polygon_bank.generate_polygons(polygon, half_canvas, symmetry)
-        pts = [(pt[1] + half_canvas[1] / 2, pt[0] + half_canvas[0] / 2) for pt in pts]
+        pts = [(pt[0] + half_canvas[1] / 2, pt[1] + half_canvas[0] / 2) for pt in pts]
         kwargs = {'pts': np.array(pts)}
     return kwargs
 

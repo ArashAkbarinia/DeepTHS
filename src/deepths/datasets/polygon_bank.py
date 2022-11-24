@@ -40,49 +40,57 @@ def polygon_params(polygon, **kwargs):
 def generate_quadrilaterals(polygon, canvas, symmetry):
     if polygon == 'quadri':
         return [
-            (canvas[0] * random.uniform(0.1, 0.3), canvas[1] * random.uniform(0.1, 0.3)),
-            (canvas[0] * random.uniform(0.1, 0.3), canvas[1] * random.uniform(0.7, 0.9)),
-            (canvas[0] * random.uniform(0.7, 0.9), canvas[1] * random.uniform(0.7, 0.9)),
-            (canvas[0] * random.uniform(0.7, 0.9), canvas[1] * random.uniform(0.1, 0.3))
+            (canvas[1] * random.uniform(0.1, 0.3), canvas[0] * random.uniform(0.1, 0.3)),
+            (canvas[1] * random.uniform(0.1, 0.3), canvas[0] * random.uniform(0.7, 0.9)),
+            (canvas[1] * random.uniform(0.7, 0.9), canvas[0] * random.uniform(0.7, 0.9)),
+            (canvas[1] * random.uniform(0.7, 0.9), canvas[0] * random.uniform(0.1, 0.3))
         ]
     if polygon == 'kite':
-        r0, r1 = canvas[0] * random.uniform(0.4, 0.6), canvas[1] * random.uniform(0.1, 0.3)
-        s0, s1 = min(canvas[0] - r0, r0) * 2, canvas[1] - r1
+        rx, ry = canvas[1] * random.uniform(0.1, 0.3), canvas[0] * random.uniform(0.4, 0.6)
+        sx, sy = canvas[1] - rx - 2, (min(canvas[0] - ry, ry) - 2) * 2
         alpha = random.uniform(0.6, 0.8)
         alphas = dataset_utils.shuffle([1 - alpha, alpha])
         if symmetry == 'v':
-            s1 = s0 * random.uniform(0.3, 0.6)
-            pt2, pt4 = (alphas[0], 0.5), (alphas[1], 0.5)
+            sy = sy * random.uniform(0.8, 0.9)
+            sx = sy * random.uniform(0.3, 0.6)
+            pt2, pt4 = (0.5, alphas[0]), (0.5, alphas[1])
         else:
-            s0 = s1 * random.uniform(0.3, 0.6)
-            pt2, pt4 = (0.5, alphas[0]), (0.5, alphas[0])
+            sx = sx * random.uniform(0.8, 0.9)
+            sy = sx * random.uniform(0.3, 0.6)
+            pt2, pt4 = (alphas[0], 0.5), (alphas[0], 0.5)
         return [
-            (r0, r1), (r0 + s0 * pt2[0], r1 + s1 * pt2[1]),
-            (r0, r1 + s1), (r0 - s0 * pt4[0], r1 + s1 * pt4[1])
+            (rx, ry), (rx + sx * pt2[0], min(ry + sy * pt2[1], canvas[0])),
+            (rx + sx, ry), (rx + sx * pt4[0], max(ry - sy * pt4[1], 0))
         ]
 
-    if polygon in ['square', 'rhombus']:
-        s0 = int(min(canvas[0], canvas[1]) * random.uniform(0.8, 0.9))
-        s1 = s0
-    else:  # triangle and parallelogram
-        s0, s1 = [int(c * random.uniform(0.7, 0.9)) for c in canvas]
-        if s0 == s1:  # in a very unlikely scenario that they are equal
-            s0 = s1 * 0.7
-    d0, d1 = canvas[0] - s0, canvas[1] - s1
+    tilt = 0
     if polygon in ['parallelogram', 'rhombus']:
-        tilts = dataset_utils.shuffle([[0.05, 0.15], [0.85, 0.95]])
-        if random.random() >= 0.5:  # which side is parallel
-            r0, r1 = dataset_utils.randint(0, d0), d1 * random.uniform(*tilts[0])
-            t0, t1, t2 = 0, r1 - d1 * random.uniform(*tilts[1]), 0
+        tilt = random.uniform(0.05, 0.15) * min(canvas[0], canvas[1])
+
+    if polygon in ['square', 'rhombus']:
+        sx = (min(canvas[0], canvas[1]) - tilt) * random.uniform(0.8, 0.9)
+        sy = sx
+    else:  # rectangle and parallelogram
+        sy, sx = [(c - tilt) * random.uniform(0.7, 0.9) for c in canvas]
+        if sx == sy:  # in a very unlikely scenario that they are equal
+            sx = sy * 0.7
+    dx, dy = canvas[1] - sx - 2 - tilt, canvas[0] - sy - 2 - tilt
+    if polygon in ['parallelogram', 'rhombus']:
+        tilt_dir = np.random.choice([-1, 1])
+        if random.random() >= 1.0:  # which side is parallel
+            sint, eint = (0, dx) if tilt_dir == 1 else (tilt, tilt + dx)
+            rx, ry = dataset_utils.randint(sint, eint), dataset_utils.randint(0, dy)
+            t0, t1, t2 = 0, tilt_dir * tilt, 0
         else:
-            r0, r1 = d0 * random.uniform(*tilts[0]), dataset_utils.randint(0, d1)
-            t0, t1 = r0 - d0 * random.uniform(*tilts[1]), 0
+            sint, eint = (0, dy) if tilt_dir == 1 else (tilt, tilt + dy)
+            rx, ry = dataset_utils.randint(0, dx), dataset_utils.randint(sint, eint)
+            t0, t1 = tilt_dir * tilt, 0
             t2 = -t0
     else:
-        r0, r1 = dataset_utils.randint(0, d0), dataset_utils.randint(0, d1)
+        rx, ry = dataset_utils.randint(0, dx), dataset_utils.randint(0, dy)
         t0, t1, t2 = 0, 0, 0
-    lengths = [(t0, s0), (s1, 0), (t2, -s0)]
-    pts = [(r0, r1)]
+    lengths = [(sx, t0), (t1, sy), (-sx, t2)]
+    pts = [(rx, ry)]
     for i in range(3):
         pts.append((pts[i][0] + lengths[i][0], pts[i][1] + lengths[i][1]))
     return pts
@@ -93,9 +101,9 @@ def generate_triangles(polygon, canvas, symmetry):
         # TODO: it might become other types of triangle (although very unlikeley)
         probs = dataset_utils.shuffle([[0.1, 0.3], [0.4, 0.6], [0.7, 0.9]])
         return [
-            (canvas[0] * random.uniform(*probs[0]), canvas[1] * random.uniform(*probs[1])),
-            (canvas[0] * random.uniform(*probs[1]), canvas[1] * random.uniform(*probs[2])),
-            (canvas[0] * random.uniform(*probs[2]), canvas[1] * random.uniform(*probs[0])),
+            (canvas[1] * random.uniform(*probs[0]), canvas[0] * random.uniform(*probs[1])),
+            (canvas[1] * random.uniform(*probs[1]), canvas[0] * random.uniform(*probs[2])),
+            (canvas[1] * random.uniform(*probs[2]), canvas[0] * random.uniform(*probs[0])),
         ]
     else:  # 'equilateral' or 'isosceles'
         circum = 'circle' if polygon == 'equilateral' else 'ellipse'
@@ -160,13 +168,17 @@ def generate_ovals(polygon, canvas, symmetry):
         length = (length, length)
     kwargs['length'] = length
     # these are half-circles
-    if symmetry == 'v':
-        kwargs[np.random.choice(['arc_start', 'arc_end'])] = 180
-    elif symmetry == 'h':
-        kwargs['arc_start'], kwargs['arc_end'] = dataset_utils.shuffle([90, 270])
-    elif symmetry == 'none':
-        kwargs['arc_start'] = np.random.choice([11, 22, 34, 45, 101, 112, 124, 135])
-        kwargs['arc_end'] = kwargs['arc_start'] + 180
+    if 'half_' in polygon:
+        if symmetry == 'v':
+            kwargs[np.random.choice(['arc_start', 'arc_end'])] = 180
+        elif symmetry == 'h':
+            kwargs['arc_start'], kwargs['arc_end'] = dataset_utils.shuffle([90, 270])
+        elif symmetry == 'none':
+            kwargs['arc_start'] = np.random.choice([11, 22, 34, 45, 101, 112, 124, 135])
+            kwargs['arc_end'] = kwargs['arc_start'] + 180
+        else:
+            kwargs['arc_start'] = dataset_utils.randint(0, 360)
+            kwargs['arc_end'] = kwargs['arc_start'] + 180
     return kwargs
 
 
@@ -194,19 +206,20 @@ def _enlarge(value, magnitude, ref=None):
 def enlarge_polygon(magnitude, shape_params, stimuli):
     if magnitude == 0:
         return shape_params
-    shape, out_size = stimuli.shape['name'], stimuli.canvas
-    length = np.minimum(stimuli.canvas[0], stimuli.canvas[1]) / 2
-    ref_pt = ref_point(_enlarge(length, magnitude), shape, out_size)
+    shape, canvas = stimuli.shape['name'], stimuli.canvas
     shape_params = shape_params.copy()
     if shape in SHAPES_OVAL:
-        shape_params['center'] = ref_pt
+        length = min(stimuli.canvas[0], stimuli.canvas[1]) / 2
+        shape_params['center'] = ref_point(_enlarge(length, magnitude), shape, canvas)
         shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
-        old_pts = shape_params['pts'][0].copy()
-        pt1 = ref_pt
-        other_pts = [_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts[1:]]
-        other_pts = [(pt[0] + pt1[0], pt[1] + pt1[1]) for pt in other_pts]
-        shape_params['pts'] = [np.array([pt1, *other_pts])]
+        old_pts = shape_params['pts'].copy()
+        new_pts = np.array([_enlarge(pt, magnitude, old_pts[0]) for pt in old_pts])
+        (min0, min1), (max0, max1) = new_pts.min(axis=0), new_pts.max(axis=0)
+        new_pts = [(pt[0] - min0, pt[1] - min1) for pt in new_pts]
+        l0, l1 = max0 - min0 + 2, max1 - min1 + 2
+        d0, d1 = dataset_utils.randint(0, canvas[0] - l0), dataset_utils.randint(0, canvas[1] - l1)
+        shape_params['pts'] = np.array([(pt[0] + d0, pt[1] + d1) for pt in new_pts])
     return shape_params
 
 
