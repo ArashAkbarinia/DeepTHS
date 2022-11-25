@@ -150,7 +150,9 @@ def _rnd_shape(stimuli):
             else:
                 polygons = polygon_bank.SHAPES
         else:
-            polygons = polygon_bank.SHAPES_SYMMETRY[stimuli.symmetry]
+            polygons = [
+                v for vals in polygon_bank.SHAPES_SYMMETRY[stimuli.symmetry].values() for v in vals
+            ]
         polygons = np.array(polygons, dtype=object)
         if len(polygons.shape) > 1:
             s1, s2 = np.random.choice(np.arange(polygons.shape[0]), size=2, replace=False)
