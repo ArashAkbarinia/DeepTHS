@@ -20,7 +20,7 @@ def main(argv):
     args.train_kwargs = {
         'features': [
             'symmetry', 'rotation', 'size', 'colour', 'shape',
-            'texture', 'background', 'contrast'
+            'texture', 'background', 'contrast', 'position'
         ],
         'single_img': True
     }

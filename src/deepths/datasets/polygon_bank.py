@@ -198,15 +198,18 @@ def generate_dodecagons(polygon, canvas, symmetry):
 
 
 def generate_polygons(polygon, canvas, symmetry):
-    if polygon in SHAPES_TRIANGLE:
-        pts = generate_triangles(polygon, canvas, symmetry)
+    half_canvas = imutils.centre_pixel(canvas)
+    if polygon in SHAPES_OVAL:
+        return generate_ovals(polygon, half_canvas, symmetry)
+    elif polygon in SHAPES_TRIANGLE:
+        pts = generate_triangles(polygon, half_canvas, symmetry)
     elif polygon in SHAPES_QUADRILATERAL:
-        pts = generate_quadrilaterals(polygon, canvas, symmetry)
+        pts = generate_quadrilaterals(polygon, half_canvas, symmetry)
     elif polygon in SHAPES_HEXAGON:
-        pts = generate_hexagons(polygon, canvas, symmetry)
+        pts = generate_hexagons(polygon, half_canvas, symmetry)
     else:
-        pts = generate_dodecagons(polygon, canvas, symmetry)
-    return pts
+        pts = generate_dodecagons(polygon, half_canvas, symmetry)
+    return {'pts': np.array(pts)}
 
 
 def polygons(pts, rotation=0):
@@ -275,13 +278,12 @@ def _enlarge(value, magnitude, ref=None):
     return value_magnified[0] if int_in else tuple(value_magnified)
 
 
-def enlarge_polygon(magnitude, shape_params, stimuli):
+def enlarge_polygon(magnitude, shape_params, shape, canvas):
     if magnitude == 0:
         return shape_params
-    shape, canvas = stimuli.shape['name'], stimuli.canvas
     shape_params = shape_params.copy()
     if shape in SHAPES_OVAL:
-        length = min(stimuli.canvas[0], stimuli.canvas[1]) / 2
+        length = min(canvas[0], canvas[1]) / 2
         shape_params['center'] = ref_point(_enlarge(length, magnitude), canvas)
         shape_params['axes'] = _enlarge(shape_params['axes'], magnitude)
     else:
@@ -310,7 +312,15 @@ def ref_point(length, img_size):
 
 
 def handle_shape(stimuli):
-    shape = stimuli.shape
+    shape = {'name': stimuli.shape['name'], 'kwargs': stimuli.shape['kwargs'].copy()}
+    posy, posx = imutils.centre_pixel(stimuli.canvas)
+    posx, posy = posx * stimuli.position[0], posy * stimuli.position[1]
+    if 'pts' in shape['kwargs']:
+        pts = shape['kwargs']['pts']
+        shape['kwargs']['pts'] = np.array([(pt[0] + posx, pt[1] + posy) for pt in pts])
+    else:
+        ref_pt = shape['kwargs']['ref_pt']
+        shape['kwargs']['ref_pt'] = int(ref_pt[0] + posx), int(ref_pt[1] + posy)
     shape['kwargs']['rotation'] = stimuli.rotation
     shape_params = polygon_params(shape['name'], **shape['kwargs'])
-    return enlarge_polygon(stimuli.size, shape_params, stimuli)
+    return enlarge_polygon(stimuli.size, shape_params, shape['name'], stimuli.canvas)

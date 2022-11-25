@@ -43,7 +43,7 @@ def _global_img_processing(img, contrast):
 def _make_img_on_bg(stimuli):
     shape_params = polygon_bank.handle_shape(stimuli)
     img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
-    srow, scol = dataset_utils.random_place(stimuli.canvas, img_in.shape)
+    srow, scol = dataset_utils.relative_place(stimuli.canvas, img_in.shape, stimuli.position)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
         bg_lum, alpha = stimuli.fg
@@ -99,17 +99,14 @@ def create_texture(texture=None):
     return {'fun': fun, 'params': params}
 
 
-def create_shape(polygon, canvas, symmetry):
-    half_canvas = imutils.centre_pixel(canvas)
-    if polygon in polygon_bank.SHAPES_OVAL:
-        kwargs = polygon_bank.generate_ovals(polygon, half_canvas, symmetry)
-        ref_pt = kwargs['ref_pt']
-        kwargs['ref_pt'] = int(ref_pt[0] + half_canvas[1] / 2), int(ref_pt[1] + half_canvas[0] / 2)
+def _rnd_position(stimuli):
+    if stimuli.unique_feature in ['rotation', 'size']:
+        pos1 = (0.5, 0.5)
+        pos2 = pos1
     else:
-        pts = polygon_bank.generate_polygons(polygon, half_canvas, symmetry)
-        pts = [(pt[0] + half_canvas[1] / 2, pt[1] + half_canvas[0] / 2) for pt in pts]
-        kwargs = {'pts': np.array(pts)}
-    return kwargs
+        pos_pairs = dataset_utils.shuffle([(0, 0), (0, 1), (1, 0), (1, 1)])
+        pos1, pos2 = pos_pairs[0], pos_pairs[1]
+    return [pos1, pos2]
 
 
 def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
@@ -163,8 +160,9 @@ def _rnd_shape(stimuli):
             set1, set2 = np.random.choice(polygons, size=2, replace=False)
         name1 = np.random.choice(set1) if type(set1) is list else set1
         names2 = [np.random.choice(set2)] if type(set2) is list else [set2]
-    shape1 = {'name': name1, 'kwargs': create_shape(name1, canvas, symmetries[0])}
-    shape2 = [{'name': n2, 'kwargs': create_shape(n2, canvas, symmetries[1])} for n2 in names2]
+    shape1 = {'name': name1, 'kwargs': polygon_bank.generate_polygons(name1, canvas, symmetries[0])}
+    shape2 = [{'name': name2, 'kwargs': polygon_bank.generate_polygons(
+        name2, canvas, symmetries[1])} for name2 in names2]
     return [shape1, *shape2]
 
 
@@ -205,7 +203,7 @@ class StimuliSettings:
         # 'spatial_pos', 'material'
         self.features_pool = {
             'symmetry': {
-                'pair': ['contrast', 'colour', 'texture', 'background'],
+                'pair': ['position', 'contrast', 'colour', 'texture', 'background'],
             },
             'rotation': {
                 'pair': ['contrast', 'colour', 'texture', 'background'],
@@ -214,19 +212,22 @@ class StimuliSettings:
                 'pair': ['contrast', 'colour', 'texture', 'background'],
             },
             'colour': {
-                'pair': ['contrast', 'shape', 'texture', 'background'],
+                'pair': ['position', 'contrast', 'shape', 'texture', 'background'],
             },
             'shape': {
-                'pair': ['contrast', 'colour', 'texture', 'background'],
+                'pair': ['position', 'contrast', 'colour', 'texture', 'background'],
             },
             'texture': {
-                'pair': ['contrast', 'colour', 'shape', 'background'],
+                'pair': ['position', 'contrast', 'colour', 'shape', 'background'],
             },
             'background': {
-                'pair': ['contrast', 'colour', 'shape', 'texture'],
+                'pair': ['position', 'contrast', 'colour', 'shape', 'texture'],
             },
             'contrast': {
-                'pair': ['background', 'colour', 'shape', 'texture'],
+                'pair': ['position', 'background', 'colour', 'shape', 'texture'],
+            },
+            'position': {
+                'pair': ['background', 'contrast', 'colour', 'shape', 'texture'],
             }
         }
 
@@ -248,6 +249,7 @@ class StimuliSettings:
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
         self.rotation = kwargs.get("rotation", 0)
+        self.position = kwargs.get("position", None)
         # if shape is the unique feature, we should make sure the symmetry is identical in all
         default_symmetry = _rnd_symmetry()[0] if self.unique_feature == 'shape' else "n/a"
         self.symmetry = kwargs.get("symmetry", default_symmetry)

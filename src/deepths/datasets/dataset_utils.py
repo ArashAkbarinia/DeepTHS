@@ -47,6 +47,12 @@ def random_place(fg_size, bg_size):
     return srow, scol
 
 
+def relative_place(fg_size, bg_size, pos):
+    srow = pos[0] * (bg_size[0] - fg_size[0])
+    scol = pos[1] * (bg_size[1] - fg_size[1])
+    return int(srow), int(scol)
+
+
 def centre_place(fg_size, bg_size):
     srow = (bg_size[0] - fg_size[0]) // 2
     scol = (bg_size[1] - fg_size[1]) // 2
