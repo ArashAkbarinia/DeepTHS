@@ -226,8 +226,8 @@ def cv2_filled_polygons(img, pts, color, thickness):
 
 def ovals(length, ref_pt, rotation=0, arc_start=0, arc_end=360):
     return {
-        'center': ref_pt, 'axes': [int(le) for le in length], 'angle': int(np.rad2deg(rotation)),
-        'arcStart': int(arc_start), 'arcEnd': int(arc_end), 'delta': 5
+        'center': ref_pt, 'axes': tuple([int(le) for le in length]), 'delta': 5,
+        'angle': int(np.rad2deg(rotation)), 'arcStart': int(arc_start), 'arcEnd': int(arc_end)
     }
 
 
