@@ -4,7 +4,6 @@ Generating different polygons and geometrical shapes.
 
 import numpy as np
 import random
-import sys
 
 import cv2
 

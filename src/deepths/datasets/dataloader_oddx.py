@@ -122,12 +122,14 @@ def _rnd_symmetry(*_args):
     return dataset_utils.shuffle([non_symmetrical, symmetrical])
 
 
-def _rnd_rotation(*_args, rot_angles=None):
-    if rot_angles is None:
-        rot_angles = [15, 30, 45, 60, 75, 90]
-    angle1 = dataset_utils.randint(0, 90)
+def _rnd_rotation(stimuli):
+    angle1 = dataset_utils.randint(3, 12)
+    if stimuli.shape['name'] in ['regular6']:
+        rot_angles = np.arange(15, 46, 15)
+    else:
+        rot_angles = np.arange(15, 76, 15)
     angle2 = angle1 + np.random.choice(rot_angles)
-    return [np.deg2rad(angle1), np.deg2rad(angle2)]
+    return dataset_utils.shuffle([np.deg2rad(angle1), np.deg2rad(angle2)])
 
 
 def _rnd_shape(stimuli):
@@ -242,7 +244,6 @@ class StimuliSettings:
 
         self.background = kwargs.get("background", None)
         self.contrast = kwargs.get("contrast", None)
-        self.shape = kwargs.get("shape", None)
         self.colour = kwargs.get("colour", None)
         self.texture = kwargs.get("texture", None)
         self.size = kwargs.get("size", 0)
@@ -250,6 +251,8 @@ class StimuliSettings:
         # if shape is the unique feature, we should make sure the symmetry is identical in all
         default_symmetry = _rnd_symmetry()[0] if self.unique_feature == 'shape' else "n/a"
         self.symmetry = kwargs.get("symmetry", default_symmetry)
+        default_shape = _rnd_shape(self)[0] if self.unique_feature == 'rotation' else None
+        self.shape = kwargs.get("shape", default_shape)
 
         self.fill_in_paired_settings()
 
