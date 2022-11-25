@@ -13,14 +13,32 @@ from . import dataset_utils, imutils
 SHAPES_OVAL = ['circle', 'ellipse', 'half_circle', 'half_ellipse']
 SHAPES_TRIANGLE = ['scalene', 'equilateral', 'isosceles']
 SHAPES_QUADRILATERAL = ['square', 'rectangle', 'parallelogram', 'rhombus', 'kite', 'quadri']
-SHAPES = [SHAPES_OVAL, SHAPES_TRIANGLE, SHAPES_QUADRILATERAL]
-SHAPES_ORIENTATION = [SHAPES_OVAL[1:], SHAPES_TRIANGLE, SHAPES_QUADRILATERAL]
-
-SHAPES_SYMMETRY_BOTH = ['circle', 'ellipse', 'square', 'rectangle']
-SHAPES_SYMMETRY_ONE = ['half_circle', 'half_ellipse', 'equilateral', 'isosceles', 'rhombus', 'kite']
-SHAPES_SYMMETRY_NONE = [
-    'half_circle', 'half_ellipse', 'scalene', 'equilateral', 'isosceles', 'quadri'
+SHAPES_HEXAGON = ['regular6']
+SHAPES_DODECAGON = ['cross']
+SHAPES = [
+    SHAPES_OVAL, SHAPES_TRIANGLE, SHAPES_QUADRILATERAL,
+    [*SHAPES_HEXAGON, *SHAPES_DODECAGON]
 ]
+SHAPES_ORIENTATION = [SHAPES_OVAL[1:], *SHAPES[1:]]
+
+SHAPES_SYMMETRY_BOTH = {
+    'oval': ['circle', 'ellipse'],
+    'quadrilateral': ['square', 'rectangle'],
+    'hexagon': ['regular6'],
+    'dodecagon': ['cross']
+}
+SHAPES_SYMMETRY_ONE = {
+    'oval': ['half_circle', 'half_ellipse'],
+    'triangle': ['equilateral', 'isosceles'],
+    'quadrilateral': ['kite'],
+    'dodecagon': ['cross']
+}
+SHAPES_SYMMETRY_NONE = {
+    'oval': ['half_circle', 'half_ellipse'],
+    'triangle': ['scalene', 'equilateral', 'isosceles'],
+    'quadrilateral': ['quadri', 'rhombus', 'parallelogram'],
+    'hexagon': ['regular6'],
+}
 SHAPES_SYMMETRY = {
     'both': SHAPES_SYMMETRY_BOTH,
     'h': SHAPES_SYMMETRY_ONE,
@@ -130,11 +148,65 @@ def generate_triangles(polygon, canvas, symmetry):
         return list(pts)
 
 
+def generate_hexagons(polygon, canvas, symmetry):
+    # TODO: only regular6 is supported
+    length = min(canvas[0], canvas[1])
+    centre = ref_point(length, canvas)
+    radius = length / 2
+    radius = (radius, radius)
+    half_radius = [r / 2 for r in radius]
+    signs = dataset_utils.shuffle([-1, 1])
+    # both symmetrical
+    pt1 = (centre[0], centre[1] + signs[0] * radius[1])
+    pt2 = (centre[0] - np.sqrt(3) * half_radius[0], centre[1] - signs[1] * half_radius[1])
+    pt3 = (centre[0] - np.sqrt(3) * half_radius[0], centre[1] + signs[1] * half_radius[1])
+    pt4 = (centre[0], centre[1] - signs[0] * radius[1])
+    pt5 = (centre[0] + np.sqrt(3) * half_radius[0], centre[1] + signs[1] * half_radius[1])
+    pt6 = (centre[0] + np.sqrt(3) * half_radius[0], centre[1] - signs[1] * half_radius[1])
+    pts = np.array([pt1, pt2, pt3, pt4, pt5, pt6])
+    if symmetry == 'none':
+        pts = rotate2d(pts, centre, np.deg2rad(np.random.randint(15, 46)))
+    return list(pts)
+
+
+def generate_dodecagons(polygon, canvas, symmetry):
+    # TODO: only cross is supported
+    if symmetry == 'h':
+        sx = canvas[1] * random.uniform(0.8, 0.9)
+        sy = min(sx * random.uniform(0.5, 0.6), canvas[0])
+        mx = dataset_utils.shuffle([0.2, 0.3, 0.5])
+        my = [1 / 3] * 3
+    elif symmetry == 'v':
+        sy = canvas[0] * random.uniform(0.8, 0.9)
+        sx = min(sy * random.uniform(0.5, 0.6), canvas[1])
+        mx = [1 / 3] * 3
+        my = dataset_utils.shuffle([0.2, 0.3, 0.5])
+    else:  # both, seperate none from it
+        sx = min(canvas[0], canvas[1]) * random.uniform(0.8, 0.9)
+        sy = sx
+        mx = [1 / 3] * 3
+        my = mx
+    dx, dy = canvas[1] - sx - 2, canvas[0] - sy - 2
+    rx, ry = dataset_utils.randint(0, dx), dataset_utils.randint(0, dy)
+    pts = [(rx + mx[0] * sx, ry)]
+    lengths = [
+        (mx[1], 0), (0, my[0]), (mx[2], 0), (0, my[1]), (-mx[2], 0), (0, my[2]),
+        (-mx[1], 0), (0, -my[2]), (-mx[0], 0), (0, -my[1]), (mx[0], 0)
+    ]
+    for i in range(11):
+        pts.append((pts[i][0] + lengths[i][0] * sx, pts[i][1] + lengths[i][1] * sy))
+    return pts
+
+
 def generate_polygons(polygon, canvas, symmetry):
-    if polygon in SHAPES_QUADRILATERAL:
-        pts = generate_quadrilaterals(polygon, canvas, symmetry)
-    else:
+    if polygon in SHAPES_TRIANGLE:
         pts = generate_triangles(polygon, canvas, symmetry)
+    elif polygon in SHAPES_QUADRILATERAL:
+        pts = generate_quadrilaterals(polygon, canvas, symmetry)
+    elif polygon in SHAPES_HEXAGON:
+        pts = generate_hexagons(polygon, canvas, symmetry)
+    else:
+        pts = generate_dodecagons(polygon, canvas, symmetry)
     return pts
 
 

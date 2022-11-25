@@ -131,37 +131,36 @@ def _rnd_rotation(*_args, rot_angles=None):
 
 
 def _rnd_shape(stimuli):
-    if stimuli.unique_feature == 'symmetry':
+    unique_feature, canvas = stimuli.unique_feature, stimuli.canvas
+    if unique_feature == 'symmetry':
         symmetries = stimuli.__getattribute__('rnd_symmetry')
-        polygons = [
-            polygon_bank.SHAPES_SYMMETRY[symmetries[0]], polygon_bank.SHAPES_SYMMETRY[symmetries[1]]
-        ]
+        set1, set2 = [list(polygon_bank.SHAPES_SYMMETRY[sym].keys()) for sym in symmetries]
+        poly1 = np.random.choice(set1)
+        name1 = np.random.choice(polygon_bank.SHAPES_SYMMETRY[symmetries[0]][poly1])
+        if poly1 in set2:  # only one shape from a family to avoid ambiguity of shape-uniqueness
+            set2.remove(poly1)
+        polys2 = np.random.choice(set2, size=stimuli.num_commons, replace=False)
+        names2 = [
+            np.random.choice(polygon_bank.SHAPES_SYMMETRY[symmetries[1]][poly]) for poly in polys2]
     else:
         symmetries = (stimuli.symmetry, stimuli.symmetry)
         if stimuli.symmetry == 'n/a':
-            if stimuli.unique_feature == 'rotation':
+            if unique_feature == 'rotation':
                 polygons = polygon_bank.SHAPES_ORIENTATION
             else:
                 polygons = polygon_bank.SHAPES
         else:
             polygons = polygon_bank.SHAPES_SYMMETRY[stimuli.symmetry]
-    polygons = np.array(polygons, dtype=object)
-    if len(polygons.shape) > 1:
-        s1, s2 = np.random.choice(np.arange(polygons.shape[0]), size=2, replace=False)
-        set1, set2 = list(polygons[s1]), list(polygons[s2])
-    else:
-        set1, set2 = np.random.choice(polygons, size=2, replace=False)
-    shape1_name = np.random.choice(set1) if type(set1) is list else set1
-    shape1 = {'name': shape1_name, 'kwargs': create_shape(
-        shape1_name, stimuli.canvas, symmetries[0])}
-    if stimuli.unique_feature == 'symmetry':
-        shape2_names = np.random.choice(set2, size=3, replace=False)
-    else:
-        shape2_names = [np.random.choice(set2)] if type(set2) is list else [set2]
-    shape2 = []
-    for shape2_name in shape2_names:
-        shape2.append({'name': shape2_name, 'kwargs': create_shape(
-            shape2_name, stimuli.canvas, symmetries[1])})
+        polygons = np.array(polygons, dtype=object)
+        if len(polygons.shape) > 1:
+            s1, s2 = np.random.choice(np.arange(polygons.shape[0]), size=2, replace=False)
+            set1, set2 = list(polygons[s1]), list(polygons[s2])
+        else:
+            set1, set2 = np.random.choice(polygons, size=2, replace=False)
+        name1 = np.random.choice(set1) if type(set1) is list else set1
+        names2 = [np.random.choice(set2)] if type(set2) is list else [set2]
+    shape1 = {'name': name1, 'kwargs': create_shape(name1, canvas, symmetries[0])}
+    shape2 = [{'name': n2, 'kwargs': create_shape(n2, canvas, symmetries[1])} for n2 in names2]
     return [shape1, *shape2]
 
 
@@ -272,7 +271,7 @@ class StimuliSettings:
         unique_attr = self.unique_feature
         self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
         for attr in self.exclusive_attrs:
-            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[item])
+            self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[item + 1])
         for i, attr in enumerate(self.paired_attrs):
             ind = 0 if (i % self.num_commons) == item else 1
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[ind])
