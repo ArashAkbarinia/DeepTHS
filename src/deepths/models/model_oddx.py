@@ -34,7 +34,8 @@ class OddOneOut(readout.ClassifierNet):
         y = self.odd_fc(torch.cat([x0, x1, x2, x3], dim=1))
         return torch.cat([comp0, comp1, comp2, comp3], dim=1), y
 
-    def loss_function(self, output, target):
+    @staticmethod
+    def loss_function(output, target):
         out_odd_ind, out_odd_class = output
         target_odd_ind, target_odd_class = target
         loss_odd_ind = 0
@@ -57,7 +58,8 @@ class OddOneOutSingle(readout.ClassifierNet):
         odd_class = self.odd_fc(x)
         return odd_ind, odd_class
 
-    def loss_function(self, output, target):
+    @staticmethod
+    def loss_function(output, target):
         out_odd_ind, out_odd_class = output
         target_odd_ind, target_odd_class = target
         loss_odd_ind = t_functional.cross_entropy(out_odd_ind, target_odd_ind)
