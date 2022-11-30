@@ -82,8 +82,7 @@ def crop_fg_from_bg(bg, fg_size, srow, scol):
 
 def cv2_loader(path):
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB) if len(img.shape) > 2 else img
 
 
 def rgb2opp_funs(colour_space):
