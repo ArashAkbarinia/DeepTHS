@@ -200,7 +200,6 @@ def _rnd_background(stimuli):
 class StimuliSettings:
 
     def __init__(self, fg, canvas, bg_loader, features=None, **kwargs):
-        # 'spatial_pos', 'material'
         self.features_pool = {
             'symmetry': {
                 'pair': ['position', 'contrast', 'colour', 'texture', 'background'],

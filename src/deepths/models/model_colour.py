@@ -17,6 +17,7 @@ def colour_discrimination_net(args):
 
 
 class ColourDiscriminationOddOneOut(readout.ClassifierNet):
+
     def __init__(self, classifier_kwargs, readout_kwargs):
         super(ColourDiscriminationOddOneOut, self).__init__(
             3, 1, **classifier_kwargs, **readout_kwargs
@@ -35,7 +36,8 @@ class ColourDiscriminationOddOneOut(readout.ClassifierNet):
 
         return torch.cat([comp0, comp1, comp2, comp3], dim=1)
 
-    def loss_function(self, output, target):
+    @staticmethod
+    def loss_function(output, target):
         loss = 0
         for i in range(4):
             loss += t_functional.binary_cross_entropy_with_logits(output[:, i], target[:, i])
@@ -43,15 +45,15 @@ class ColourDiscriminationOddOneOut(readout.ClassifierNet):
 
 
 class ColourDiscrimination2AFC(readout.ClassifierNet):
+
     def __init__(self, classifier_kwargs, readout_kwargs):
         super(ColourDiscrimination2AFC, self).__init__(1, 1, **classifier_kwargs, **readout_kwargs)
 
     def forward(self, x0, x1):
         x0 = self.do_features(x0)
         x1 = self.do_features(x1)
-        x = torch.abs(x0 - x1)
-        return self.do_classifier(x)
+        return self.do_classifier(torch.abs(x0 - x1))
 
-    def loss_function(self, output, target):
-        loss = t_functional.binary_cross_entropy_with_logits(output, target)
-        return loss
+    @staticmethod
+    def loss_function(output, target):
+        return t_functional.binary_cross_entropy_with_logits(output, target)

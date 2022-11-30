@@ -197,7 +197,7 @@ def _accuracy_test_points(args, model):
         for pt_ind in range(0, len(qval['ext'])):
             acc = _accuracy_test_point(args, model, qname, pt_ind)
             tosave.append([acc, *qval['ext'][pt_ind], qval['chns'][pt_ind]])
-        output_file = os.path.join(args.output_dir, 'accuracy_%s.csv' % (qname))
+        output_file = os.path.join(args.output_dir, 'accuracy_%s.csv' % qname)
         chns_name = qval['space']
         header = 'acc,%s,%s,%s,chn' % (chns_name[0], chns_name[1], chns_name[2])
         np.savetxt(output_file, np.array(tosave), delimiter=',', fmt='%s', header=header)
