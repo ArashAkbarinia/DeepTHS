@@ -68,7 +68,8 @@ def _main_worker(args):
 
 def _make_test_loader(args, test_colour, ref_colours):
     kwargs = {'test_colour': test_colour, 'ref_colours': ref_colours, 'background': args.background}
-    db = dataloader_colour.val_set(args.validation_dir, args.target_size, args.preprocess, **kwargs)
+    db = dataloader_colour.categorisation_odd4(
+        args.validation_dir, args.target_size, args.preprocess, **kwargs)
 
     return torch.utils.data.DataLoader(
         db, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True
