@@ -7,7 +7,7 @@ import random
 
 from skimage import io
 
-from .binary_shapes import ShapeMultipleOut, ShapeTrain
+from .binary_shapes import ShapeMultipleOut, ShapeTrain, ShapeCatOdd4
 from . import dataset_utils
 
 
@@ -116,7 +116,6 @@ class Shape2AFCTrain(ShapeTrain):
             others_colour = _get_others_colour(target_colour)
 
         imgs = self._mul_train_imgs(masks, others_colour, target_colour)
-
         return imgs[0], imgs[1], target
 
 
@@ -152,3 +151,8 @@ def val_set(root, target_size, preprocess, task, **kwargs):
     db_fun = ShapeOddOneOutVal if task == 'odd4' else Shape2AFCVal
     transform = dataset_utils.eval_preprocess(target_size, preprocess)
     return db_fun(root, transform, **kwargs)
+
+
+def categorisation_odd4(root, target_size, preprocess, **kwargs):
+    transform = dataset_utils.eval_preprocess(target_size, preprocess)
+    return ShapeCatOdd4(root, transform, **kwargs)

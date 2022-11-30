@@ -129,3 +129,31 @@ class ShapeSingleOut(ShapeDataset):
 
     def __len__(self):
         return len(self.stimuli)
+
+
+class ShapeCatOdd4(ShapeDataset):
+
+    def __init__(self, root, test_colour, ref_colours, transform=None, **kwargs):
+        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        if self.bg is None:
+            self.bg = 128
+        self.stimuli = sorted(system_utils.image_in_folder(self.imgdir))
+        self.test_colour = test_colour
+        self.ref_colours = ref_colours
+
+    def __getitem__(self, item):
+        mask = dataset_utils.cv2_loader(self.stimuli[item])
+
+        img0 = self._one_out_img(mask, self.ref_colours[0].squeeze(), dataset_utils.centre_place)
+        img_test = self._one_out_img(mask, self.test_colour.squeeze(), dataset_utils.centre_place)
+        img1 = self._one_out_img(mask, self.ref_colours[1].squeeze(), dataset_utils.centre_place)
+        imgs = [img0, img_test, img_test, img1]
+
+        if self.transform is not None:
+            imgs = self.transform(imgs)
+        # target is irrelevant here
+        target = 0
+        return *imgs, target
+
+    def __len__(self):
+        return len(self.stimuli)
