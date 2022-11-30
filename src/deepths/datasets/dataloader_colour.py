@@ -155,4 +155,4 @@ def val_set(root, target_size, preprocess, task, **kwargs):
 
 def categorisation_odd4(root, target_size, preprocess, **kwargs):
     transform = dataset_utils.eval_preprocess(target_size, preprocess)
-    return ShapeCatOdd4(root, transform, **kwargs)
+    return ShapeCatOdd4(root, transform=transform, **kwargs)
