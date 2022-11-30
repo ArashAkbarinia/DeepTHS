@@ -87,7 +87,7 @@ def _predict_i(args, model, colour_ind):
     tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
     args.tb_writers = {'test': SummaryWriter(os.path.join(tb_dir, '%.3d' % colour_ind))}
 
-    test_colour = args.test_colorus[colour_ind]
+    test_colour = args.test_colours[colour_ind]
     all_results = []
     header = ''
     for ref_ind1 in range(args.focal_colours.shape[0] - 1):
