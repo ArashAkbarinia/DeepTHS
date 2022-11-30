@@ -62,8 +62,7 @@ class ShapeOddOneOutTrain(ShapeTrain):
 
         imgs = self._mul_train_imgs(masks, others_colour, target_colour)
 
-        inds = list(np.arange(0, self.num_stimuli))
-        random.shuffle(inds)
+        inds = dataset_utils.shuffle(list(np.arange(0, self.num_stimuli)))
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         return imgs[inds[0]], imgs[inds[1]], imgs[inds[2]], imgs[inds[3]], target

@@ -3,6 +3,8 @@ PyTorch scripts to train/test colour discrimination.
 """
 
 import os
+import sys
+
 import numpy as np
 import time
 
@@ -77,7 +79,7 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
 
-    common_routines.do_epochs(args, _train_val, train_loader, val_loader, model)
+    common_routines.do_epochs(args, train_val, train_loader, val_loader, model)
 
 
 def _organise_test_points(test_pts):
@@ -99,6 +101,8 @@ def _organise_test_points(test_pts):
                 ffun = colour_spaces.identity
                 bfun = colour_spaces.identity
                 chns_name = ['R', 'G', 'B']
+            else:
+                sys.exit('Unsupported colour space %s' % test_pt[-1])
             out_test_pts[test_pt_name] = {
                 'ref': pt_val, 'ffun': ffun, 'bfun': bfun, 'space': chns_name, 'ext': [], 'chns': []
             }
@@ -108,7 +112,7 @@ def _organise_test_points(test_pts):
     return out_test_pts
 
 
-def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
+def train_val(db_loader, model, optimizer, epoch, args, print_test=True):
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
     criterion = ep_helper.model.loss_function
 
@@ -224,7 +228,7 @@ def _accuracy_test_point(args, model, qname, pt_ind):
     target_colour = qval['ffun'](high)
     db_loader = _make_test_loader(args, target_colour, others_colour)
 
-    _, accuracy = _train_val(db_loader, model, None, -1, args, print_test=False)
+    _, accuracy = train_val(db_loader, model, None, -1, args, print_test=False)
     print(qname, pt_ind, accuracy, low.squeeze(), high.squeeze())
     return accuracy
 
@@ -258,7 +262,7 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         target_colour = qval['ffun'](mid)
         db_loader = _make_test_loader(args, target_colour, others_colour)
 
-        _, accuracy = _train_val(db_loader, model, None, -1 - attempt_i, args, print_test=False)
+        _, accuracy = train_val(db_loader, model, None, -1 - attempt_i, args, print_test=False)
         print(qname, pt_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
 
         all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))
