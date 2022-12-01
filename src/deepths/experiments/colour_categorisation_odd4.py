@@ -77,6 +77,7 @@ def _make_test_loader(args, test_colour, ref_colours):
 
 
 def _predict_i(args, model, colour_ind):
+    print('Doing colour %.3d' % colour_ind)
     bg_suffix = '_%.3d' % args.background
     res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
     output_file = os.path.join(res_out_dir, 'prediction_%.3d.csv' % colour_ind)
@@ -89,17 +90,20 @@ def _predict_i(args, model, colour_ind):
     test_colour = args.test_colours[colour_ind]
     all_results = []
     header = ''
+    tb_ind = 1
     for ref_ind1 in range(args.focal_colours.shape[0] - 1):
         for ref_ind2 in range(ref_ind1 + 1, args.focal_colours.shape[0]):
             ref_colours = [args.focal_colours[ref_ind1], args.focal_colours[ref_ind2]]
             db_loader = _make_test_loader(args, test_colour, ref_colours)
-            prediction1, _ = train_val(db_loader, model, None, -1, args, print_test=False)
-            all_results.append(prediction1)
+            prediction1, _ = train_val(db_loader, model, None, -tb_ind, args, print_test=False)
+            all_results.append(prediction1[:, :4].argmax(axis=1))
+            tb_ind += 1
 
             ref_colours = [args.focal_colours[ref_ind2], args.focal_colours[ref_ind1]]
             db_loader = _make_test_loader(args, test_colour, ref_colours)
-            prediction2, _ = train_val(db_loader, model, None, -1, args, print_test=False)
-            all_results.append(prediction2)
+            prediction2, _ = train_val(db_loader, model, None, -tb_ind, args, print_test=False)
+            all_results.append(prediction2[:, :4].argmax(axis=1))
+            tb_ind += 1
             header = '%s,r1%dr2%d,r1%dr2%d' % (header, ref_ind1, ref_ind2, ref_ind2, ref_ind1)
 
-    np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
+    np.savetxt(output_file, np.array(all_results).T, delimiter=',', fmt='%f', header=header)
