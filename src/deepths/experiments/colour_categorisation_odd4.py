@@ -23,7 +23,12 @@ def extra_args_fun(parser):
         '--focal_file',
         type=str,
         required=True,
-        help='The path to the focal colours'
+        help='The path to the focal colours.'
+    )
+    specific_group.add_argument(
+        '--test_inds',
+        type=None,
+        help='Which indices from test file to be tested.'
     )
 
 
@@ -61,7 +66,11 @@ def _main_worker(args):
 
     args.background = 128 if args.background is None else int(args.background)
 
-    for colour_ind in range(args.test_colours.shape[0]):
+    if args.test_inds is not None:
+        test_inds = np.loadtxt(args.test_inds, dtype='int')
+    else:
+        test_inds = np.arange(args.test_colours.shape[0])
+    for colour_ind in test_inds:
         _predict_i(args, model, colour_ind)
     return
 
