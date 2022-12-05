@@ -46,9 +46,14 @@ class ReadOutNet(BackboneNet):
     def __init__(self, architecture, target_size, transfer_weights):
         super(ReadOutNet, self).__init__(architecture, transfer_weights[0])
 
-        self.backbone, self.out_dim = pretraineds.model_features(
-            self.backbone, architecture, transfer_weights[1], target_size
-        )
+        if len(transfer_weights) == 2:
+            self.backbone, self.out_dim = pretraineds.model_features(
+                self.backbone, architecture, transfer_weights[1], target_size
+            )
+        else:
+            self.act_dict, self.out_dim = pretraineds.mix_features(
+                self.backbone, architecture, transfer_weights[1:], target_size
+            )
 
 
 class FeatureExtractor(ReadOutNet):

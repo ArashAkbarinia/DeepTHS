@@ -235,3 +235,12 @@ def model_features(model, architecture, layer, target_size):
     else:
         sys.exit('Unsupported network %s' % architecture)
     return features, out_dim
+
+
+def mix_features(model, architecture, layers, target_size):
+    act_dict, _ = model_utils.register_model_hooks(model, architecture, layers[1:])
+    out_dims = []
+    for layer in layers:
+        _, out_dim = model_features(model, architecture, layer, target_size)
+        out_dims.append(out_dims)
+    return act_dict, out_dims
