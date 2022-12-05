@@ -36,14 +36,13 @@ class OddOneOut(readout.ClassifierNet):
 
     @staticmethod
     def loss_function(output, target):
-        out_odd_ind, out_odd_class = output
-        target_odd_ind, target_odd_class = target
+        o_ind, o_class = output
+        t_ind, t_class = target
         loss_odd_ind = 0
         for i in range(4):
-            loss_odd_ind += t_functional.binary_cross_entropy_with_logits(
-                out_odd_ind[:, i], target_odd_ind[:, i])
-        loss_odd_ind = loss_odd_ind / (4 * out_odd_ind.shape[0])
-        loss_odd_class = t_functional.cross_entropy(out_odd_class, target_odd_class)
+            loss_odd_ind += t_functional.binary_cross_entropy_with_logits(o_ind[:, i], t_ind[:, i])
+        loss_odd_ind = loss_odd_ind / (4 * o_ind.shape[0])
+        loss_odd_class = t_functional.cross_entropy(o_class, t_class)
         return loss_odd_ind, loss_odd_class
 
 

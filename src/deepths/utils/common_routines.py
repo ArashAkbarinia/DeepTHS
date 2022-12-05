@@ -3,6 +3,8 @@
 """
 
 import os
+import sys
+
 import numpy as np
 import collections
 
@@ -75,7 +77,7 @@ def prepare_starting(args, task_folder):
         args.print_freq = np.inf
 
     # preparing the output folder
-    layer = args.transfer_weights[1]
+    layer = args.transfer_weights[1] if len(args.transfer_weights) == 2 else 'mix'
     args.output_dir = '%s/%s/%s/%s/%s/%s/' % (
         args.output_dir, task_folder, args.dataset, args.architecture, args.experiment_name, layer
     )
@@ -236,6 +238,8 @@ class EpochHelper:
                 clf = svm.LinearSVC(max_iter=max_iter)
             elif self.classifier == 'svm':
                 clf = svm.SVC(max_iter=max_iter)
+            else:
+                sys.exit('Unsupported type of linear classifier %s' % self.classifier)
             clf.fit(all_xs, all_ys)
             system_utils.write_pickle(pickle_path, clf)
         else:

@@ -34,8 +34,7 @@ class BackboneNet(nn.Module):
 
     def extract_features_flatten(self, x):
         x = self.extract_features(x)
-        x = torch.flatten(x, start_dim=1)
-        return x
+        return torch.flatten(x, start_dim=1)
 
 
 class ActivationLoader(BackboneNet):
