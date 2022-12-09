@@ -24,7 +24,6 @@ class ViTLayers(nn.Module):
         self.parent_model = parent_model
         block = block + 1
         self.parent_model.encoder.layers = self.parent_model.encoder.layers[:block]
-        del self.parent_model.heads
 
     def forward(self, x):
         # Reshape and permute the input tensor
@@ -238,9 +237,9 @@ def model_features(model, architecture, layer, target_size):
 
 
 def mix_features(model, architecture, layers, target_size):
-    act_dict, _ = model_utils.register_model_hooks(model, architecture, layers[1:])
+    act_dict, _ = model_utils.register_model_hooks(model, architecture, layers)
     out_dims = []
     for layer in layers:
         _, out_dim = model_features(model, architecture, layer, target_size)
-        out_dims.append(out_dims)
+        out_dims.append(out_dim)
     return act_dict, out_dims

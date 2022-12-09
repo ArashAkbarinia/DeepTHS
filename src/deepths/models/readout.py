@@ -43,7 +43,7 @@ class ActivationLoader(BackboneNet):
 
 
 class ReadOutNet(BackboneNet):
-    def __init__(self, architecture, target_size, transfer_weights):
+    def __init__(self, architecture, target_size, transfer_weights, pooling=None):
         super(ReadOutNet, self).__init__(architecture, transfer_weights[0])
 
         if len(transfer_weights) == 2:
@@ -54,6 +54,40 @@ class ReadOutNet(BackboneNet):
             self.act_dict, self.out_dim = pretraineds.mix_features(
                 self.backbone, architecture, transfer_weights[1:], target_size
             )
+
+        if pooling is None:
+            self.pool = None
+        else:
+            pool_size = pooling.split('_')[1:]
+            pool_size = (int(pool_size[0]), int(pool_size[1]))
+
+            if 'avg' in pooling:
+                self.pool = nn.AdaptiveAvgPool2d(pool_size)
+            elif 'max' in pooling:
+                self.pool = nn.AdaptiveMaxPool2d(pool_size)
+            else:
+                sys.exit('Pooling %s not supported!' % pooling)
+
+            if hasattr(self, 'act_dict'):
+                pass
+            else:
+                if len(self.out_dim) < 3:
+                    self.pool = None
+                else:
+                    self.out_dim = (self.out_dim[0], *pool_size)
+
+    def extract_features(self, x):
+        x = super(ReadOutNet, self).extract_features(x)
+        if hasattr(self, 'act_dict'):
+            xs = []
+            for val in self.act_dict.values():
+                if len(val.shape) == 4:
+                    val = self.pool(val)
+                xs.append(torch.flatten(val, start_dim=1))
+            x = torch.cat(xs, dim=1)
+        else:
+            x = x if self.pool is None else self.pool(x)
+        return x
 
 
 class FeatureExtractor(ReadOutNet):
@@ -67,22 +101,10 @@ class FeatureExtractor(ReadOutNet):
 
 
 class ClassifierNet(ReadOutNet):
-    def __init__(self, input_nodes, num_classes, classifier, pooling=None, **kwargs):
+    def __init__(self, input_nodes, num_classes, classifier, **kwargs):
         super(ClassifierNet, self).__init__(**kwargs)
 
         self.input_nodes = input_nodes
-        if pooling is not None and len(self.out_dim) == 3:
-            pool_size = pooling.split('_')[1:]
-            pool_size = (int(pool_size[0]), int(pool_size[1]))
-            self.out_dim = (self.out_dim[0], *pool_size)
-            if 'avg' in pooling:
-                self.pool = nn.AdaptiveAvgPool2d(pool_size)
-            elif 'max' in pooling:
-                self.pool = nn.AdaptiveMaxPool2d(pool_size)
-            else:
-                sys.exit('Pooling %s not supported!' % pooling)
-        else:
-            self.pool = None
 
         self.feature_units = np.prod(self.out_dim)
         if classifier == 'nn':
@@ -92,7 +114,6 @@ class ClassifierNet(ReadOutNet):
 
     def do_features(self, x):
         x = self.extract_features(x)
-        x = x if self.pool is None else self.pool(x)
         return torch.flatten(x, start_dim=1)
 
     def do_classifier(self, x):
@@ -108,11 +129,8 @@ def load_model(net_class, weights, target_size):
     pooling = checkpoint['net']['pooling'] if hasattr(checkpoint, 'net') else None
     extra_params = checkpoint['net']['extra'] if hasattr(checkpoint, 'net') else []
 
-    readout_kwargs = _readout_kwargs(architecture, target_size, transfer_weights)
-    classifier_kwargs = {
-        'classifier': classifier,
-        'pooling': pooling
-    }
+    readout_kwargs = _readout_kwargs(architecture, target_size, transfer_weights, pooling)
+    classifier_kwargs = {'classifier': classifier}
     model = net_class(*extra_params, classifier_kwargs, readout_kwargs)
     model.load_state_dict(checkpoint['state_dict'], strict=False)
     return model
@@ -122,17 +140,17 @@ def make_model(net_class, args, *extra_params):
     if args.test_net:
         return load_model(net_class, args.test_net, args.target_size)
     else:
-        readout_kwargs = _readout_kwargs(args.architecture, args.target_size, args.transfer_weights)
-        classifier_kwargs = {
-            'classifier': args.classifier,
-            'pooling': args.pooling
-        }
+        readout_kwargs = _readout_kwargs(
+            args.architecture, args.target_size, args.transfer_weights, args.pooling
+        )
+        classifier_kwargs = {'classifier': args.classifier}
         return net_class(*extra_params, classifier_kwargs, readout_kwargs)
 
 
-def _readout_kwargs(architecture, target_size, transfer_weights):
+def _readout_kwargs(architecture, target_size, transfer_weights, pooling):
     return {
         'architecture': architecture,
         'target_size': target_size,
-        'transfer_weights': transfer_weights
+        'transfer_weights': transfer_weights,
+        'pooling': pooling
     }
