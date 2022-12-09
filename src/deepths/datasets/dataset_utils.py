@@ -16,6 +16,17 @@ from . import cv2_transforms
 from ..utils import colour_spaces
 
 
+def unique_colours(num):
+    colours = [[random.randint(0, 255) for _ in range(3)]]
+    for i in range(num - 1):
+        while True:
+            colour = [random.randint(0, 255) for _ in range(3)]
+            if colour not in colours:
+                colours.append(colour)
+                break
+    return colours
+
+
 def randint(low, high):
     low, high = int(low), int(high)
     return low if low >= high else np.random.randint(low, high)

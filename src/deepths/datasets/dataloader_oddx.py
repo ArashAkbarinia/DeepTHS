@@ -173,11 +173,7 @@ def _rnd_texture(*_args):
 
 
 def _rnd_colour(*_args):
-    colour1 = [random.randint(0, 255) for _ in range(3)]
-    while True:
-        colour2 = [random.randint(0, 255) for _ in range(3)]
-        if colour1 != colour2:
-            return [colour1, colour2]
+    return dataset_utils.unique_colours(2)
 
 
 def _rnd_contrast(*_args):
