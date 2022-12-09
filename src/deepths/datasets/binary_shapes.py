@@ -29,7 +29,7 @@ class ShapeDataset(torch_data.Dataset):
         self.imgdir = '%s/imgs/' % self.root
         self.bg = background
         if self.bg is not None and os.path.isdir(self.bg):
-            self.bg = dataset_utils.ItemPathFolder(self.bg, loader=dataset_utils.cv2_loader)
+            self.bg = dataset_utils.ItemPathFolder(self.bg)
 
     def _unique_bg(self, exclude):
         if self.bg == 'uniform_achromatic':

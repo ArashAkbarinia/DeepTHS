@@ -75,7 +75,8 @@ def background_img(bg_type, bg_size, num_chns=3):
         elif bg_type == 'uniform_colour':
             bg_img = uniform_img(bg_size, num_chns, random_colour())
         elif os.path.exists(bg_type):
-            bg_img = cv2.resize(cv2_loader(bg_type), bg_size, interpolation=cv2.INTER_NEAREST)
+            bg_img = cv2_loader(bg_type, num_chns)
+            bg_img = cv2.resize(bg_img, bg_size, interpolation=cv2.INTER_NEAREST)
         elif bg_type == 'rnd_img':
             bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
         elif 'patch_colour_' in bg_type:
@@ -131,9 +132,13 @@ def crop_fg_from_bg(bg, fg_size, srow, scol):
     return bg[srow:erow, scol:ecol].copy()
 
 
-def cv2_loader(path):
+def cv2_loader(path, num_chns=None):
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB) if len(img.shape) > 2 else img
+    if len(img.shape) > 2:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    elif num_chns is not None:
+        img = np.repeat(img[:, :, np.newaxis], num_chns, axis=2)
+    return img
 
 
 def rgb2opp_funs(colour_space):
