@@ -358,7 +358,7 @@ class BinaryShapes(AfcDataset, ShapeTrain):
         path = self.img_paths[index]
         mask_img = io.imread(path)
         target_colour = self._get_target_colour()
-        img0 = self._one_train_img_uint8(mask_img, target_colour)
+        img0 = self._one_train_img_uint8(mask_img, target_colour, self.bg)
 
         img_out, contrast_target, img_settings = _prepare_stimuli(
             img0, self.colour_space, self.vision_type, self.contrasts, self.mask_image,

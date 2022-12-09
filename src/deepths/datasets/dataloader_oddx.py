@@ -63,7 +63,7 @@ def _make_common_imgs(stimuli, num_imgs):
 def _fg_img(fg_type, bg_img, fg_size):
     if fg_type is None:
         fg_img = bg_img.copy()
-    elif fg_type in ['rnd_img', 'rnd_uniform'] or type(fg_type) == int:
+    elif fg_type in ['rnd_img', 'uniform_achromatic'] or type(fg_type) == int:
         fg_img = dataset_utils.background_img(fg_type, fg_size)
         fg_img = (fg_img * 255).astype('uint8')
     else:
@@ -73,7 +73,7 @@ def _fg_img(fg_type, bg_img, fg_size):
 
 def _random_canvas(img_size, fg_paths, fg_scale):
     fg_type = np.random.choice(fg_paths)
-    if fg_type == 'rnd_uniform':
+    if fg_type == 'uniform_achromatic':
         fg_type = (dataset_utils.randint(0, 256), np.random.uniform(0.5))
 
     # creating a random size for the canvas image
@@ -289,7 +289,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
         self.features = kwargs['features'] if 'features' in kwargs else None
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
-        self.fg_paths = [*self.fg_paths, None, 'rnd_uniform']  # 'rnd_img'
+        self.fg_paths = [*self.fg_paths, None, 'uniform_achromatic']  # 'rnd_img'
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):

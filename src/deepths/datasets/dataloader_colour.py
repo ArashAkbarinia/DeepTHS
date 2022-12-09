@@ -38,7 +38,7 @@ class ShapeVal(ShapeMultipleOut):
     def _prepare_test_imgs(self, masks):
         others_colour = self.others_colour.squeeze()
         target_colour = self.target_colour.squeeze()
-        imgs = self._mul_out_imgs(masks, others_colour, target_colour, 'centre')
+        imgs = self._mul_out_imgs(masks, others_colour, target_colour, self.bg, 'centre')
         return imgs
 
     def __len__(self):
@@ -59,8 +59,8 @@ class ShapeOddOneOutTrain(ShapeTrain):
         # set the colours
         target_colour = self._get_target_colour()
         others_colour = _get_others_colour(target_colour)
-
-        imgs = self._mul_train_imgs(masks, others_colour, target_colour)
+        bg = self._unique_bg([target_colour, others_colour])
+        imgs = self._mul_train_imgs(masks, others_colour, target_colour, bg)
 
         inds = dataset_utils.shuffle(list(np.arange(0, self.num_stimuli)))
         # the target is always added the first element in the imgs list
@@ -114,8 +114,8 @@ class Shape2AFCTrain(ShapeTrain):
         else:
             target = 0
             others_colour = _get_others_colour(target_colour)
-
-        imgs = self._mul_train_imgs(masks, others_colour, target_colour)
+        bg = self._unique_bg([target_colour, others_colour])
+        imgs = self._mul_train_imgs(masks, others_colour, target_colour, bg)
         return imgs[0], imgs[1], target
 
 

@@ -16,12 +16,18 @@ from . import cv2_transforms
 from ..utils import colour_spaces
 
 
-def unique_colours(num):
-    colours = [[random.randint(0, 255) for _ in range(3)]]
-    for i in range(num - 1):
+def random_colour(chns=3):
+    return [random.randint(0, 255) for _ in range(chns)]
+
+
+def unique_colours(num, exclude=None, chns=3):
+    if exclude is None:
+        exclude = []
+    colours = []
+    for i in range(num):
         while True:
-            colour = [random.randint(0, 255) for _ in range(3)]
-            if colour not in colours:
+            colour = random_colour(chns=chns)
+            if colour not in colours and colour not in exclude:
                 colours.append(colour)
                 break
     return colours
@@ -39,17 +45,20 @@ def shuffle(arr):
 
 def background_img(bg_type, bg_size, num_chns=3):
     if type(bg_type) == str and os.path.exists(bg_type):
-        bg_img = cv2_loader(bg_type)
-        bg_img = cv2.resize(bg_img, bg_size, interpolation=cv2.INTER_NEAREST)
+        bg_img = cv2.resize(cv2_loader(bg_type), bg_size, interpolation=cv2.INTER_NEAREST)
     elif bg_type == 'rnd_img':
         bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
-    elif bg_type == 'rnd_uniform':
-        rnd_bg = np.random.randint(0, 256, dtype='uint8')
-        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + rnd_bg
     else:
-        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + int(bg_type)
-    bg_img = bg_img.astype('float32') / 255
-    return bg_img
+        if bg_type == 'uniform_achromatic':
+            rnd_bg = np.random.randint(0, 256, dtype='uint8')
+        elif bg_type == 'uniform_colour':
+            rnd_bg = random_colour()
+        elif type(bg_type) == str:
+            rnd_bg = int(bg_type)
+        else:
+            rnd_bg = bg_type
+        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + rnd_bg
+    return bg_img.astype('float32') / 255
 
 
 def random_place(fg_size, bg_size):
