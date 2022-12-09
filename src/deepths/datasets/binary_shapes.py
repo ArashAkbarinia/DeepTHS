@@ -37,7 +37,7 @@ class ShapeDataset(torch_data.Dataset):
         elif self.bg == 'uniform_colour':
             bg = dataset_utils.unique_colours(1, exclude=exclude)[0]
         elif issubclass(type(self.bg), torch_data.Dataset):
-            bg = self.bg.__getitem__(random.randint(0, self.bg.__len__()))
+            bg = self.bg.__getitem__(np.random.randint(0, self.bg.__len__()))
         else:
             bg = self.bg
         return bg
