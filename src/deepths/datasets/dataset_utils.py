@@ -43,11 +43,35 @@ def shuffle(arr):
     return arr
 
 
+def patch_img(img_size, num_colours, num_patches):
+    img = np.zeros((*img_size, 3), dtype='uint8')
+    colours = unique_colours(num_colours)
+    patch_rows = int(np.ceil(img_size[0] / num_patches))
+    patch_cols = int(np.ceil(img_size[1] / num_patches))
+    for r_ind in range(num_patches):
+        srow = r_ind * patch_rows
+        erow = min(srow + patch_rows, img.shape[0])
+        for c_ind in range(num_patches):
+            patch_ind = c_ind + r_ind * num_patches
+            scol = c_ind * patch_cols
+            ecol = min(scol + patch_cols, img.shape[1])
+            colour_ind = np.mod(patch_ind, num_colours)
+            img[srow:erow, scol:ecol] = colours[colour_ind]
+            if colour_ind == num_colours:
+                random.shuffle(colours)
+    return img
+
+
 def background_img(bg_type, bg_size, num_chns=3):
-    if type(bg_type) == str and os.path.exists(bg_type):
+    if type(bg_type) == np.ndarray:
+        bg_img = cv2.resize(bg_type, bg_size, interpolation=cv2.INTER_NEAREST)
+    elif type(bg_type) == str and os.path.exists(bg_type):
         bg_img = cv2.resize(cv2_loader(bg_type), bg_size, interpolation=cv2.INTER_NEAREST)
     elif bg_type == 'rnd_img':
         bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
+    elif 'patch_colour_' in bg_type:
+        num_colours, num_patches = [int(item) for item in bg_type.split('_')[-2:]]
+        bg_img = patch_img(bg_size, num_colours, num_patches)
     else:
         if bg_type == 'uniform_achromatic':
             rnd_bg = np.random.randint(0, 256, dtype='uint8')
