@@ -79,10 +79,14 @@ def centre_place(fg_size, bg_size):
     return srow, scol
 
 
-def merge_fg_bg(bg, fg, place_fun, alpha=0):
+def check_place_fun(place_fun):
     if isinstance(place_fun, str):
-        place_fun = centre_place if place_fun == 'centre' else random_place
-    srow, scol = place_fun(fg.shape[:2], bg.shape[:2])
+        return centre_place if place_fun == 'centre' else random_place
+    return place_fun
+
+
+def merge_fg_bg(bg, fg, place_fun, alpha=0):
+    srow, scol = check_place_fun(place_fun)(fg.shape[:2], bg.shape[:2])
     return merge_fg_bg_at_loc(bg, fg, srow, scol, alpha)
 
 
@@ -182,3 +186,9 @@ class NoTargetFolder(torch_datasets.ImageFolder):
     def __getitem__(self, item):
         img, _ = super().__getitem__(item)
         return img
+
+
+class ItemPathFolder(torch_datasets.ImageFolder):
+    def __getitem__(self, item):
+        path, _ = self.samples[item]
+        return path

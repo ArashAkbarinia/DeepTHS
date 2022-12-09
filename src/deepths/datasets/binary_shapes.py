@@ -3,6 +3,7 @@ Creating PyTorch dataloader from a set of binary images.
 """
 
 import numpy as np
+import os
 import glob
 import random
 import ntpath
@@ -13,12 +14,6 @@ from torch.utils import data as torch_data
 
 from ..utils import system_utils
 from . import dataset_utils
-
-
-def _create_bg_img(bg, mask_size, full_size):
-    mask_img = dataset_utils.background_img(bg, mask_size)
-    full_img = dataset_utils.background_img(bg, full_size)
-    return mask_img, full_img
 
 
 class ShapeDataset(torch_data.Dataset):
@@ -33,24 +28,32 @@ class ShapeDataset(torch_data.Dataset):
             self.mask_size = (self.mask_size, self.mask_size)
         self.imgdir = '%s/imgs/' % self.root
         self.bg = background
+        if self.bg is not None and os.path.isdir(self.bg):
+            self.bg = dataset_utils.ItemPathFolder(self.bg, loader=dataset_utils.cv2_loader)
 
     def _unique_bg(self, exclude):
         if self.bg == 'uniform_achromatic':
             bg = dataset_utils.unique_colours(1, exclude=exclude, chns=1)[0][0]
         elif self.bg == 'uniform_colour':
             bg = dataset_utils.unique_colours(1, exclude=exclude)[0]
+        elif issubclass(type(self.bg), torch_data.Dataset):
+            bg = self.bg.__getitem__(random.randint(0, self.bg.__len__()))
         else:
             bg = self.bg
         return bg
 
     def _one_out_img(self, mask, colour, bg, place_fun):
+        crop = dataset_utils.check_place_fun(place_fun)(self.mask_size, self.target_size)
         mask = cv2.resize(mask, self.mask_size, interpolation=cv2.INTER_NEAREST)
-        mask_img, img = _create_bg_img(bg, self.mask_size, self.target_size)
-
+        full_img = dataset_utils.background_img(bg, self.target_size)
+        if type(bg) == str and os.path.exists(bg):
+            mask_img = dataset_utils.crop_fg_from_bg(full_img, self.mask_size, *crop)
+        else:
+            mask_img = dataset_utils.background_img(bg, self.mask_size)
         for chn_ind in range(3):
             current_chn = mask_img[:, :, chn_ind]
             current_chn[mask == 255] = colour[chn_ind]
-        return dataset_utils.merge_fg_bg(img, mask_img, place_fun)
+        return dataset_utils.merge_fg_bg_at_loc(full_img, mask_img, *crop)
 
     def _one_out_img_uint8(self, mask, colour, bg, place_fun):
         img = self._one_out_img(mask, colour, bg, place_fun)
