@@ -62,26 +62,29 @@ def patch_img(img_size, num_colours, num_patches):
     return img
 
 
+def uniform_img(bg_size, num_chns, value):
+    return np.zeros((*bg_size, num_chns), dtype='uint8') + value
+
+
 def background_img(bg_type, bg_size, num_chns=3):
     if type(bg_type) == np.ndarray:
         bg_img = cv2.resize(bg_type, bg_size, interpolation=cv2.INTER_NEAREST)
-    elif type(bg_type) == str and os.path.exists(bg_type):
-        bg_img = cv2.resize(cv2_loader(bg_type), bg_size, interpolation=cv2.INTER_NEAREST)
-    elif bg_type == 'rnd_img':
-        bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
-    elif 'patch_colour_' in bg_type:
-        num_colours, num_patches = [int(item) for item in bg_type.split('_')[-2:]]
-        bg_img = patch_img(bg_size, num_colours, num_patches)
-    else:
+    elif type(bg_type) == str:
         if bg_type == 'uniform_achromatic':
-            rnd_bg = np.random.randint(0, 256, dtype='uint8')
+            bg_img = uniform_img(bg_size, num_chns, np.random.randint(0, 256, dtype='uint8'))
         elif bg_type == 'uniform_colour':
-            rnd_bg = random_colour()
-        elif type(bg_type) == str:
-            rnd_bg = int(bg_type)
+            bg_img = uniform_img(bg_size, num_chns, random_colour())
+        elif os.path.exists(bg_type):
+            bg_img = cv2.resize(cv2_loader(bg_type), bg_size, interpolation=cv2.INTER_NEAREST)
+        elif bg_type == 'rnd_img':
+            bg_img = np.random.randint(0, 256, (*bg_size, num_chns), dtype='uint8')
+        elif 'patch_colour_' in bg_type:
+            num_colours, num_patches = [int(item) for item in bg_type.split('_')[-2:]]
+            bg_img = patch_img(bg_size, num_colours, num_patches)
         else:
-            rnd_bg = bg_type
-        bg_img = np.zeros((*bg_size, num_chns), dtype='uint8') + rnd_bg
+            bg_img = uniform_img(bg_size, num_chns, int(bg_type))
+    else:
+        bg_img = uniform_img(bg_size, num_chns, bg_type)
     return bg_img.astype('float32') / 255
 
 
