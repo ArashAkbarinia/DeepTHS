@@ -175,9 +175,6 @@ def out_hook(name, out_dict, arch=None):
             if 'clip' in arch:
                 # clip output (SequenceLength, Batch, HiddenDimension)
                 out_dict[name] = out_dict[name].permute(1, 0, 2)
-        #     elif 'vit' in arch:
-        #         out_dict[name] = out_dict[name][:, 0]
-
     return hook
 
 
@@ -214,13 +211,13 @@ def vit_hooks(model, layers):
     rf_hooks = dict()
     for layer in layers:
         if layer == 'fc':
-            layer_hook = model
+            layer_hook = model.heads
         elif layer == 'conv_proj':
             layer_hook = model.conv_proj
         else:
             block_ind = int(layer.replace('block', ''))
             layer_hook = model.encoder.layers[block_ind]
-        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict, 'vit'))
+        rf_hooks[layer] = layer_hook.register_forward_hook(out_hook(layer, act_dict))
     return act_dict, rf_hooks
 
 

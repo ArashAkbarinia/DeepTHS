@@ -68,25 +68,36 @@ class ReadOutNet(BackboneNet):
             else:
                 sys.exit('Pooling %s not supported!' % pooling)
 
-            if hasattr(self, 'act_dict'):
-                pass
+            if hasattr(self, 'act_dict'):  # assuming there is always pooling when mix features
+                total_dim = 0
+                for odim in self.out_dim:
+                    if type(odim) is int:
+                        total_dim += odim
+                    else:
+                        tmp_size = 1 if len(odim) < 3 else pool_size[0] * pool_size[1]
+                        total_dim += (odim[0] * tmp_size)
+                self.out_dim = total_dim
             else:
-                if len(self.out_dim) < 3:
-                    self.pool = None
-                else:
-                    self.out_dim = (self.out_dim[0], *pool_size)
+                self.out_dim = (self.out_dim[0], *pool_size)
+
+    def _do_pool(self, x):
+        if self.pool is None or len(x.shape) < 3:
+            return x
+        if len(x.shape) == 3:
+            x = x.unsqueeze(dim=-1)
+        return self.pool(x)
 
     def extract_features(self, x):
         x = super(ReadOutNet, self).extract_features(x)
         if hasattr(self, 'act_dict'):
             xs = []
             for val in self.act_dict.values():
-                if len(val.shape) == 4:
-                    val = self.pool(val)
+                if len(val.shape) >= 3:
+                    val = self._do_pool(val)
                 xs.append(torch.flatten(val, start_dim=1))
             x = torch.cat(xs, dim=1)
         else:
-            x = x if self.pool is None else self.pool(x)
+            x = self._do_pool(x)
         return x
 
 
