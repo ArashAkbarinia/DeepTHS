@@ -43,8 +43,6 @@ class ViTClipLayers(nn.Module):
         self.parent_model = parent_model
         block = block + 1
         self.parent_model.transformer.resblocks = self.parent_model.transformer.resblocks[:block]
-        del self.parent_model.proj
-        del self.parent_model.ln_post
 
     def forward(self, x):
         x = self.parent_model.conv1(x)  # shape = [*, width, grid, grid]
@@ -240,6 +238,9 @@ def mix_features(model, architecture, layers, target_size):
     act_dict, _ = model_utils.register_model_hooks(model, architecture, layers)
     out_dims = []
     for layer in layers:
-        _, out_dim = model_features(model, architecture, layer, target_size)
+        _, out_dim = model_features(
+            get_backbone(architecture, get_pretrained_model(architecture, 'none')),
+            architecture, layer, target_size
+        )
         out_dims.append(out_dim)
     return act_dict, out_dims
