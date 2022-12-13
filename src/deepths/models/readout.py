@@ -56,6 +56,8 @@ class ReadOutNet(BackboneNet):
             )
 
         if pooling is None:
+            if hasattr(self, 'act_dict'):
+                sys.exit('With mix features, pooling must be set!')
             self.pool = None
         else:
             pool_size = pooling.split('_')[1:]
@@ -76,7 +78,7 @@ class ReadOutNet(BackboneNet):
                     else:
                         tmp_size = 1 if len(odim) < 3 else pool_size[0] * pool_size[1]
                         total_dim += (odim[0] * tmp_size)
-                self.out_dim = total_dim
+                self.out_dim = (total_dim, 1)
             else:
                 self.out_dim = (self.out_dim[0], *pool_size)
 
@@ -116,7 +118,6 @@ class ClassifierNet(ReadOutNet):
         super(ClassifierNet, self).__init__(**kwargs)
 
         self.input_nodes = input_nodes
-
         self.feature_units = np.prod(self.out_dim)
         if classifier == 'nn':
             self.fc = nn.Linear(int(self.feature_units * self.input_nodes), num_classes)
