@@ -324,6 +324,6 @@ def oddx_bg_folder(root, num_imgs, target_size, preprocess, scale=(0.5, 1.0), **
         target_size = (target_size // 2, target_size // 2)
     bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
-    bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader)
+    bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader_3chns)
     bg_loader = (bg_db, bg_transform)
     return OddOneOutTrain(bg_loader, num_imgs, target_size, transform, **kwargs)

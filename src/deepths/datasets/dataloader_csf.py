@@ -285,7 +285,7 @@ class CelebA(AfcDataset, tdatasets.CelebA):
     def __init__(self, afc_kwargs, celeba_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
         tdatasets.CelebA.__init__(self, **celeba_kwargs)
-        self.loader = dataset_utils.cv2_loader
+        self.loader = dataset_utils.cv2_loader_3chns
 
     def __getitem__(self, index):
         path = os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index])
@@ -308,7 +308,7 @@ class ImageFolder(AfcDataset, tdatasets.ImageFolder):
     def __init__(self, afc_kwargs, folder_kwargs):
         AfcDataset.__init__(self, **afc_kwargs)
         tdatasets.ImageFolder.__init__(self, **folder_kwargs)
-        self.loader = dataset_utils.cv2_loader
+        self.loader = dataset_utils.cv2_loader_3chns
 
     def __getitem__(self, index):
         current_param = None

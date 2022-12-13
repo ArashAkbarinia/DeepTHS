@@ -132,6 +132,10 @@ def crop_fg_from_bg(bg, fg_size, srow, scol):
     return bg[srow:erow, scol:ecol].copy()
 
 
+def cv2_loader_3chns(path):
+    return cv2_loader(path, num_chns=3)
+
+
 def cv2_loader(path, num_chns=None):
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if len(img.shape) > 2:
