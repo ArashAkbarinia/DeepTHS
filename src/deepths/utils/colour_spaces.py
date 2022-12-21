@@ -30,6 +30,52 @@ rgb_from_yog = np.array(
      [+1.0, -1.0, -1.0]]
 ).T
 
+# http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+# RGB Working Space: NTSC RGB - WhitePoint: C
+rgb_from_xyz = np.array(
+    [[1.9099961, -0.9846663, 0.0583056],
+     [-0.5324542, 1.999171, -0.1183781],
+     [-0.2882091, -0.0283082, 0.8975535]]
+)
+
+xyz_from_rgb = np.array(
+    [[0.6068909, 0.2989164, 0.],
+     [0.1735011, 0.586599, 0.0660957],
+     [0.200348, 0.1144845, 1.1162243]]
+)
+
+
+def rgb2xyz(x):
+    return np.dot(x, xyz_from_rgb)
+
+
+def xyz2rgb(x):
+    return np.dot(x, rgb_from_xyz)
+
+
+def xyy2xyz(x):
+    xyz = np.zeros(x.shape, x.dtype)
+    xyz[..., 0] = (x[..., 0] * x[..., 2]) / x[..., 1]
+    xyz[..., 1] = x[..., 2].copy()
+    xyz[..., 2] = ((1 - x[..., 0] - x[..., 1]) * x[..., 2]) / x[..., 1]
+    return xyz
+
+
+def xyz2xyy(x):
+    xyy = np.zeros(x.shape, x.dtype)
+    xyy[..., 0] = x[..., 0] / (x[..., 0] + x[..., 1] + x[..., 2])
+    xyy[..., 1] = x[..., 1] / (x[..., 0] + x[..., 1] + x[..., 2])
+    xyy[..., 2] = x[..., 1].copy()
+    return xyy
+
+
+def rgb2xyy(x):
+    return xyz2xyy(np.dot(x, xyz_from_rgb))
+
+
+def xyy2rgb(x):
+    return np.dot(xyy2xyz(x), rgb_from_xyz)
+
 
 def rgb012dkl(x):
     return np.dot(x, dkl_from_rgb)

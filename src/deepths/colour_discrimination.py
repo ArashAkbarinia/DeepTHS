@@ -97,6 +97,10 @@ def _organise_test_points(test_pts):
                 ffun = colour_spaces.hsv012rgb01
                 bfun = colour_spaces.rgb2hsv01
                 chns_name = ['H', 'S', 'V']
+            elif test_pt[-1] == 'xyy':
+                ffun = colour_spaces.xyy2rgb
+                bfun = colour_spaces.rgb2xyy
+                chns_name = ['X', 'Y', 'Y']
             elif test_pt[-1] == 'rgb':
                 ffun = colour_spaces.identity
                 bfun = colour_spaces.identity
