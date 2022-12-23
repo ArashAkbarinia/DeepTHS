@@ -88,8 +88,8 @@ def rgb2dkl(x):
 def rgb2dkl01(x):
     x = rgb2dkl(x)
     x /= 2
-    x[:, :, 1] += 0.5
-    x[:, :, 2] += 0.5
+    x[..., 1] += 0.5
+    x[..., 2] += 0.5
     return x
 
 
@@ -104,8 +104,8 @@ def dkl2rgb01(x):
 
 def dkl012rgb01(x):
     x = x.copy()
-    x[:, :, 1] -= 0.5
-    x[:, :, 2] -= 0.5
+    x[..., 1] -= 0.5
+    x[..., 2] -= 0.5
     x *= 2
     return dkl2rgb01(x)
 
@@ -124,8 +124,8 @@ def rgb2yog(x):
 
 def rgb2yog01(x):
     x = rgb2yog(x)
-    x[:, :, 1] += 0.5
-    x[:, :, 2] += 0.5
+    x[..., 1] += 0.5
+    x[..., 2] += 0.5
     return x
 
 
@@ -144,8 +144,8 @@ def yog012rgb(x):
 
 def yog012rgb01(x):
     x = x.copy()
-    x[:, :, 1] -= 0.5
-    x[:, :, 2] -= 0.5
+    x[..., 1] -= 0.5
+    x[..., 2] -= 0.5
     return yog2rgb01(x)
 
 
@@ -161,7 +161,7 @@ def rgb2hsv01(x):
     x = x.copy()
     x = rgb2double(x)
     x = np.float32(cv2.cvtColor(x.astype('float32'), cv2.COLOR_RGB2HSV))
-    x[:, :, 0] /= 360
+    x[..., 0] /= 360
     return x
 
 
@@ -171,7 +171,7 @@ def hsv012rgb(x):
 
 def hsv012rgb01(x):
     x = x.copy()
-    x[:, :, 0] *= 360
+    x[..., 0] *= 360
     x = cv2.cvtColor(x.astype('float32'), cv2.COLOR_HSV2RGB)
     return clip01(x)
 
