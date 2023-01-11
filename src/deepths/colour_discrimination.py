@@ -40,7 +40,10 @@ def _main_worker(args):
         args.validation_dir = args.data_dir + '/validation_set/'
 
     if args.test_net:
-        args.background = 128 if args.background is None else int(args.background)
+        if args.background is None:
+            args.background = 128
+        elif args.background.isnumeric():
+            args.background = int(args.background)
         if args.test_attempts > 0:
             _sensitivity_test_points(args, model)
         else:
@@ -238,7 +241,7 @@ def _accuracy_test_point(args, model, qname, pt_ind):
 
 
 def _sensitivity_test_point(args, model, qname, pt_ind):
-    bg_suffix = '_%.3d' % args.background
+    bg_suffix = '_rnd' if type(args.background) is str else '_%.3d' % args.background
     res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
     output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (qname, pt_ind))
     if os.path.exists(output_file):
