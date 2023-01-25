@@ -28,7 +28,7 @@ class ShapeDataset(torch_data.Dataset):
             self.mask_size = (self.mask_size, self.mask_size)
         self.imgdir = '%s/imgs/' % self.root
         self.bg = background
-        if self.bg is not None and os.path.isdir(self.bg):
+        if type(self.bg) is str and os.path.isdir(self.bg):
             self.bg = dataset_utils.ItemPathFolder(self.bg)
 
     def _unique_bg(self, exclude):

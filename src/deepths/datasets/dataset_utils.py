@@ -84,6 +84,8 @@ def background_img(bg_type, bg_size, num_chns=3):
             bg_img = patch_img(bg_size, num_colours, num_patches)
         else:
             bg_img = uniform_img(bg_size, num_chns, int(bg_type))
+    elif type(bg_type) is list and len(bg_type) == 3:
+        bg_img = uniform_img(bg_size, num_chns, np.array(bg_type))
     else:
         bg_img = uniform_img(bg_size, num_chns, bg_type)
     return bg_img.astype('float32') / 255
