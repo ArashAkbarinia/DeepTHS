@@ -23,7 +23,7 @@ class ShapeDataset(torch_data.Dataset):
         self.target_size = 224 if target_size is None else target_size
         if isinstance(self.target_size, int):
             self.target_size = (self.target_size, self.target_size)
-        self.mask_size = 128 if mask_size is None else mask_size
+        self.mask_size = int(self.target_size * 0.572) if mask_size is None else mask_size
         if isinstance(self.mask_size, int):
             self.mask_size = (self.mask_size, self.mask_size)
         self.imgdir = '%s/imgs/' % self.root
