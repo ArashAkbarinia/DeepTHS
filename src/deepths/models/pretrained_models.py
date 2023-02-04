@@ -181,7 +181,7 @@ def get_pretrained_model(network_name, weights):
             print('Loaded the VQVAE model!')
         else:
             task = 'classification'
-            num_classes = 1000
+            num_classes = 565 if 'ecoset' in weights else 1000
             if 'fcn_' in network_name or 'deeplab' in network_name:
                 task = 'segmentation'
                 num_classes = 21
