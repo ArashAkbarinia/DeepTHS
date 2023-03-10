@@ -9,6 +9,7 @@ import numpy as np
 import collections
 
 import torch
+from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from sklearn import svm
@@ -19,10 +20,11 @@ from ..models import model_utils
 
 def _prepare_training(args, model):
     optimizer = _make_optimizer(args, model)
+    milestones = [int(e * args.epochs) for e in [5, 8]]
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
     initial_epoch = args.initial_epoch
     model_progress = []
-    progress_path = os.path.join(args.output_dir, 'model_progress.csv')
 
     # optionally resume from a checkpoint
     if args.resume is not None:
@@ -35,13 +37,14 @@ def _prepare_training(args, model):
             model = model.cuda(args.gpu)
 
             optimizer.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['scheduler'])
 
-            if os.path.exists(progress_path):
-                model_progress = np.loadtxt(progress_path, delimiter=',')
+            if os.path.exists(args.prog_path):
+                model_progress = np.loadtxt(args.prog_path, delimiter=',')
                 model_progress = model_progress.tolist()
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
-    return model, optimizer, initial_epoch, model_progress, progress_path
+    return model, optimizer, scheduler, initial_epoch, model_progress
 
 
 def _make_optimizer(args, model):
@@ -89,7 +92,8 @@ def prepare_starting(args, task_folder):
 
 
 def do_epochs(args, epoch_fun, train_loader, val_loader, model):
-    model, optimizer, args.initial_epoch, model_prog, prog_path = _prepare_training(args, model)
+    args.prog_path = os.path.join(args.output_dir, 'model_progress.csv')
+    model, optimizer, scheduler, args.initial_epoch, model_prog = _prepare_training(args, model)
 
     # create the tensorboard writers
     args.tb_writers = dict()
@@ -100,9 +104,6 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
     best_acc1 = 0
     # training on epoch
     for epoch in range(args.initial_epoch, args.epochs):
-        if args.classifier == 'nn':
-            _adjust_learning_rate(optimizer, epoch, args)
-
         # train for one epoch
         train_log = epoch_fun(train_loader, model, optimizer, epoch, args)
 
@@ -116,6 +117,9 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
 
+        if args.classifier == 'nn':
+            scheduler.step()
+
         # save the checkpoints
         system_utils.save_checkpoint(
             {
@@ -128,12 +132,13 @@ def do_epochs(args, epoch_fun, train_loader, val_loader, model):
                 'state_dict': _extract_altered_state_dict(model, args),
                 'best_acc1': best_acc1,
                 'optimizer': optimizer.state_dict() if args.classifier == 'nn' else [],
+                'scheduler': scheduler.state_dict() if args.classifier == 'nn' else [],
                 'target_size': args.target_size,
             },
             is_best, args
         )
         header = 'epoch,t_time,t_loss,t_top1,v_time,v_loss,v_top1'
-        np.savetxt(prog_path, np.array(model_prog), delimiter=',', header=header)
+        np.savetxt(args.prog_path, np.array(model_prog), delimiter=',', header=header)
 
     # closing the tensorboard writers
     for mode in args.tb_writers.keys():
@@ -150,12 +155,6 @@ def _extract_altered_state_dict(model, args):
         for key in ['fc.weight', 'fc.bias']:
             altered_state_dict[key] = model.state_dict()[key]
     return altered_state_dict
-
-
-def _adjust_learning_rate(optimizer, epoch, args):
-    lr = args.learning_rate * (0.1 ** (epoch // (args.epochs / 3)))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 class EpochHelper:
