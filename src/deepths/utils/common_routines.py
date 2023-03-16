@@ -271,7 +271,7 @@ def tb_write_images(tb_writer, step, cu_batch, mean, std, name_gen=None):
         tb_writer.add_image('{}'.format(img_name), img_inv[j], step)
 
 
-def train_val(db_loader, model, optimizer, epoch, args, print_test=True):
+def train_val(db_loader, model, optimizer, epoch, args, print_test=True, name_gen=None):
     ep_helper = EpochHelper(args, model, optimizer, epoch)
     criterion = ep_helper.model.loss_function
 
@@ -296,7 +296,7 @@ def train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             output = ep_helper.model(*cu_batch[:-1])
 
             if batch_ind == 0:
-                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
+                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std, name_gen)
 
             ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
 

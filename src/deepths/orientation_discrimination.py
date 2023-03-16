@@ -78,8 +78,9 @@ def _sensitivity_orientation(args, model, degree, direction):
     th = 0.749
     while True:
         db_loader = _make_test_loader(args, mid, degree)
+        name_gen = lambda j: 'img%03d_%03d_%d' % (j, degree, direction)
         _, accuracy = common_routines.train_val(
-            db_loader, model, None, -1 - attempt_i, args, print_test=False
+            db_loader, model, None, -1 - attempt_i, args, print_test=False, name_gen=name_gen
         )
 
         print(degree, mid, accuracy, low, high)
@@ -115,5 +116,5 @@ def _test_sensitivity(args, model):
         sensitivity = (ang_p + abs(ang_n)) / 2
         all_results.append([acc_p, acc_n, ang_p, abs(ang_n)])
         np.savetxt(out_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
-        args.tb_writers['test'].add_scalar("{}".format('ths'), sensitivity, degree)
+        args.tb_writers['test'].add_scalar("{}".format('sensitivity'), sensitivity, degree)
     args.tb_writers['test'].close()

@@ -70,7 +70,7 @@ class SinusoidalGratings(torch_data.Dataset):
             }
             img = stimuli_bank.sinusoid_grating(**sinusoid_param)
             img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
-            imgs.append((img + 1) / 2)
+            imgs.append(((img + 1) / 2).copy())
 
         if self.transform:
             imgs = self.transform(imgs)
