@@ -4,6 +4,7 @@
 
 import os
 import sys
+import time
 
 import numpy as np
 import collections
@@ -268,3 +269,76 @@ def tb_write_images(tb_writer, step, cu_batch, mean, std, name_gen=None):
     for j in range(min(16, cu_batch[0].shape[0])):
         img_name = name_gen(j) if name_gen is not None else 'img%03d' % j
         tb_writer.add_image('{}'.format(img_name), img_inv[j], step)
+
+
+def train_val(db_loader, model, optimizer, epoch, args, print_test=True):
+    ep_helper = EpochHelper(args, model, optimizer, epoch)
+    criterion = ep_helper.model.loss_function
+
+    # FIXME ALL_TARGETS needs to be defined to have the same oerder as prediciton.
+    all_predictions = []
+    end = time.time()
+    with torch.set_grad_enabled(ep_helper.grad_status()):
+        for batch_ind, cu_batch in enumerate(db_loader):
+            # measure data loading time
+            ep_helper.log_data_t.update(time.time() - end)
+
+            if args.paradigm == '2afc':
+                target = cu_batch[-1].unsqueeze(dim=1).float()
+                odd_ind = target
+            else:
+                odd_ind = cu_batch[-1]
+                # preparing the target
+                target = torch.zeros(odd_ind.shape[0], 4)
+                target[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
+            odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
+            target = target.cuda(args.gpu, non_blocking=True)
+            output = ep_helper.model(*cu_batch[:-1])
+
+            if batch_ind == 0:
+                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
+
+            ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
+
+            # measure elapsed time
+            ep_helper.log_batch_t.update(time.time() - end)
+            end = time.time()
+
+            # to use for correlations
+            if args.paradigm == '2afc':
+                pred_outs = np.concatenate(
+                    [output.detach().cpu().numpy(), odd_ind.cpu().numpy()], axis=1
+                )
+            else:
+                pred_outs = np.concatenate(
+                    [output.detach().cpu().numpy(), odd_ind.unsqueeze(dim=1).cpu().numpy()], axis=1
+                )
+            # I'm not sure if this is all necessary, copied from keras
+            if not isinstance(pred_outs, list):
+                pred_outs = [pred_outs]
+
+            if not all_predictions:
+                for _ in pred_outs:
+                    all_predictions.append([])
+
+            for j, out in enumerate(pred_outs):
+                all_predictions[j].append(out)
+
+            # printing the accuracy at certain intervals
+            if ep_helper.is_test and print_test:
+                print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
+            elif batch_ind % args.print_freq == 0:
+                ep_helper.print_epoch(db_loader, batch_ind)
+            if ep_helper.break_batch(batch_ind, cu_batch[0]):
+                break
+
+    ep_helper.finish_epoch()
+
+    if len(all_predictions) == 1:
+        prediction_output = np.concatenate(all_predictions[0])
+    else:
+        prediction_output = [np.concatenate(out) for out in all_predictions]
+    if ep_helper.is_test:
+        accuracy = ep_helper.log_acc.avg / 100
+        return prediction_output, accuracy
+    return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]

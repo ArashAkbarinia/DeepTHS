@@ -6,7 +6,6 @@ import os
 import sys
 
 import numpy as np
-import time
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -82,7 +81,7 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
 
-    common_routines.do_epochs(args, train_val, train_loader, val_loader, model)
+    common_routines.do_epochs(args, common_routines.train_val, train_loader, val_loader, model)
 
 
 def _organise_test_points(test_pts):
@@ -117,79 +116,6 @@ def _organise_test_points(test_pts):
             out_test_pts[test_pt_name]['ext'].append(pt_val)
             out_test_pts[test_pt_name]['chns'].append(test_pt[-1])
     return out_test_pts
-
-
-def train_val(db_loader, model, optimizer, epoch, args, print_test=True):
-    ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
-    criterion = ep_helper.model.loss_function
-
-    all_predictions = []
-    end = time.time()
-
-    with torch.set_grad_enabled(ep_helper.grad_status()):
-        for batch_ind, cu_batch in enumerate(db_loader):
-            # measure data loading time
-            ep_helper.log_data_t.update(time.time() - end)
-
-            if args.paradigm == '2afc':
-                target = cu_batch[-1].unsqueeze(dim=1).float()
-                odd_ind = target
-            else:
-                odd_ind = cu_batch[-1]
-                # preparing the target
-                target = torch.zeros(odd_ind.shape[0], 4)
-                target[torch.arange(odd_ind.shape[0]), cu_batch[-1]] = 1
-            odd_ind = odd_ind.cuda(args.gpu, non_blocking=True)
-            target = target.cuda(args.gpu, non_blocking=True)
-            output = ep_helper.model(*cu_batch[:-1])
-
-            if batch_ind == 0:
-                ep_helper.tb_write_images(cu_batch[:-1], args.mean, args.std)
-
-            ep_helper.update_epoch(output, target, odd_ind, cu_batch[0], criterion)
-
-            # measure elapsed time
-            ep_helper.log_batch_t.update(time.time() - end)
-            end = time.time()
-
-            # to use for correlations
-            if args.paradigm == '2afc':
-                pred_outs = np.concatenate(
-                    [output.detach().cpu().numpy(), odd_ind.cpu().numpy()], axis=1
-                )
-            else:
-                pred_outs = np.concatenate(
-                    [output.detach().cpu().numpy(), odd_ind.unsqueeze(dim=1).cpu().numpy()], axis=1
-                )
-            # I'm not sure if this is all necessary, copied from keras
-            if not isinstance(pred_outs, list):
-                pred_outs = [pred_outs]
-
-            if not all_predictions:
-                for _ in pred_outs:
-                    all_predictions.append([])
-
-            for j, out in enumerate(pred_outs):
-                all_predictions[j].append(out)
-
-            # printing the accuracy at certain intervals
-            if ep_helper.is_test and print_test:
-                print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
-            elif batch_ind % args.print_freq == 0:
-                ep_helper.print_epoch(db_loader, batch_ind)
-            if ep_helper.break_batch(batch_ind, cu_batch[0]):
-                break
-
-    ep_helper.finish_epoch()
-
-    if len(all_predictions) == 1:
-        prediction_output = np.concatenate(all_predictions[0])
-    else:
-        prediction_output = [np.concatenate(out) for out in all_predictions]
-    if ep_helper.is_test:
-        accuracy = ep_helper.log_acc.avg / 100
-        return prediction_output, accuracy
-    return [epoch, ep_helper.log_batch_t.avg, ep_helper.log_loss.avg, ep_helper.log_acc.avg]
 
 
 def _common_db_params(args):
@@ -235,7 +161,7 @@ def _accuracy_test_point(args, model, qname, pt_ind):
     target_colour = qval['ffun'](high)
     db_loader = _make_test_loader(args, target_colour, others_colour)
 
-    _, accuracy = train_val(db_loader, model, None, -1, args, print_test=False)
+    _, accuracy = common_routines.train_val(db_loader, model, None, -1, args, print_test=False)
     print(qname, pt_ind, accuracy, low.squeeze(), high.squeeze())
     return accuracy
 
@@ -269,7 +195,9 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         target_colour = qval['ffun'](mid)
         db_loader = _make_test_loader(args, target_colour, others_colour)
 
-        _, accuracy = train_val(db_loader, model, None, -1 - attempt_i, args, print_test=False)
+        _, accuracy = common_routines.train_val(
+            db_loader, model, None, -1 - attempt_i, args, print_test=False
+        )
         print(qname, pt_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
 
         all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))

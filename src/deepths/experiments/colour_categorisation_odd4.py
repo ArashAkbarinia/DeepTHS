@@ -12,7 +12,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ..datasets import dataloader_colour
 from ..models import model_colour as networks
-from ..colour_discrimination import train_val
 from ..utils import argument_handler, common_routines, system_utils
 
 
@@ -104,13 +103,17 @@ def _predict_i(args, model, colour_ind):
         for ref_ind2 in range(ref_ind1 + 1, args.focal_colours.shape[0]):
             ref_colours = [args.focal_colours[ref_ind1], args.focal_colours[ref_ind2]]
             db_loader = _make_test_loader(args, test_colour, ref_colours)
-            prediction1, _ = train_val(db_loader, model, None, -tb_ind, args, print_test=False)
+            prediction1, _ = common_routines.train_val(
+                db_loader, model, None, -tb_ind, args, print_test=False
+            )
             all_results.append(prediction1[:, :4].argmax(axis=1))
             tb_ind += 1
 
             ref_colours = [args.focal_colours[ref_ind2], args.focal_colours[ref_ind1]]
             db_loader = _make_test_loader(args, test_colour, ref_colours)
-            prediction2, _ = train_val(db_loader, model, None, -tb_ind, args, print_test=False)
+            prediction2, _ = common_routines.train_val(
+                db_loader, model, None, -tb_ind, args, print_test=False
+            )
             all_results.append(prediction2[:, :4].argmax(axis=1))
             tb_ind += 1
             header = '%s,r1%dr2%d,r1%dr2%d' % (header, ref_ind1, ref_ind2, ref_ind2, ref_ind1)
