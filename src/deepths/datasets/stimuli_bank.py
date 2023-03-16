@@ -8,6 +8,8 @@ import cv2
 
 
 def sinusoid_grating(img_size, amp, omega, rho, lambda_wave):
+    if type(img_size) not in [list, tuple]:
+        img_size = (img_size, img_size)
     # Generate Sinusoid grating
     # sz: size of generated image (width, height)
     radius = (int(img_size[0] / 2.0), int(img_size[1] / 2.0))
