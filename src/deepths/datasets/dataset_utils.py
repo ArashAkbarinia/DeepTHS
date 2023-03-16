@@ -147,6 +147,13 @@ def cv2_loader(path, num_chns=None):
     return img
 
 
+def rotate_img(img, angle):
+    (h, w) = img.shape[:2]
+    (cx, cy) = (w // 2, h // 2)
+    rot_mat = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+    return cv2.warpAffine(img, rot_mat, (w, h), flags=cv2.INTER_NEAREST)
+
+
 def rgb2opp_funs(colour_space):
     if colour_space == 'dkl':
         ffun = colour_spaces.rgb2dkl01
