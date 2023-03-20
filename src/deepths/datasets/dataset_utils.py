@@ -248,7 +248,7 @@ class BackgroundGenerator(torch_data.Dataset):
         return (background_img(self.background, self.target_size) * 255).astype('uint8')
 
     def __len__(self):
-        return np.inf
+        return 1000000
 
 
 def make_bg_loader(background, target_size):
