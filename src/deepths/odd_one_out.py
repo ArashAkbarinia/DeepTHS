@@ -87,16 +87,17 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
 
             ##
             loss_ind, loss_class = criterion(output, target)
-            log_loss_class.update(loss_class.item(), cu_batch[0].size(0))
             log_loss_ind.update(loss_ind.item(), cu_batch[0].size(0))
             loss = 0.5 * loss_ind + 0.5 * loss_class
             ep_helper.log_loss.update(loss.item(), cu_batch[0].size(0))
 
             # measure accuracy and record loss
             acc_ind = report_utils.accuracy(output[0], odd_ind)
-            acc_class = 1 if output[1] is None else report_utils.accuracy(output[1], odd_class)
             ep_helper.log_acc.update(acc_ind[0].cpu().numpy()[0], cu_batch[0].size(0))
-            log_acc_class.update(acc_class[0].cpu().numpy()[0], cu_batch[0].size(0))
+            if output[1] is not None:
+                log_loss_class.update(loss_class.item(), cu_batch[0].size(0))
+                acc_class = report_utils.accuracy(output[1], odd_class)
+                log_acc_class.update(acc_class[0].cpu().numpy()[0], cu_batch[0].size(0))
 
             if ep_helper.is_train:
                 # compute gradient and do SGD step
