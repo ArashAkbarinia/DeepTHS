@@ -78,7 +78,9 @@ def _sensitivity_orientation(args, model, degree, direction):
     th = 0.749
     while True:
         db_loader = _make_test_loader(args, mid, degree)
-        name_gen = lambda j: 'img%03d_%03d_%d' % (j, degree, direction)
+
+        def name_gen(x):
+            return 'img%03d_%03d_%d' % (x, degree, direction)
         _, accuracy = common_routines.train_val(
             db_loader, model, None, -1 - attempt_i, args, print_test=False, name_gen=name_gen
         )
