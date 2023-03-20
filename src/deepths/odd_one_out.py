@@ -94,7 +94,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
 
             # measure accuracy and record loss
             acc_ind = report_utils.accuracy(output[0], odd_ind)
-            acc_class = report_utils.accuracy(output[1], odd_class)
+            acc_class = 1 if output[1] is None else report_utils.accuracy(output[1], odd_class)
             ep_helper.log_acc.update(acc_ind[0].cpu().numpy()[0], cu_batch[0].size(0))
             log_acc_class.update(acc_class[0].cpu().numpy()[0], cu_batch[0].size(0))
 
@@ -110,14 +110,14 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             end = time.time()
 
             # to use for correlations
-            pred_outs = np.concatenate(
-                [
-                    output[0].detach().cpu().numpy(),
-                    output[1].detach().cpu().numpy(),
-                    odd_ind.unsqueeze(dim=1).cpu().numpy(),
-                    odd_class.unsqueeze(dim=1).cpu().numpy()
-                ], axis=1
-            )
+            to_concatenate = [
+                output[0].detach().cpu().numpy(),
+                odd_ind.unsqueeze(dim=1).cpu().numpy(),
+            ]
+            if output[1] is not None:
+                to_concatenate.append(output[1].detach().cpu().numpy())
+                to_concatenate.append(odd_class.unsqueeze(dim=1).cpu().numpy())
+            pred_outs = np.concatenate(to_concatenate, axis=1)
             # I'm not sure if this is all necessary, copied from keras
             if not isinstance(pred_outs, list):
                 pred_outs = [pred_outs]
