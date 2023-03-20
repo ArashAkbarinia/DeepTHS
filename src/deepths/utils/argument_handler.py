@@ -5,8 +5,8 @@ Supported arguments for train and evaluation.
 import argparse
 
 
-def parse_args(parser, argvs, colour_space):
-    args = parser.parse_args(argvs)
+def parse_args(parser, argv, colour_space):
+    args = parser.parse_args(argv)
     args.net_params = []
     if args.colour_space is None:
         args.colour_space = colour_space
@@ -14,7 +14,7 @@ def parse_args(parser, argvs, colour_space):
     return args
 
 
-def master_arg_parser(argvs, task, extra_args_fun=None):
+def master_arg_parser(argv, task, extra_args_fun=None):
     parser = _common_arg_parser(description=task)
 
     _add_optimisation_group(parser)
@@ -22,7 +22,7 @@ def master_arg_parser(argvs, task, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parse_args(parser, argvs, 'imagenet_rgb')
+    args = parse_args(parser, argv, 'imagenet_rgb')
 
     # task dependent
     if task == 'odd_one_out':
@@ -32,7 +32,7 @@ def master_arg_parser(argvs, task, extra_args_fun=None):
     return args
 
 
-def csf_train_arg_parser(argvs, extra_args_fun=None):
+def csf_train_arg_parser(argv, extra_args_fun=None):
     parser = _common_arg_parser(description='Contrast discrimination training')
 
     _add_optimisation_group(parser)
@@ -40,12 +40,12 @@ def csf_train_arg_parser(argvs, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parse_args(parser, argvs, 'rgb')
+    args = parse_args(parser, argv, 'rgb')
     args = _check_csf_params(args)
     return args
 
 
-def csf_test_arg_parser(argvs, extra_args_fun=None):
+def csf_test_arg_parser(argv, extra_args_fun=None):
     parser = _common_arg_parser(description='Contrast discrimination testing')
 
     _add_optimisation_group(parser)
@@ -63,7 +63,7 @@ def csf_test_arg_parser(argvs, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parse_args(parser, argvs, 'rgb')
+    args = parse_args(parser, argv, 'rgb')
     args = _check_csf_params(args)
     return args
 
@@ -84,7 +84,7 @@ def _check_dataset_space(args):
     return colour_space
 
 
-def activation_arg_parser(argvs, extra_args_fun=None):
+def activation_arg_parser(argv, extra_args_fun=None):
     parser = _common_arg_parser(description='Kernel activation')
 
     _add_optimisation_group(parser)
@@ -108,7 +108,7 @@ def activation_arg_parser(argvs, extra_args_fun=None):
     if extra_args_fun is not None:
         extra_args_fun(parser)
 
-    args = parser.parse_args(argvs)
+    args = parser.parse_args(argv)
     if args.colour_space is None:
         args.colour_space = 'imagenet_rgb'
     args.colour_space = _check_dataset_space(args)
@@ -432,6 +432,17 @@ def _add_dataset_group(parser):
         type=str,
         default=None,
         help='The path to the train colour distribution (default: None)'
+    )
+    dataset_group.add_argument(
+        '--db_features',
+        default="all",
+        choices=[
+            'symmetry', 'rotation', 'size', 'colour', 'shape',
+            'texture', 'background', 'contrast', 'position'
+        ],
+        nargs='+',
+        type=str,
+        help='Only relevant for odd-one-out, the features to generate dataset (default: None)'
     )
 
 

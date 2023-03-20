@@ -13,6 +13,11 @@ import torchvision.transforms as torch_transforms
 
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
+FEATURES = [
+    'symmetry', 'rotation', 'size', 'colour', 'shape',
+    'texture', 'background', 'contrast', 'position'
+]
+
 
 def _rnd_scale(size, scale):
     return int(size * np.random.uniform(*scale))
