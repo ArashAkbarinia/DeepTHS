@@ -11,7 +11,7 @@ from . import readout
 def oddx_net(args, train_kwargs):
     num_features = len(train_kwargs['features'])
     args.net_params = [num_features]
-    net_class = OddOneOutSingle if train_kwargs['single_img'] is not None else OddOneOut
+    net_class = OddOneOutSingle if train_kwargs['single_img'] else OddOneOut
     return readout.make_model(net_class, args, *args.net_params)
 
 
