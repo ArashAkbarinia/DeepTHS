@@ -291,7 +291,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.target_size = (target_size, target_size) if type(target_size) is int else target_size
         self.num_imgs = num_imgs
         self.transform = transform
-        self.single_img = kwargs['single_img'] if 'single_img' in kwargs else None
+        self.single_img = kwargs['single_img'] if 'single_img' in kwargs else False
         self.features = kwargs['features'] if 'features' in kwargs else None
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'uniform_achromatic']  # 'rnd_img'
@@ -312,7 +312,7 @@ class OddOneOutTrain(torch_data.Dataset):
         # the target is always added the first element in the imgs list
         target = inds.index(0)
         imgs = [imgs[i] for i in inds]
-        if self.single_img is not None:
+        if self.single_img:
             imgs = [torch.cat(
                 [torch.cat([imgs[0], imgs[1]], dim=2), torch.cat([imgs[2], imgs[3]], dim=2)], dim=1
             )]
@@ -323,8 +323,8 @@ class OddOneOutTrain(torch_data.Dataset):
 
 
 def oddx_bg_folder(background, num_imgs, target_size, preprocess, **kwargs):
-    single_img = kwargs['single_img'] if 'single_img' in kwargs else None
-    if single_img is not None:
+    single_img = kwargs['single_img'] if 'single_img' in kwargs else False
+    if single_img:
         # FIXME: hardcoded here only for 224 224!
         target_size = (target_size // 2, target_size // 2)
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))

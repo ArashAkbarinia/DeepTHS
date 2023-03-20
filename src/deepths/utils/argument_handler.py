@@ -387,6 +387,12 @@ def _add_input_group(parser):
         action='store_false',
         help='Type of shape rotation (default: random for train and identical for test)'
     )
+    rotation_parser.add_argument(
+        '--single_img',
+        default=False,
+        action='store_true',
+        help='Input the backbone by single image or all concatenated (default: False)'
+    )
 
 
 def _add_dataset_group(parser):

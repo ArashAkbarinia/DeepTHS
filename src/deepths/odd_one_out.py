@@ -16,10 +16,10 @@ from .utils import common_routines, report_utils
 
 def main(argv):
     args = argument_handler.master_arg_parser(argv, 'odd_one_out')
-    # FIXME args.paradigm, single_img
+    # FIXME args.paradigm
     args.train_kwargs = {
         'features': dataloader_oddx.FEATURES if args.db_features == "all" else args.db_features,
-        'single_img': True
+        'single_img': args.single_img
     }
     args = common_routines.prepare_starting(args, 'odd_one_out')
     _main_worker(args)
