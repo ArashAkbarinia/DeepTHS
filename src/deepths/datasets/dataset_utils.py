@@ -7,6 +7,7 @@ import os
 import sys
 import random
 
+from torch.utils import data as torch_data
 import torchvision.transforms as torch_transforms
 from torchvision import datasets as torch_datasets
 
@@ -227,7 +228,6 @@ def post_transform(mean, std):
 
 
 class NoTargetFolder(torch_datasets.ImageFolder):
-
     def __getitem__(self, item):
         img, _ = super().__getitem__(item)
         return img
@@ -237,3 +237,26 @@ class ItemPathFolder(torch_datasets.ImageFolder):
     def __getitem__(self, item):
         path, _ = self.samples[item]
         return path
+
+
+class BackgroundGenerator(torch_data.Dataset):
+    def __init__(self, background, target_size):
+        self.background = background
+        self.target_size = target_size
+
+    def __getitem__(self, _):
+        return (background_img(self.background, self.target_size) * 255).astype('uint8')
+
+    def __len__(self):
+        return np.inf
+
+
+def make_bg_loader(background, target_size):
+    if background in ['uniform_achromatic', 'uniform_colour', 'rnd_img']:
+        bg_db = BackgroundGenerator(background, target_size)
+        bg_transform = None
+    else:
+        scale = (0.5, 1.0)
+        bg_transform = torch_transforms.Compose(pre_transform_train(target_size, scale))
+        bg_db = NoTargetFolder(background, loader=cv2_loader_3chns)
+    return bg_db, bg_transform

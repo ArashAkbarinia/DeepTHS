@@ -322,13 +322,11 @@ class OddOneOutTrain(torch_data.Dataset):
         return self.bg_loader[0].__len__()
 
 
-def oddx_bg_folder(root, num_imgs, target_size, preprocess, scale=(0.5, 1.0), **kwargs):
+def oddx_bg_folder(background, num_imgs, target_size, preprocess, **kwargs):
     single_img = kwargs['single_img'] if 'single_img' in kwargs else None
     if single_img is not None:
         # FIXME: hardcoded here only for 224 224!
         target_size = (target_size // 2, target_size // 2)
-    bg_transform = torch_transforms.Compose(dataset_utils.pre_transform_train(target_size, scale))
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
-    bg_db = dataset_utils.NoTargetFolder(root, loader=dataset_utils.cv2_loader_3chns)
-    bg_loader = (bg_db, bg_transform)
+    bg_loader = dataset_utils.make_bg_loader(background, target_size)
     return OddOneOutTrain(bg_loader, num_imgs, target_size, transform, **kwargs)

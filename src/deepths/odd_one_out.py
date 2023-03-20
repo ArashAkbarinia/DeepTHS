@@ -30,16 +30,9 @@ def _main_worker(args):
     model = model_oddx.oddx_net(args, args.train_kwargs)
     model = model.cuda(args.gpu)
 
-    # defining validation set here so if only test don't do the rest
-    if args.validation_dir is None:
-        args.validation_dir = args.data_dir + '/validation_set/'
-
-    if args.train_dir is None:
-        args.train_dir = args.data_dir + '/training_set/'
-
     # loading the training set
     train_dataset = dataloader_oddx.oddx_bg_folder(
-        args.train_dir, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
+        args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
     )
 
     train_loader = torch.utils.data.DataLoader(

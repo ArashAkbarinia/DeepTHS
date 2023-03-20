@@ -289,6 +289,12 @@ def _add_optimisation_group(parser):
         ],
         help='Type of the linear classifier (default: nn)'
     )
+    optimisation_group.add_argument(
+        '--class_loss',
+        action='store_true',
+        default=False,
+        help='Only relevant for odd-one-out, compute class loss (default: False)'
+    )
 
 
 def _add_input_group(parser):
