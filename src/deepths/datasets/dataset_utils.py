@@ -68,6 +68,8 @@ def uniform_img(bg_size, num_chns, value):
 
 
 def background_img(bg_type, bg_size, num_chns=3):
+    if type(bg_size) not in [tuple, list]:
+        bg_size = (bg_size, bg_size)
     if type(bg_type) == np.ndarray:
         bg_img = cv2.resize(bg_type, bg_size, interpolation=cv2.INTER_NEAREST)
     elif type(bg_type) == str:
