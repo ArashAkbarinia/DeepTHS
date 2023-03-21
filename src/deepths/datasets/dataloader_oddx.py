@@ -75,7 +75,7 @@ def _fg_img(fg_type, bg_img, fg_size):
 
 def _random_canvas(img_size, fg_paths, fg_scale):
     fg_type = np.random.choice(fg_paths)
-    if 'uniform_' in fg_type:
+    if fg_type is not None and 'uniform_' in fg_type:
         fg_type = (fg_type, np.random.uniform(0.5))
 
     # creating a random size for the canvas image
