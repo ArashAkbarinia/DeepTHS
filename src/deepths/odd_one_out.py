@@ -98,7 +98,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             ##
             loss_ind, loss_class = criterion(output, target)
             log_loss_ind.update(loss_ind.item(), cu_batch[0].size(0))
-            loss = 0.5 * loss_ind + 0.5 * loss_class
+            loss = loss_ind if output[1] is None else 0.5 * loss_ind + 0.5 * loss_class
             ep_helper.log_loss.update(loss.item(), cu_batch[0].size(0))
 
             # measure accuracy and record loss
