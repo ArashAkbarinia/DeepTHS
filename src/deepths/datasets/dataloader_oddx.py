@@ -3,9 +3,9 @@ Training datasets of odd-one-out task across several visual features.
 """
 
 import sys
-
 import numpy as np
 import random
+import itertools
 
 import torch
 from torch.utils import data as torch_data
@@ -105,12 +105,14 @@ def create_texture(texture=None):
 
 
 def _rnd_position(stimuli):
+    # TODO: implement constant rotation
     if stimuli.unique_feature in ['rotation', 'size']:
         pos1 = (0.5, 0.5)
         pos2 = pos1
     else:
-        pos_pairs = dataset_utils.shuffle([(0, 0), (0, 1), (1, 0), (1, 1)])
-        pos1, pos2 = pos_pairs[0], pos_pairs[1]
+        pos1, pos2 = dataset_utils.shuffle(
+            list(itertools.product([0, 0.25, 0.5, 0.75, 1], repeat=2))
+        )[:2]
     return [pos1, pos2]
 
 
