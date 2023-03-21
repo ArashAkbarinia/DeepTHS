@@ -205,6 +205,8 @@ def _rnd_background(stimuli):
     # TODO: constant background is implemented different from others
     bg_db, bg_transform, item1 = stimuli.bg_loader
     bg_imgs = [bg_db.__getitem__(item1)]
+    if 'background' in stimuli.constant_features:
+        return bg_imgs
     if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
         item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
         bg_imgs.append(bg_db.__getitem__(item2))
