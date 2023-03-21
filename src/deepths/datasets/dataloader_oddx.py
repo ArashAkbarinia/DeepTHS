@@ -269,7 +269,7 @@ class StimuliSettings:
         self.rotation = kwargs.get("rotation", 0)
         self.position = kwargs.get("position", None)
         # if shape is the unique feature, we should make sure the symmetry is identical in all
-        default_symmetry = _rnd_symmetry()[0] if self.unique_feature == 'shape' else "n/a"
+        default_symmetry = _rnd_symmetry(self)[0] if self.unique_feature == 'shape' else "n/a"
         self.symmetry = kwargs.get("symmetry", default_symmetry)
         default_shape = _rnd_shape(self)[0] if self.unique_feature == 'rotation' else None
         self.shape = kwargs.get("shape", default_shape)
@@ -318,8 +318,8 @@ class OddOneOutTrain(torch_data.Dataset):
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else False
         self.features = kwargs['features'] if 'features' in kwargs else None
         self.cons_features = dict() if cons_features is None else cons_features
-        self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
-        self.fg_paths = [*self.fg_paths, None, 'uniform_achromatic']  # 'rnd_img'
+        default_fgs = ['uniform_achromatic', 'uniform_colour', 'rnd_img', None]
+        self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else default_fgs
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
 
     def __getitem__(self, item):
