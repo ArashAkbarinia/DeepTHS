@@ -68,18 +68,15 @@ def _make_common_imgs(stimuli, num_imgs):
 def _fg_img(fg_type, bg_img, fg_size):
     if fg_type is None:
         fg_img = bg_img.copy()
-    elif fg_type in ['rnd_img', 'uniform_achromatic'] or type(fg_type) == int:
-        fg_img = dataset_utils.background_img(fg_type, fg_size)
-        fg_img = (fg_img * 255).astype('uint8')
     else:
-        sys.exit('Unsupported feature type %s' % fg_type)
+        fg_img = (dataset_utils.background_img(fg_type, fg_size) * 255).astype('uint8')
     return fg_img
 
 
 def _random_canvas(img_size, fg_paths, fg_scale):
     fg_type = np.random.choice(fg_paths)
-    if fg_type == 'uniform_achromatic':
-        fg_type = (dataset_utils.randint(0, 256), np.random.uniform(0.5))
+    if 'uniform_' in fg_type:
+        fg_type = (fg_type, np.random.uniform(0.5))
 
     # creating a random size for the canvas image
     canvas_size = (_rnd_scale(img_size[0], fg_scale), _rnd_scale(img_size[1], fg_scale))

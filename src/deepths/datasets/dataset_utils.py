@@ -72,7 +72,7 @@ def background_img(bg_type, bg_size, num_chns=3):
         bg_size = (bg_size, bg_size)
     if type(bg_type) == np.ndarray:
         bg_img = cv2.resize(bg_type, bg_size, interpolation=cv2.INTER_NEAREST)
-    elif type(bg_type) == str:
+    elif type(bg_type) in [str, np.str_]:
         if bg_type == 'uniform_achromatic':
             bg_img = uniform_img(bg_size, num_chns, np.random.randint(0, 256, dtype='uint8'))
         elif bg_type == 'uniform_colour':
