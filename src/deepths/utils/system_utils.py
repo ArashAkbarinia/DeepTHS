@@ -78,3 +78,16 @@ def write_pickle(out_file, data):
     pickle_out = open(out_file, 'wb')
     pickle.dump(data, pickle_out)
     pickle_out.close()
+
+
+def read_json(in_file):
+    json_in = open(in_file, 'r')
+    data = json.load(json_in)
+    json_in.close()
+    return data
+
+
+def write_json(out_file, data):
+    json_out = open(out_file, 'w')
+    json.dump(data, json_out)
+    json_out.close()

@@ -114,17 +114,22 @@ def _rnd_position(stimuli):
     return [pos1, pos2]
 
 
-def _rnd_size(*_args, magnitude_range=(0.6, 0.8)):
+def _rnd_size(stimuli, magnitude_range=(0.6, 0.8)):
+    if 'size' in stimuli.constant_features:
+        return [stimuli.size]
     return dataset_utils.shuffle([0, np.random.uniform(*magnitude_range)])
 
 
-def _rnd_symmetry(*_args):
+def _rnd_symmetry(stimuli):
+    if 'symmetry' in stimuli.constant_features:
+        return [stimuli.symmetry]
     symmetrical = np.random.choice(['h', 'v', 'both'])
     non_symmetrical = np.random.choice(['h', 'v', 'none']) if symmetrical == 'both' else 'none'
     return dataset_utils.shuffle([non_symmetrical, symmetrical])
 
 
 def _rnd_rotation(stimuli):
+    # TODO: implement constant rotation
     angle1 = dataset_utils.randint(3, 12)
     if stimuli.shape['name'] in ['regular6']:
         rot_angles = np.arange(15, 46, 15)
@@ -135,6 +140,7 @@ def _rnd_rotation(stimuli):
 
 
 def _rnd_shape(stimuli):
+    # TODO: implement constant shape
     unique_feature, canvas = stimuli.unique_feature, stimuli.canvas
     if unique_feature == 'symmetry':
         symmetries = stimuli.__getattribute__('rnd_symmetry')
@@ -171,23 +177,32 @@ def _rnd_shape(stimuli):
     return [shape1, *shape2]
 
 
-def _rnd_texture(*_args):
+def _rnd_texture(stimuli):
+    if 'texture' in stimuli.constant_features:
+        return [create_texture(stimuli.texture)]
     textures = pattern_bank.__all__.copy()
     set1, set2 = np.random.choice(textures, size=2, replace=False)
     return [create_texture(set1), create_texture(set2)]
 
 
-def _rnd_colour(*_args):
+def _rnd_colour(stimuli):
+    if 'colour' in stimuli.constant_features:
+        return [stimuli.colour]
     return dataset_utils.unique_colours(2)
 
 
-def _rnd_contrast(*_args):
+def _rnd_contrast(stimuli):
+    # TODO: if bg is uniform, contrast always equals to 0
+    if 'contrast' in stimuli.constant_features:
+        fun, amount = stimuli.contrast.split('_')
+        return [(fun, float(amount))]
     fun = random.choice(['gamma', 'michelson'])
     amount = (0.3, 0.7) if fun == 'michelson' else random.choice([(0.3, 0.7), (1.5, 2.5)])
     return dataset_utils.shuffle([(fun, 1), (fun, np.random.uniform(*amount))])
 
 
 def _rnd_background(stimuli):
+    # TODO: constant background is implemented different from others
     bg_db, bg_transform, item1 = stimuli.bg_loader
     bg_imgs = [bg_db.__getitem__(item1)]
     if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
@@ -231,13 +246,14 @@ class StimuliSettings:
             }
         }
 
-        self.features_names = list(self.features_pool.keys()) if features is None else features
-        self.unique_feature = np.random.choice(self.features_names)
-        self.odd_class = self.features_names.index(self.unique_feature)
-        self.feature_settings = self.set_settings()
+        test_features = list(self.features_pool.keys()) if features is None else features
+        self.unique_feature = np.random.choice(test_features)
+        self.odd_class = test_features.index(self.unique_feature)
+        self.feature_settings = self.set_settings(**kwargs)
         self.num_commons = 3
         self.paired_attrs = self.feature_settings['pair'][:self.num_commons]
-        self.exclusive_attrs = ['shape'] if self.unique_feature == 'symmetry' else []
+        self.different_features = ['shape'] if self.unique_feature == 'symmetry' else []
+        self.constant_features = list(kwargs.keys())
 
         self.fg = None if self.unique_feature == 'background' else fg
         self.canvas = canvas
@@ -256,17 +272,19 @@ class StimuliSettings:
         default_shape = _rnd_shape(self)[0] if self.unique_feature == 'rotation' else None
         self.shape = kwargs.get("shape", default_shape)
 
-        self.fill_in_paired_settings()
+        self.fill_in_settings()
 
-    def set_settings(self):
+    def set_settings(self, **cons_features):
         settings = {'unique': self.unique_feature}
         for key, val in self.features_pool[self.unique_feature].items():
             settings[key] = val.copy()
+        settings['pair'] = [s for s in settings['pair'] if s not in cons_features]
         random.shuffle(settings['pair'])
         return settings
 
-    def fill_in_paired_settings(self):
-        for attr in [self.unique_feature, *self.paired_attrs, *self.exclusive_attrs]:
+    def fill_in_settings(self):
+        # TODO: different_features only is implemented in shape
+        for attr in [self.unique_feature, *self.paired_attrs, *self.different_features]:
             self.__setattr__('rnd_%s' % attr, globals()['_rnd_%s' % attr](self))
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[0])
 
@@ -274,10 +292,13 @@ class StimuliSettings:
             if self.__getattribute__(attr) is None:
                 self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
 
+        for attr in self.constant_features:
+            self.__setattr__(attr, globals()['_rnd_%s' % attr](self)[0])
+
     def common_settings(self, item):
         unique_attr = self.unique_feature
         self.__setattr__(unique_attr, self.__getattribute__('rnd_%s' % unique_attr)[1])
-        for attr in self.exclusive_attrs:
+        for attr in self.different_features:
             self.__setattr__(attr, self.__getattribute__('rnd_%s' % attr)[item + 1])
         for i, attr in enumerate(self.paired_attrs):
             ind = 0 if (i % self.num_commons) == item else 1
@@ -286,13 +307,15 @@ class StimuliSettings:
 
 class OddOneOutTrain(torch_data.Dataset):
 
-    def __init__(self, bg_loader, num_imgs, target_size, transform=None, **kwargs):
+    def __init__(self, bg_loader, num_imgs, target_size, transform=None, cons_features=None,
+                 **kwargs):
         self.bg_loader = bg_loader
         self.target_size = (target_size, target_size) if type(target_size) is int else target_size
         self.num_imgs = num_imgs
         self.transform = transform
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else False
         self.features = kwargs['features'] if 'features' in kwargs else None
+        self.cons_features = dict() if cons_features is None else cons_features
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else []
         self.fg_paths = [*self.fg_paths, None, 'uniform_achromatic']  # 'rnd_img'
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
@@ -300,7 +323,9 @@ class OddOneOutTrain(torch_data.Dataset):
     def __getitem__(self, item):
         # drawing the foreground content
         fg, canvas_size = _random_canvas(self.target_size, self.fg_paths, self.fg_scale)
-        stimuli = StimuliSettings(fg, canvas_size, (*self.bg_loader, item), self.features)
+        stimuli = StimuliSettings(
+            fg, canvas_size, (*self.bg_loader, item), self.features, **self.cons_features
+        )
         odd_img = _make_img_on_bg(stimuli)
         common_imgs = _make_common_imgs(stimuli, self.num_imgs)
         imgs = [odd_img, *common_imgs]

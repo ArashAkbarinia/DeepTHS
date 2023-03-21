@@ -3,6 +3,8 @@ PyTorch scripts to train/test the odd-one-out task.
 """
 
 import numpy as np
+import sys
+import os
 import time
 
 import torch
@@ -11,16 +13,24 @@ from torch.utils.tensorboard import SummaryWriter
 from .datasets import dataloader_oddx
 from .models import model_oddx
 from .utils import argument_handler
-from .utils import common_routines, report_utils
+from .utils import common_routines, report_utils, system_utils
 
 
 def main(argv):
     args = argument_handler.master_arg_parser(argv, 'odd_one_out')
     # FIXME args.paradigm
-    args.train_kwargs = {
-        'features': dataloader_oddx.FEATURES if args.db_features == "all" else args.db_features,
-        'single_img': args.single_img
-    }
+    if args.features_path is not None:
+        if os.path.isfile(args.features_path):
+            args.train_kwargs = system_utils.read_json(args.features_path)
+            if 'single_img' in args.train_kwargs:
+                args.single_img = args.train_kwargs['single_img']
+        else:
+            sys.exit('%s does not exist!' % args.features_path)
+    else:
+        args.train_kwargs = {
+            'features': dataloader_oddx.FEATURES,
+            'single_img': args.single_img
+        }
     args = common_routines.prepare_starting(args, 'odd_one_out')
     _main_worker(args)
 

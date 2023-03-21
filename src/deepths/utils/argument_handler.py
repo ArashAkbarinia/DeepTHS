@@ -446,13 +446,8 @@ def _add_dataset_group(parser):
         help='The path to the train colour distribution (default: None)'
     )
     dataset_group.add_argument(
-        '--db_features',
-        default="all",
-        choices=[
-            'symmetry', 'rotation', 'size', 'colour', 'shape',
-            'texture', 'background', 'contrast', 'position'
-        ],
-        nargs='+',
+        '--features_path',
+        default=None,
         type=str,
         help='Only relevant for odd-one-out, the features to generate dataset (default: None)'
     )
