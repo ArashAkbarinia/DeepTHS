@@ -254,11 +254,11 @@ class BackgroundGenerator(torch_data.Dataset):
 
 
 def make_bg_loader(background, target_size):
-    if background in ['uniform_achromatic', 'uniform_colour', 'rnd_img']:
-        bg_db = BackgroundGenerator(background, target_size)
-        bg_transform = None
-    else:
+    if type(background) is str and os.path.isdir(background):
         scale = (0.5, 1.0)
         bg_transform = torch_transforms.Compose(pre_transform_train(target_size, scale))
         bg_db = NoTargetFolder(background, loader=cv2_loader_3chns)
+    else:
+        bg_db = BackgroundGenerator(background, target_size)
+        bg_transform = None
     return bg_db, bg_transform
