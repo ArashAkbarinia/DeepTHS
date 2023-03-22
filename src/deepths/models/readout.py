@@ -121,6 +121,7 @@ class ClassifierNet(ReadOutNet):
         self.feature_units = np.prod(self.out_dim)
         if classifier == 'nn':
             self.fc = nn.Linear(int(self.feature_units * self.input_nodes), num_classes)
+            torch.nn.init.uniform_(self.fc.weight)
         else:
             self.fc = None  # e.g. for SVM
 
