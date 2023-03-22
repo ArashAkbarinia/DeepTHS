@@ -50,8 +50,8 @@ def _make_test_loader(args, contrast, l_wave):
 
 
 def _gen_img_name(img_settings, img_ind):
-    _, sf, angle, phase, _ = img_settings[1][img_ind]
-    return '%.3d_%.3d_%.3d' % (sf, angle, phase)
+    _, sf, angle, phase, side = img_settings[1][img_ind]
+    return '%.3d_%.3d_%.3d_%.3d' % (sf, side, angle, phase)
 
 
 def _sensitivity_sf(args, model, l_wave, sf):
