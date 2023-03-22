@@ -67,7 +67,6 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
 
     all_predictions = []
     end = time.time()
-
     with torch.set_grad_enabled(ep_helper.grad_status()):
         for batch_ind, cu_batch in enumerate(db_loader):
             # measure data loading time

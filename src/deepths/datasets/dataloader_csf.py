@@ -617,6 +617,20 @@ class GratingImages(AfcDataset, torch_data.Dataset):
         return self.samples
 
 
+class GratingImagesOdd4(GratingImages):
+    def __getitem__(self, item):
+        img0, img1, contrast_target, item_settings = super().__getitem__(item // 4)
+        target = np.mod(item, 4)
+        imgs = []
+        for i in range(4):
+            imgs.append(img0.clone() if i == target else img1.clone())
+        item_settings[-1] = target
+        return *imgs, target, item_settings
+
+    def __len__(self):
+        return super().__len__() * 4
+
+
 def train_set(db, target_size, preprocess, extra_transformation=None, **kwargs):
     if extra_transformation is None:
         extra_transformation = []
@@ -665,6 +679,19 @@ def validation_set(db, target_size, preprocess, extra_transformation=None, **kwa
             shared_pre_transforms, shared_post_transforms, target_size, **kwargs
         )
     return None
+
+
+def test_set_odd4(target_size, preprocess, test_samples, extra_transformation=None, **kwargs):
+    if extra_transformation is None:
+        extra_transformation = []
+    torch_pre_transforms = torch_transforms.Compose([*extra_transformation])
+    torch_post_transforms = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
+    afc_kwargs = {
+        'pre_transform': torch_pre_transforms,
+        'post_transform': torch_post_transforms,
+        **kwargs
+    }
+    return GratingImagesOdd4(samples=test_samples, afc_kwargs=afc_kwargs, target_size=target_size)
 
 
 def _natural_dataset(db, which_set, pre_transforms, post_transforms, data_dir, **kwargs):

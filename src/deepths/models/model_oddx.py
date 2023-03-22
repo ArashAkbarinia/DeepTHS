@@ -8,10 +8,13 @@ from torch.nn import functional as t_functional
 from . import readout
 
 
-def oddx_net(args, train_kwargs):
-    num_features = len(train_kwargs['features']) if args.class_loss else None
-    args.net_params = [num_features]
-    net_class = OddOneOutSingle if train_kwargs['single_img'] else OddOneOut
+def oddx_net(args, train_kwargs=None):
+    if train_kwargs is None:
+        net_class = OddOneOutSingle if args.single_img else OddOneOut
+    else:
+        num_features = len(train_kwargs['features']) if args.class_loss else None
+        args.net_params = [num_features]
+        net_class = OddOneOutSingle if train_kwargs['single_img'] else OddOneOut
     return readout.make_model(net_class, args, *args.net_params)
 
 
