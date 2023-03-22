@@ -18,9 +18,9 @@ def oddx_net(args, train_kwargs=None):
     return readout.make_model(net_class, args, *args.net_params)
 
 
-class OddOneOut(readout.ClassifierNet):
+class OddOneOutDiff(readout.ClassifierNet):
     def __init__(self, num_features, classifier_kwargs, readout_kwargs):
-        super(OddOneOut, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
+        super(OddOneOutDiff, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
         if num_features in [1, None]:
             self.odd_fc = None
         else:
@@ -48,6 +48,33 @@ class OddOneOut(readout.ClassifierNet):
         for i in range(4):
             loss_odd_ind += t_functional.binary_cross_entropy_with_logits(o_ind[:, i], t_ind[:, i])
         loss_odd_ind = loss_odd_ind / (4 * o_ind.shape[0])
+        loss_odd_class = 0 if o_class is None else t_functional.cross_entropy(o_class, t_class)
+        return loss_odd_ind, loss_odd_class
+
+
+class OddOneOut(readout.ClassifierNet):
+    def __init__(self, num_features, classifier_kwargs, readout_kwargs):
+        super(OddOneOut, self).__init__(4, 4, **classifier_kwargs, **readout_kwargs)
+        if num_features in [1, None]:
+            self.odd_fc = None
+        else:
+            self.odd_fc = torch.nn.Linear(self.feature_units * 4, num_features)
+
+    def forward(self, x0, x1, x2, x3):
+        x0 = self.do_features(x0)
+        x1 = self.do_features(x1)
+        x2 = self.do_features(x2)
+        x3 = self.do_features(x3)
+        x = torch.cat([x0, x1, x2, x3], dim=1)
+        odd_ind = self.do_classifier(x)
+        odd_class = None if self.odd_fc is None else self.odd_fc(x)
+        return odd_ind, odd_class
+
+    @staticmethod
+    def loss_function(output, target):
+        o_ind, o_class = output
+        t_ind, t_class = target
+        loss_odd_ind = t_functional.cross_entropy(o_ind, t_ind)
         loss_odd_class = 0 if o_class is None else t_functional.cross_entropy(o_class, t_class)
         return loss_odd_ind, loss_odd_class
 
