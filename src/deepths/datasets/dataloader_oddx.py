@@ -2,7 +2,6 @@
 Training datasets of odd-one-out task across several visual features.
 """
 
-import sys
 import numpy as np
 import random
 import itertools
@@ -195,9 +194,20 @@ def _rnd_contrast(stimuli):
     if 'contrast' in stimuli.constant_features:
         fun, amount = stimuli.contrast.split('_')
         return [(fun, float(amount))]
-    fun = random.choice(['gamma', 'michelson'])
-    amount = (0.3, 0.7) if fun == 'michelson' else random.choice([(0.3, 0.7), (1.5, 2.5)])
-    return dataset_utils.shuffle([(fun, 1), (fun, np.random.uniform(*amount))])
+
+    funs = ['gamma', 'michelson']
+    amount_m = (0.3, 0.7)
+    amount_g = [(0.3, 0.7), (1.5, 2.5)]
+    amount2 = [1, 1]
+    if 'contrast' in stimuli.params:
+        funs = stimuli.params['contrast'].get("funs", funs)
+        amount_m = stimuli.params['contrast'].get("amount_m", amount_m)
+        amount_g = stimuli.params['contrast'].get("amount_g", amount_g)
+        amount2 = stimuli.params['contrast'].get("amount2", amount2)
+    fun = random.choice(funs)
+    amount1 = amount_m if fun == 'michelson' else random.choice(amount_g)
+    contrasts = [(fun, np.random.uniform(*amount1)), (fun, np.random.uniform(*amount2))]
+    return dataset_utils.shuffle(contrasts)
 
 
 def _rnd_background(stimuli):
@@ -216,7 +226,7 @@ def _rnd_background(stimuli):
 
 class StimuliSettings:
 
-    def __init__(self, fg, canvas, bg_loader, features=None, **kwargs):
+    def __init__(self, fg, canvas, bg_loader, features=None, params=None, **kwargs):
         self.features_pool = {
             'symmetry': {
                 'pair': ['position', 'contrast', 'colour', 'texture', 'background'],
@@ -259,6 +269,7 @@ class StimuliSettings:
         self.fg = None if self.unique_feature == 'background' else fg
         self.canvas = canvas
         self.bg_loader = bg_loader
+        self.params = dict() if params is None else params
 
         self.background = kwargs.get("background", None)
         self.contrast = kwargs.get("contrast", None)
@@ -309,7 +320,7 @@ class StimuliSettings:
 class OddOneOutTrain(torch_data.Dataset):
 
     def __init__(self, bg_loader, num_imgs, target_size, transform=None, cons_features=None,
-                 **kwargs):
+                 features_params=None, **kwargs):
         self.bg_loader = bg_loader
         self.target_size = (target_size, target_size) if type(target_size) is int else target_size
         self.num_imgs = num_imgs
@@ -317,6 +328,7 @@ class OddOneOutTrain(torch_data.Dataset):
         self.single_img = kwargs['single_img'] if 'single_img' in kwargs else False
         self.features = kwargs['features'] if 'features' in kwargs else None
         self.cons_features = dict() if cons_features is None else cons_features
+        self.features_params = features_params
         default_fgs = ['uniform_achromatic', 'uniform_colour', 'rnd_img', None]
         self.fg_paths = kwargs['fg_paths'] if 'fg_paths' in kwargs else default_fgs
         self.fg_scale = kwargs['fg_scale'] if 'fg_scale' in kwargs else (0.50, 1.00)
@@ -325,7 +337,8 @@ class OddOneOutTrain(torch_data.Dataset):
         # drawing the foreground content
         fg, canvas_size = _random_canvas(self.target_size, self.fg_paths, self.fg_scale)
         stimuli = StimuliSettings(
-            fg, canvas_size, (*self.bg_loader, item), self.features, **self.cons_features
+            fg, canvas_size, (*self.bg_loader, item), self.features, self.features_params,
+            **self.cons_features
         )
         odd_img = _make_img_on_bg(stimuli)
         common_imgs = _make_common_imgs(stimuli, self.num_imgs)
