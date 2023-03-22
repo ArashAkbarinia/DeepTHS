@@ -49,6 +49,11 @@ def _make_test_loader(args, contrast, l_wave):
     )
 
 
+def _gen_img_name(img_settings, img_ind):
+    _, sf, angle, phase, _ = img_settings[1][img_ind]
+    return '%.3d_%.3d_%.3d' % (sf, angle, phase)
+
+
 def _sensitivity_sf(args, model, l_wave, sf):
     low = 0
     high = 1
@@ -63,7 +68,8 @@ def _sensitivity_sf(args, model, l_wave, sf):
     while True:
         db_loader = _make_test_loader(args, mid, l_wave)
 
-        _, accuracy = _train_val(db_loader, model, None, -1 - attempt_i, args)
+        _, accuracy = _train_val(db_loader, model, None, -1 - attempt_i, args,
+                                 name_gen_fun=_gen_img_name)
         psf['acc'].append(accuracy)
         psf['contrast'].append(int(mid * 1000))
         print(l_wave, mid, accuracy, low, high)

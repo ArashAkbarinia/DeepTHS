@@ -58,7 +58,8 @@ def _gen_img_name(gt_settings, img_ind):
     return 'gt_%.3d_%.3d' % (odd_class[img_ind], odd_ind[img_ind])
 
 
-def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
+def _train_val(db_loader, model, optimizer, epoch, args, print_test=True, name_gen_fun=None):
+    name_gen_fun = _gen_img_name if name_gen_fun is None else name_gen_fun
     ep_helper = common_routines.EpochHelper(args, model, optimizer, epoch)
     log_acc_class = report_utils.AverageMeter()
     log_loss_ind = report_utils.AverageMeter()
@@ -88,7 +89,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True):
             output = ep_helper.model(*input_signal)
 
             if batch_ind == 0:
-                def name_gen(x): return _gen_img_name(cu_batch[-2:], x)
+                def name_gen(x): return name_gen_fun(cu_batch[-2:], x)
 
                 ep_helper.tb_write_images(input_signal, args.mean, args.std, name_gen)
 

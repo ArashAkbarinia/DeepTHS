@@ -137,9 +137,9 @@ def load_model(net_class, weights, target_size):
     checkpoint = torch.load(weights, map_location='cpu')
     architecture = checkpoint['arch']
     transfer_weights = checkpoint['transfer_weights']
-    classifier = checkpoint['net']['classifier'] if hasattr(checkpoint, 'net') else 'nn'
-    pooling = checkpoint['net']['pooling'] if hasattr(checkpoint, 'net') else None
-    extra_params = checkpoint['net']['extra'] if hasattr(checkpoint, 'net') else []
+    classifier = checkpoint['net']['classifier'] if 'net' in checkpoint else 'nn'
+    pooling = checkpoint['net']['pooling'] if 'net' in checkpoint else None
+    extra_params = checkpoint['net']['extra'] if 'net' in checkpoint else []
 
     readout_kwargs = _readout_kwargs(architecture, target_size, transfer_weights, pooling)
     classifier_kwargs = {'classifier': classifier}
