@@ -259,6 +259,6 @@ def make_bg_loader(background, target_size):
         bg_transform = torch_transforms.Compose(pre_transform_train(target_size, scale))
         bg_db = NoTargetFolder(background, loader=cv2_loader_3chns)
     else:
-        bg_db = BackgroundGenerator(background, target_size)
         bg_transform = None
+        bg_db = BackgroundGenerator(background, target_size)
     return bg_db, bg_transform

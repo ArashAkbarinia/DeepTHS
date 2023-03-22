@@ -198,7 +198,7 @@ def _rnd_contrast(stimuli):
     funs = ['gamma', 'michelson']
     amount_m = (0.3, 0.7)
     amount_g = [(0.3, 0.7), (1.5, 2.5)]
-    amount2 = [1, 1]
+    amount2 = (1, 1)
     if 'contrast' in stimuli.params:
         funs = stimuli.params['contrast'].get("funs", funs)
         amount_m = stimuli.params['contrast'].get("amount_m", amount_m)
@@ -214,11 +214,10 @@ def _rnd_background(stimuli):
     # TODO: constant background is implemented different from others
     bg_db, bg_transform, item1 = stimuli.bg_loader
     bg_imgs = [bg_db.__getitem__(item1)]
-    if 'background' in stimuli.constant_features:
-        return bg_imgs
-    if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
-        item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
-        bg_imgs.append(bg_db.__getitem__(item2))
+    if 'background' not in stimuli.constant_features:
+        if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
+            item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
+            bg_imgs.append(bg_db.__getitem__(item2))
     if bg_transform is not None:
         bg_imgs = [bg_transform(bg_img) for bg_img in bg_imgs]
     return bg_imgs
