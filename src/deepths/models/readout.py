@@ -58,17 +58,16 @@ class ReadOutNet(BackboneNet):
         if pooling is None:
             if hasattr(self, 'act_dict'):
                 sys.exit('With mix features, pooling must be set!')
-            self.pool = None
+            self.pool_avg, self.pool_max, self.num_pools = None, None, 0
         else:
             pool_size = pooling.split('_')[1:]
             pool_size = (int(pool_size[0]), int(pool_size[1]))
 
-            if 'avg' in pooling:
-                self.pool = nn.AdaptiveAvgPool2d(pool_size)
-            elif 'max' in pooling:
-                self.pool = nn.AdaptiveMaxPool2d(pool_size)
-            else:
+            if 'max' not in pooling and 'avg' not in pooling:
                 sys.exit('Pooling %s not supported!' % pooling)
+            self.pool_avg = nn.AdaptiveAvgPool2d(pool_size) if 'avg' in pooling else None
+            self.pool_max = nn.AdaptiveMaxPool2d(pool_size) if 'max' in pooling else None
+            self.num_pools = 2 if 'maxavg' in pooling or 'avgmax' in pooling else 1
 
             if hasattr(self, 'act_dict'):  # assuming there is always pooling when mix features
                 total_dim = 0
@@ -76,18 +75,19 @@ class ReadOutNet(BackboneNet):
                     if type(odim) is int:
                         total_dim += odim
                     else:
-                        tmp_size = 1 if len(odim) < 3 else pool_size[0] * pool_size[1]
+                        tmp_size = 1 if len(odim) < 3 else np.prod(pool_size) * self.num_pools
                         total_dim += (odim[0] * tmp_size)
                 self.out_dim = (total_dim, 1)
             else:
-                self.out_dim = (self.out_dim[0], *pool_size)
+                self.out_dim = (self.out_dim[0], self.num_pools, *pool_size)
 
     def _do_pool(self, x):
-        if self.pool is None or len(x.shape) < 3:
+        if self.num_pools == 0 or len(x.shape) < 3:
             return x
         if len(x.shape) == 3:
             x = x.unsqueeze(dim=-1)
-        return self.pool(x)
+        x_pools = [pool(x) for pool in [self.pool_avg, self.pool_max] if pool is not None]
+        return torch.stack(x_pools, dim=1)
 
     def extract_features(self, x):
         x = super(ReadOutNet, self).extract_features(x)
