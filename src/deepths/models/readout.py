@@ -55,6 +55,8 @@ class ReadOutNet(BackboneNet):
                 self.backbone, architecture, transfer_weights[1:], target_size
             )
 
+        if type(self.out_dim) is int:
+            pooling = None
         if pooling is None:
             if hasattr(self, 'act_dict'):
                 sys.exit('With mix features, pooling must be set!')
