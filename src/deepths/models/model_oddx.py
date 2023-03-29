@@ -18,9 +18,9 @@ def oddx_net(args, train_kwargs=None):
     return readout.make_model(net_class, args, *args.net_params)
 
 
-class OddOneOutDiff(readout.ClassifierNet):
+class OddOneOut(readout.ClassifierNet):
     def __init__(self, num_features, classifier_kwargs, readout_kwargs):
-        super(OddOneOutDiff, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
+        super(OddOneOut, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
         if num_features in [1, None]:
             self.odd_fc = None
         else:
@@ -52,9 +52,9 @@ class OddOneOutDiff(readout.ClassifierNet):
         return loss_odd_ind, loss_odd_class
 
 
-class OddOneOut(readout.ClassifierNet):
+class OddOneOutMultiple(readout.ClassifierNet):
     def __init__(self, num_features, classifier_kwargs, readout_kwargs):
-        super(OddOneOut, self).__init__(4, 4, **classifier_kwargs, **readout_kwargs)
+        super(OddOneOutMultiple, self).__init__(4, 4, **classifier_kwargs, **readout_kwargs)
         if num_features in [1, None]:
             self.odd_fc = None
         else:
