@@ -623,7 +623,7 @@ class GratingImagesOdd4(GratingImages):
         target = np.mod(item, 4)
         imgs = []
         for i in range(4):
-            imgs.append(img0.clone() if i == target else img1.clone())
+            imgs.append(img1.clone() if i == target else img0.clone())
         item_settings[-1] = target
         return *imgs, target, item_settings
 
