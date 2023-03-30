@@ -39,9 +39,9 @@ def draw_polygon_params(img, shape_params, colour, texture):
 
 
 def _global_img_processing(img, contrast):
-    fun, amount = contrast
+    fun, amount, ill = contrast
     fun = imutils.adjust_gamma if fun == 'gamma' else imutils.adjust_contrast
-    return fun(img, amount)
+    return np.uint8((np.float32(fun(img, amount)) + ill) * 255)
 
 
 def _make_img_on_bg(stimuli):
@@ -193,22 +193,28 @@ def _rnd_colour(stimuli):
 def _rnd_contrast(stimuli):
     # TODO: if bg is uniform, contrast always equals to 0
     if 'contrast' in stimuli.constant_features:
-        fun, amount = stimuli.contrast.split('_')
-        return [(fun, float(amount))]
+        fun, amount, ill = stimuli.contrast.split('_')
+        return [(fun, float(amount), float(ill))]
 
     funs = ['gamma', 'michelson']
     amount_m = (0.3, 0.7)
     amount_g = [(0.3, 0.7), (1.5, 2.5)]
     amount2 = (1, 1)
+    ill = None
     if 'contrast' in stimuli.params:
         funs = stimuli.params['contrast'].get("funs", funs)
         amount_m = stimuli.params['contrast'].get("amount_m", amount_m)
         amount_g = stimuli.params['contrast'].get("amount_g", amount_g)
         amount2 = stimuli.params['contrast'].get("amount2", amount2)
+        ill = stimuli.params['contrast'].get("ill", ill)
     fun = random.choice(funs)
     amount1 = amount_m if fun == 'michelson' else random.choice(amount_g)
-    contrasts = [(fun, np.random.uniform(*amount1)), (fun, np.random.uniform(*amount2))]
-    return dataset_utils.shuffle(contrasts)
+    amounts = [np.random.uniform(*amount1), np.random.uniform(*amount2)]
+    if ill is None:
+        ill = 0 if fun == 'gamma' else random.choice([-0.5, 0.5]) * np.random.uniform(
+            0, 1 - max(amounts))
+    print(ill)
+    return dataset_utils.shuffle([(fun, am, ill) for am in amounts])
 
 
 def _rnd_background(stimuli):
