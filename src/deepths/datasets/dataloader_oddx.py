@@ -46,14 +46,15 @@ def _global_img_processing(img, contrast):
 
 def _make_img_on_bg(stimuli):
     shape_params = polygon_bank.handle_shape(stimuli)
-    img_in = _global_img_processing(stimuli.background.copy(), stimuli.contrast)
+    img_in = stimuli.background.copy()
     srow, scol = dataset_utils.relative_place(stimuli.canvas, img_in.shape, stimuli.position)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
         bg_lum, alpha = stimuli.fg
         img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
     img_out = draw_polygon_params(img_out, shape_params, stimuli.colour, stimuli.texture)
-    return dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
+    img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
+    return _global_img_processing(img_out, stimuli.contrast)
 
 
 def _make_common_imgs(stimuli, num_imgs):
@@ -237,7 +238,7 @@ class StimuliSettings:
                 'pair': ['contrast', 'colour', 'texture', 'background'],
             },
             'colour': {
-                'pair': ['position', 'contrast', 'shape', 'texture', 'background'],
+                'pair': ['position', 'shape', 'texture', 'background'],
             },
             'shape': {
                 'pair': ['position', 'contrast', 'colour', 'texture', 'background'],
@@ -249,7 +250,7 @@ class StimuliSettings:
                 'pair': ['position', 'contrast', 'colour', 'shape', 'texture'],
             },
             'contrast': {
-                'pair': ['position', 'background', 'colour', 'shape', 'texture'],
+                'pair': ['position', 'background', 'shape', 'texture'],
             },
             'position': {
                 'pair': ['background', 'contrast', 'colour', 'shape', 'texture'],
@@ -290,6 +291,9 @@ class StimuliSettings:
         for key, val in self.features_pool[self.unique_feature].items():
             settings[key] = val.copy()
         settings['pair'] = [s for s in settings['pair'] if s not in cons_features]
+        # colour and contrast cant be together, it causes ambiguity
+        if 'colour' in settings['pair'] and 'contrast' in settings['pair']:
+            settings['pair'].remove(random.choice(['contrast', 'colour']))
         random.shuffle(settings['pair'])
         return settings
 
