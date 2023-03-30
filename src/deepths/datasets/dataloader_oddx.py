@@ -187,6 +187,10 @@ def _rnd_texture(stimuli):
 def _rnd_colour(stimuli):
     if 'colour' in stimuli.constant_features:
         return [stimuli.colour]
+    if 'colour' in stimuli.different_features:
+        colour = dataset_utils.unique_colours(1)[0]
+        chns = dataset_utils.shuffle(list(itertools.permutations([0, 1, 2], r=3)))
+        return [[colour[c] for c in chns[i]] for i in range(4)]
     return dataset_utils.unique_colours(2)
 
 
@@ -268,7 +272,11 @@ class StimuliSettings:
         self.feature_settings = self.set_settings(**kwargs)
         self.num_commons = 3
         self.paired_attrs = self.feature_settings['pair'][:self.num_commons]
-        self.different_features = ['shape'] if self.unique_feature == 'symmetry' else []
+        self.different_features = []
+        if self.unique_feature == 'symmetry':
+            self.different_features.append('shape')
+        elif self.unique_feature == 'contrast':
+            self.different_features.append('colour')
         self.constant_features = list(kwargs.keys())
 
         self.fg = None if self.unique_feature == 'background' else fg
