@@ -213,7 +213,6 @@ def _rnd_contrast(stimuli):
     if ill is None:
         ill = 0 if fun == 'gamma' else random.choice([-0.5, 0.5]) * np.random.uniform(
             0, 1 - max(amounts))
-    print(ill)
     return dataset_utils.shuffle([(fun, am, ill) for am in amounts])
 
 
