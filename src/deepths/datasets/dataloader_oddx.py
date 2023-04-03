@@ -256,10 +256,10 @@ class StimuliSettings:
                 'pair': ['position', 'contrast', 'colour', 'shape', 'background'],
             },
             'background': {
-                'pair': ['position', 'contrast', 'colour', 'shape', 'texture'],
+                'pair': ['position', 'colour', 'shape', 'texture'],
             },
             'contrast': {
-                'pair': ['position', 'background', 'shape', 'texture'],
+                'pair': ['position', 'shape', 'texture'],
             },
             'position': {
                 'pair': ['background', 'contrast', 'colour', 'shape', 'texture'],
@@ -277,9 +277,10 @@ class StimuliSettings:
             self.different_features.append('shape')
         elif self.unique_feature == 'contrast':
             self.different_features.append('colour')
+            kwargs['background'] = '128'
         self.constant_features = list(kwargs.keys())
 
-        self.fg = None if self.unique_feature == 'background' else fg
+        self.fg = None if self.unique_feature in ['background', 'contrast'] else fg
         self.canvas = canvas
         self.bg_loader = bg_loader
         self.params = dict() if params is None else params
