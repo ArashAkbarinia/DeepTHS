@@ -67,12 +67,12 @@ def _sensitivity_sf(args, model, l_wave, sf):
     th = 0.6249
     while True:
         db_loader = _make_test_loader(args, mid, l_wave)
-
-        _, accuracy = _train_val(db_loader, model, None, -1 - attempt_i, args,
-                                 name_gen_fun=_gen_img_name)
+        _, accuracy = _train_val(
+            db_loader, model, None, -1 - attempt_i, args, name_gen_fun=_gen_img_name
+        )
         psf['acc'].append(accuracy)
         psf['contrast'].append(int(mid * 1000))
-        print(l_wave, mid, accuracy, low, high)
+        print(sf, mid, accuracy, low, high)
         res_sf.append(np.array([l_wave, sf, accuracy, mid]))
         new_low, new_mid, new_high = report_utils.midpoint(accuracy, low, mid, high, th=th)
         if new_mid is None or attempt_i == args.test_attempts:
