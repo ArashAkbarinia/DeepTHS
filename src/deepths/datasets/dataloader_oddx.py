@@ -224,7 +224,9 @@ def _rnd_background(stimuli):
     # TODO: constant background is implemented different from others
     bg_db, bg_transform, item1 = stimuli.bg_loader
     bg_imgs = [bg_db.__getitem__(item1)]
-    if 'background' not in stimuli.constant_features:
+    if stimuli.unique_feature == 'contrast':
+        bg_imgs[0][:, :] = 128
+    elif 'background' not in stimuli.constant_features:
         if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
             item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
             bg_imgs.append(bg_db.__getitem__(item2))
@@ -277,7 +279,6 @@ class StimuliSettings:
             self.different_features.append('shape')
         elif self.unique_feature == 'contrast':
             self.different_features.append('colour')
-            kwargs['background'] = '128'
         self.constant_features = list(kwargs.keys())
 
         self.fg = None if self.unique_feature in ['background', 'contrast'] else fg
