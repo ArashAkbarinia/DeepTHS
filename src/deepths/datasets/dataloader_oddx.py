@@ -50,8 +50,8 @@ def _make_img_on_bg(stimuli):
     srow, scol = dataset_utils.relative_place(stimuli.canvas, img_in.shape, stimuli.position)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
-        bg_lum, alpha = stimuli.fg
-        img_out = (1 - alpha) * _fg_img(bg_lum, img_in, stimuli.canvas) + alpha * img_out
+        fg_type, alpha = stimuli.fg
+        img_out = (1 - alpha) * _fg_img(fg_type, img_in, stimuli.canvas) + alpha * img_out
     img_out = draw_polygon_params(img_out, shape_params, stimuli.colour, stimuli.texture)
     img_out = dataset_utils.merge_fg_bg_at_loc(img_in, img_out, srow, scol)
     return _global_img_processing(img_out, stimuli.contrast)
@@ -75,7 +75,7 @@ def _fg_img(fg_type, bg_img, fg_size):
 
 def _random_canvas(img_size, fg_paths, fg_scale):
     fg_type = np.random.choice(fg_paths)
-    if fg_type is not None and 'uniform_' in fg_type:
+    if fg_type is not None:
         fg_type = (fg_type, np.random.uniform(0.5))
 
     # creating a random size for the canvas image
