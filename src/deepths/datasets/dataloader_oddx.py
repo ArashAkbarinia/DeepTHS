@@ -200,10 +200,10 @@ def _rnd_contrast(stimuli):
         fun, amount, ill = stimuli.contrast.split('_')
         return [(fun, float(amount), float(ill))]
 
-    funs = ['gamma', 'michelson']
-    amount_m = (0.3, 0.7)
+    funs = ['michelson'] if stimuli.unique_feature == 'contrast' else ['gamma', 'michelson']
+    amount_m = (0.004, 1.0) if stimuli.unique_feature == 'contrast' else (0.3, 0.7)
     amount_g = [(0.3, 0.7), (1.5, 2.5)]
-    amount2 = (1, 1)
+    amount2 = (0.004, 1.0) if stimuli.unique_feature == 'contrast' else (1, 1)
     ill = None
     if 'contrast' in stimuli.params:
         funs = stimuli.params['contrast'].get("funs", funs)
