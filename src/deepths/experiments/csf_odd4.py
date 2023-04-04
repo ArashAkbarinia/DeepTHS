@@ -108,7 +108,7 @@ def main(argv):
     args.mean, args.std = model_utils.get_mean_std(args.colour_space, args.vision_type)
 
     # testing setting
-    sf_base = ((args.target_size / 2) / np.pi)
+    sf_base = (args.target_size * 0.5) / np.pi
     human_sfs = [i for i in range(1, int(args.target_size / 2) + 1) if args.target_size % i == 0]
     lambda_waves = [sf_base / e for e in human_sfs]
 
