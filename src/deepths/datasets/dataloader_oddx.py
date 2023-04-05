@@ -25,7 +25,7 @@ def _rnd_scale(size, scale):
 def draw_polygon_params(img, shape_params, colour, texture):
     draw_params = {'color': colour, 'thickness': -1 if texture['fun'] == 'filled' else 1}
     img = polygon_bank.draw(img, shape_params, **draw_params)
-    if texture['fun'] == 'filled':
+    if texture['fun'] in ['filled', 'empty']:
         return img
 
     draw_params['color'] = (1, 1, 1)
@@ -41,7 +41,8 @@ def draw_polygon_params(img, shape_params, colour, texture):
 def _global_img_processing(img, contrast):
     fun, amount, ill = contrast
     fun = imutils.adjust_gamma if fun == 'gamma' else imutils.adjust_contrast
-    return np.uint8((np.float32(fun(img, amount)) + ill) * 255)
+    img_out = fun(img, amount)
+    return img_out if ill == 0 else np.uint8((np.float32(img_out) / 255 + ill) * 255)
 
 
 def _make_img_on_bg(stimuli):

@@ -4,7 +4,7 @@ Generating different patterns/textures.
 
 import numpy as np
 
-__all__ = ['wave', 'herringbone', 'diamond', 'line', 'grid', 'brick', 'filled']
+__all__ = ['wave', 'herringbone', 'diamond', 'line', 'grid', 'brick', 'filled', 'empty']
 
 
 def _repeat_to_img_size(pattern_img, img_size):
@@ -74,3 +74,7 @@ def brick(img_size, gaps, thicknesses=(1, 1)):
 
 def filled(img_size):
     return np.ones(img_size)
+
+
+def empty(img_size):
+    return np.zeros(img_size)
