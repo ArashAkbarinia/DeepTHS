@@ -373,7 +373,7 @@ class OddOneOutTrain(torch_data.Dataset):
             imgs = [torch.cat(
                 [torch.cat([imgs[0], imgs[1]], dim=2), torch.cat([imgs[2], imgs[3]], dim=2)], dim=1
             )]
-        stimuli_settings = None
+        stimuli_settings = np.array([])
         return *imgs, target, stimuli.odd_class, stimuli_settings
 
     def __len__(self):
