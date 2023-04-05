@@ -631,7 +631,8 @@ class GratingImagesOdd4(GratingImages):
         for i in range(4):
             imgs.append(img1.clone() if i == target else img0.clone())
         item_settings[-1] = target
-        return *imgs, target, item_settings
+        odd_class = 0
+        return *imgs, target, odd_class, item_settings
 
     def __len__(self):
         return super().__len__() * 4

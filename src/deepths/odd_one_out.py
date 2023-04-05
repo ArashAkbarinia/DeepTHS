@@ -44,17 +44,15 @@ def _main_worker(args):
     train_dataset = dataloader_oddx.oddx_bg_folder(
         args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
     )
-
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, sampler=None
     )
-
     common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
 
 
 def _gen_img_name(gt_settings, img_ind):
-    odd_ind, odd_class = gt_settings
+    odd_ind, odd_class, _ = gt_settings
     return 'gt_%.3d_%.3d' % (odd_class[img_ind], odd_ind[img_ind])
 
 
@@ -73,10 +71,10 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True, name_g
             # measure data loading time
             ep_helper.log_data_t.update(time.time() - end)
 
-            input_signal = cu_batch[:-2]
+            input_signal = cu_batch[:-3]
             # preparing the target
-            odd_class = cu_batch[-1]
-            odd_ind = cu_batch[-2]
+            odd_class = cu_batch[-2]
+            odd_ind = cu_batch[-3]
             if len(input_signal) > 1:
                 odd_ind_arr = torch.zeros(odd_ind.shape[0], len(input_signal))
                 odd_ind_arr[torch.arange(odd_ind.shape[0]), odd_ind] = 1
@@ -89,7 +87,7 @@ def _train_val(db_loader, model, optimizer, epoch, args, print_test=True, name_g
             output = ep_helper.model(*input_signal)
 
             if batch_ind == 0:
-                def name_gen(x): return name_gen_fun(cu_batch[-2:], x)
+                def name_gen(x): return name_gen_fun(cu_batch[-3:], x)
 
                 ep_helper.tb_write_images(input_signal, args.mean, args.std, name_gen)
 

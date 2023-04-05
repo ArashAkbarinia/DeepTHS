@@ -33,12 +33,10 @@ def _make_test_loader(args, contrast, l_wave):
         'mask_image': args.mask_image,
         'grating_detector': args.grating_detector
     }
-
     test_samples = {
         'amp': [contrast], 'lambda_wave': [l_wave], 'theta': test_thetas,
         'rho': test_rhos, 'side': test_ps, 'illuminant': args.illuminant
     }
-
     db = dataloader_csf.test_set_odd4(
         args.target_size, (args.mean, args.std), test_samples, **db_params
     )
@@ -50,7 +48,7 @@ def _make_test_loader(args, contrast, l_wave):
 
 
 def _gen_img_name(img_settings, img_ind):
-    _, sf, angle, phase, side = img_settings[1][img_ind]
+    _, sf, angle, phase, side = img_settings[-1][img_ind]
     return '%.3d_%.3d_%.3d_%.3d' % (sf, side, angle, phase)
 
 
