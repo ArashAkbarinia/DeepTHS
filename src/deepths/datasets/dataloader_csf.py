@@ -391,7 +391,7 @@ def _create_samples(samples):
 def _random_grating(target_size, contrast0):
     rho = random.uniform(0, np.pi)
     sf = random.randint(1, target_size / 2)
-    lambda_wave = ((target_size / 2) / np.pi) / sf
+    lambda_wave = (target_size * 0.5) / (np.pi * sf)
     theta = random.uniform(0, np.pi)
     omega = [np.cos(theta), np.sin(theta)]
     sinusoid_param = {
@@ -610,7 +610,7 @@ class GratingImages(AfcDataset, torch_data.Dataset):
             img0, img1 = self.post_transform([img0, img1])
         img_out, contrast_target = _two_pairs_stimuli(img0, img1, contrast0, contrast1, self.p)
 
-        sf_base = ((self.target_size[0] / 2) / np.pi)
+        sf_base = (self.target_size[0] * 0.5) / np.pi
         sf = int(np.round(sf_base / lambda_wave))
         item_settings = np.array([contrast0, sf, theta, rho, self.p])
 

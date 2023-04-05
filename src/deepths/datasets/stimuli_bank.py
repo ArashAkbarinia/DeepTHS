@@ -41,7 +41,7 @@ def circular_gratings(contrast, rad_length, sf_cpi=None, target_size=None, theta
     if sf_cpi is None:
         sf_cpi = round(smaller_side / 2)
     omega = [np.cos(theta), np.sin(theta)]
-    sf_base = ((target_size[0] / 2) / np.pi)
+    sf_base = (target_size[0] * 0.5) / np.pi
     lambda_wave = sf_base / sf_cpi
     sinusoid_param = {
         'amp': contrast, 'omega': omega, 'rho': rho,

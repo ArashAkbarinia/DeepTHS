@@ -58,7 +58,7 @@ class SinusoidalGratings(torch_data.Dataset):
         theta_i, phase_i, sf_i = np.unravel_index(item, settings_shape)
         theta = self.thetas[theta_i]
         for angle in [theta + self.rotation, theta, theta, theta]:
-            sf_base = ((self.target_size / 2) / np.pi)
+            sf_base = (self.target_size * 0.5) / np.pi
             lambda_wave = sf_base / self.sfs[sf_i]
 
             angle = np.deg2rad(angle)

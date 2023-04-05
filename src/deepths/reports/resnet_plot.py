@@ -60,7 +60,7 @@ def _extract_sensitivity(result_mat):
 
 
 def wave2sf(wave, target_size):
-    base_sf = ((target_size / 2) / np.pi)
+    base_sf = (target_size * 0.5) / np.pi
     return [((1 / e) * base_sf) for e in wave]
 
 
