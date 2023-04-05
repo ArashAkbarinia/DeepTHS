@@ -18,9 +18,9 @@ def oddx_net(args, train_kwargs=None):
     return readout.make_model(net_class, args, *args.net_params)
 
 
-class OddOneOut(readout.ClassifierNet):
+class OddOneOutDiff(readout.ClassifierNet):
     def __init__(self, num_features, classifier_kwargs, readout_kwargs):
-        super(OddOneOut, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
+        super(OddOneOutDiff, self).__init__(3, 1, **classifier_kwargs, **readout_kwargs)
         if num_features in [1, None]:
             self.odd_fc = None
         else:
@@ -52,9 +52,9 @@ class OddOneOut(readout.ClassifierNet):
         return loss_odd_ind, loss_odd_class
 
 
-class OddOneOutMultiple(readout.ClassifierNet):
+class OddOneOut(readout.ClassifierNet):
     def __init__(self, num_features, classifier_kwargs, readout_kwargs):
-        super(OddOneOutMultiple, self).__init__(4, 4, **classifier_kwargs, **readout_kwargs)
+        super(OddOneOut, self).__init__(4, 4, **classifier_kwargs, **readout_kwargs)
         if num_features in [1, None]:
             self.odd_fc = None
         else:
@@ -65,7 +65,13 @@ class OddOneOutMultiple(readout.ClassifierNet):
         x1 = self.do_features(x1)
         x2 = self.do_features(x2)
         x3 = self.do_features(x3)
-        x = torch.cat([x0, x1, x2, x3], dim=1)
+
+        d0 = torch.std(torch.stack([x0 - x1, x0 - x2, x0 - x3]), dim=0)
+        d1 = torch.std(torch.stack([x1 - x0, x1 - x2, x1 - x3]), dim=0)
+        d2 = torch.std(torch.stack([x2 - x0, x2 - x1, x2 - x3]), dim=0)
+        d3 = torch.std(torch.stack([x3 - x0, x3 - x1, x3 - x2]), dim=0)
+
+        x = torch.cat([d0, d1, d2, d3], dim=1)
         odd_ind = self.do_classifier(x)
         odd_class = None if self.odd_fc is None else self.odd_fc(x)
         return odd_ind, odd_class
