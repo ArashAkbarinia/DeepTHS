@@ -12,7 +12,7 @@ from . import animal_csfs
 from ..utils import report_utils
 
 
-def extract_csf(file_path):
+def extract_csf(file_path, th):
     results = np.loadtxt(file_path, delimiter=',')
     frequency = np.unique(results[:, 1])
     psfs = {'contrast': [], 'accs': []}
@@ -20,18 +20,18 @@ def extract_csf(file_path):
     for f in frequency:
         f_inds = results[:, 1] == f
         f_results = results[f_inds]
-        # there is a range of contrasts with accuracy=0.75, we take the mean
+        # there is a range of contrasts with accuracy=th, we take the mean
         # psfs['accs'].append(np.interp(psfs['contrast'], f_results[:, 1], f_results[:, 2]))
         psfs['contrast'].append(f_results[:, 3])
         psfs['accs'].append(f_results[:, 2])
-        l_inds = f_results[:, 2] == 0.75
+        l_inds = np.isclose(f_results[:, 2], th, atol=1e-2)
         high_sens = f_results[-1][-1]
         low_sens = f_results[l_inds][0][-1] if np.sum(l_inds) > 0 else high_sens
-        sensitivity.append((low_sens + high_sens) / 2)
+        sensitivity.append((low_sens + high_sens + 1e-7) / 2)
     return np.array(frequency) / 2, 1 / np.array(sensitivity), psfs
 
 
-def _load_network_results(path, chns=None, area_suf=None, exclude=None):
+def _load_network_results(path, th, chns=None, area_suf=None, exclude=None):
     if area_suf is None:
         area_suf = ''
     net_results = dict()
@@ -50,9 +50,12 @@ def _load_network_results(path, chns=None, area_suf=None, exclude=None):
         if '%sfc.csv' % chns_dir in file_paths:
             file_paths.remove('%sfc.csv' % chns_dir)
             file_paths.append('%sfc.csv' % chns_dir)
+        if '%sstem.csv' % chns_dir in file_paths:
+            file_paths.remove('%sstem.csv' % chns_dir)
+            file_paths = ['%sstem.csv' % chns_dir, *file_paths]
         for file_path in file_paths:
             area_name = ntpath.basename(file_path)[:-4]
-            frequency, sensitivity, psfs = extract_csf(file_path)
+            frequency, sensitivity, psfs = extract_csf(file_path, th)
             chn_res.append({'freq': frequency, 'sens': sensitivity, 'name': area_name, 'psf': psfs})
             # if results were read add it to dictionary
             if len(chn_res) > 0:
@@ -81,12 +84,14 @@ def _chn_plot_params(chn_name):
             'color': colour, 'marker': 's', 'linestyle': '-',
             'markerfacecolor': 'y', 'markeredgecolor': 'y'
         }
+    kwargs['linewidth'] = 6
+    kwargs['markersize'] = kwargs['linewidth'] * 3
     return label, kwargs
 
 
 def _minmax_instance_area(instance, area_ind):
-    min_val = min([np.array(val[area_ind]['sens']).min() for val in instance.values()])
-    max_val = max([np.array(val[area_ind]['sens']).max() for val in instance.values()])
+    min_val = min([np.min(val[area_ind]['sens']) for val in instance.values()])
+    max_val = max([np.max(val[area_ind]['sens']) for val in instance.values()])
     return min_val, max_val
 
 
@@ -138,12 +143,12 @@ def _report_chn_csf(net_results, chn_name, model_info):
     return correlations, distances
 
 
-def _plot_chn_csf(net_results, chn_name, figwidth=7, log_axis=False, normalise='max',
+def _plot_chn_csf(net_results, chn_name, figwidth=10, log_axis=False, normalise='max',
                   model_info=None, old_fig=None, chn_info=None, legend_dis=False, legend=True,
-                  legend_loc='upper right', font_size=16):
+                  legend_loc='upper right', font_size=42):
     chn_summary = net_results[chn_name]
     num_tests = len(chn_summary)
-    fig = plt.figure(figsize=(figwidth * num_tests, 5)) if old_fig is None else old_fig
+    fig = plt.figure(figsize=(figwidth * num_tests, figwidth * 0.8)) if old_fig is None else old_fig
 
     for i in range(num_tests):
         # getting the x and y values
@@ -168,7 +173,10 @@ def _plot_chn_csf(net_results, chn_name, figwidth=7, log_axis=False, normalise='
             model_name, plot_model = model_info
             if plot_model:
                 if 'lum' in chn_name:
-                    ax.plot([], [], '-x', color='gray', label="Human")
+                    ax.plot(
+                        [], [], '--x', color='gray', label="Human",
+                        linewidth=chn_params['linewidth'], markersize=chn_params['markersize']
+                    )
 
                 hcf_chn_params = chn_params.copy()
                 hcf_chn_params['marker'] = 'x'
@@ -199,22 +207,27 @@ def _plot_chn_csf(net_results, chn_name, figwidth=7, log_axis=False, normalise='
         else:
             ax.errorbar(org_freqs, org_yvals, org_error, label=chn_label, capsize=6, **chn_params)
 
-        ax.set_xlabel('Spatial Frequency (Cycle/Image)', **{'size': font_size})
-        ax.set_ylabel('Sensitivity (1/Contrast)', **{'size': font_size})
+        if i == 0 and 'lum' in chn_name:
+            ax.set_xlabel('Spatial Frequency (Cycle/Image)', **{'size': font_size * 0.9})
+            ax.set_ylabel('Sensitivity (1/Contrast)', **{'size': font_size * 0.9})
         if log_axis:
             ax.set_xscale('log')
             ax.set_yscale(
                 'symlog', **{'linthresh': 10e-2, 'linscale': 0.25, 'subs': [*range(2, 10)]}
             )
         if normalise is not None:
-            ax.set_ylim([0, 1])
+            ax.set_ylim([0, 2.])
         if legend:
-            ax.legend(loc=legend_loc)
+            ax.legend(
+                loc=legend_loc, prop={'size': font_size * 0.55}, frameon=True, ncol=2,
+                labelspacing=0.0, columnspacing=0.1, bbox_to_anchor=(0.075, 0.52, 0.5, 0.5)
+            )
+        ax.tick_params(axis='both', which='major', labelsize=font_size * 0.65)
     return fig
 
 
-def plot_csf_areas(path, chns=None, exclude=None, **kwargs):
-    net_results = _load_network_results(path, chns=chns, exclude=exclude)
+def plot_csf_areas(path, th, chns=None, exclude=None, **kwargs):
+    net_results = _load_network_results(path, th, chns=chns, exclude=exclude)
     net_csf_fig = None
     for chn_key in net_results.keys():
         if net_csf_fig is not None:
@@ -224,8 +237,8 @@ def plot_csf_areas(path, chns=None, exclude=None, **kwargs):
     return net_csf_fig
 
 
-def plot_csf_instances(paths, std, area_suf=None, chns=None, exclude=None, **kwargs):
-    instances = [_load_network_results(path, chns, area_suf, exclude) for path in paths]
+def plot_csf_instances(paths, std, th, area_suf=None, chns=None, exclude=None, **kwargs):
+    instances = [_load_network_results(path, th, chns, area_suf, exclude) for path in paths]
     net_results = _instances_summary(instances, std)
     net_csf_fig = None
     for chn_key in net_results.keys():
@@ -236,8 +249,8 @@ def plot_csf_instances(paths, std, area_suf=None, chns=None, exclude=None, **kwa
     return net_csf_fig
 
 
-def report_csf_areas(paths, area_suf=None, chns=None, **kwargs):
-    net_results = _load_network_results(paths, chns=chns, area_suf=area_suf)
+def report_csf_areas(paths, th, area_suf=None, chns=None, **kwargs):
+    net_results = _load_network_results(paths, th, chns=chns, area_suf=area_suf)
     report_summary = dict()
     for chn_key in net_results.keys():
         p_corr, euc_dis = _report_chn_csf(net_results, chn_key, **kwargs)

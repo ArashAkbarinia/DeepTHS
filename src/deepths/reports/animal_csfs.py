@@ -11,7 +11,7 @@ def generic_model(f, k1, k2, alpha, beta):
     return the_csf
 
 
-def model_fest(fs):
+def model_fest(_fs):
     frequency = np.array([0.5, 1.12, 2, 2.83, 4, 5.66, 8, 11.3, 16, 22.6, 30, 56])
     # for sf=1.12 1.82095312?
     sensitivity = np.array(
@@ -44,7 +44,7 @@ def get_csf(frequency, method='model_fest', chn='lum'):
         else:
             sensitivity = [csf(f, method=method) for f in frequency]
         sensitivity = np.array(sensitivity)
-        sensitivity /= sensitivity.max()
+        sensitivity /= np.max(sensitivity)
     else:
         frequency, sensitivity = chromatic_csf(chn)
     return np.array(frequency), sensitivity
@@ -62,7 +62,11 @@ def csf(f, method='human'):
     }
     if method in uhlrich_pars.keys():
         param = uhlrich_pars[method]
-        sensitivity = generic_model(f, k1=param[0], k2=param[1], alpha=param[2], beta=param[3])
+        if method == 'human' and f < 1:
+            sensitivity = generic_model(1, k1=param[0], k2=param[1], alpha=param[2], beta=param[3])
+            sensitivity = sensitivity * f
+        else:
+            sensitivity = generic_model(f, k1=param[0], k2=param[1], alpha=param[2], beta=param[3])
         return sensitivity
     else:
         return 2.6 * (0.0192 + 0.114 * f) * np.exp(-(0.114 * f) ** 1.1)
