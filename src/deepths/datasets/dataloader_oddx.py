@@ -224,13 +224,25 @@ def _rnd_contrast(stimuli):
 def _rnd_background(stimuli):
     # TODO: constant background is implemented different from others
     bg_db, bg_transform, item1 = stimuli.bg_loader
-    bg_imgs = [bg_db.__getitem__(item1)]
+    bg_img1 = bg_db.__getitem__(item1)
+    bg_imgs = [bg_img1]
     if stimuli.unique_feature == 'contrast':
-        bg_imgs[0][:, :] = 128
+        bg_img1[:, :] = 128
     elif 'background' not in stimuli.constant_features:
         if 'background' in [*stimuli.paired_attrs, stimuli.unique_feature]:
-            item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
-            bg_imgs.append(bg_db.__getitem__(item2))
+            bg2_types = ['new']
+            if 'background' in stimuli.params:
+                bg2_types = stimuli.params['background'].get("bg2_types", bg2_types)
+            bg2_type = random.choice(bg2_types)
+            if 'roll' in bg2_type:
+                rx = np.random.randint(1, bg_img1.shape[0])
+                ry = np.random.randint(1, bg_img1.shape[1])
+                bg_img2 = np.roll(bg_img1.copy(), (rx, ry), (0, 1))
+            else:
+                item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
+                bg_img2 = bg_db.__getitem__(item2)
+            bg_imgs.append(bg_img2)
+            bg_imgs = dataset_utils.shuffle(bg_imgs)
     if bg_transform is not None:
         bg_imgs = [bg_transform(bg_img) for bg_img in bg_imgs]
     return bg_imgs
