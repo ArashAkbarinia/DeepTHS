@@ -6,33 +6,56 @@ import numpy as np
 import math
 import cv2
 
+from . import filters
 
-def adjust_contrast(image, amount):
-    if amount == 1:
-        return image
+
+def _img_max_val(image):
+    max_val = np.max(image)
+    for bits in [8, 16, 32, 64]:
+        if image.dtype == 'uint%d' % bits:
+            max_val = (2 ** bits) - 1
+            break
+    return max_val
+
+
+def im2double(image):
+    return np.float32(image) / _img_max_val(image)
+
+
+def double2im(image, org_img):
+    return (image * _img_max_val(org_img)).astype(org_img.dtype)
+
+
+def process_img(fun, in_image, *args, **kwargs):
+    image = im2double(in_image.copy())
+    image = fun(image, *args, **kwargs)
+    return double2im(fun(image, *args, **kwargs), in_image)
+
+
+def adjust_contrast(in_image, amount):
     assert np.all(amount >= 0.0), 'contrast_level too low.'
     assert np.all(amount <= 1.0), 'contrast_level too high.'
-    is_uint8 = image.dtype == 'uint8'
-    if is_uint8:
-        image = np.float32(image) / 255
-    image_contrast = (1 - amount) / 2.0 + np.multiply(image, amount)
-    if is_uint8:
-        image_contrast *= 255
-        image_contrast = np.uint8(image_contrast)
-    return image_contrast
+    return in_image if amount == 1 else process_img(_adjust_contrast, in_image, amount)
 
 
-def adjust_gamma(image, amount):
-    if amount == 1:
-        return image
-    is_uint8 = image.dtype == 'uint8'
-    if is_uint8:
-        image = np.float32(image) / 255
-    image_gamma = image ** amount
-    if is_uint8:
-        image_gamma *= 255
-        image_gamma = np.uint8(image_gamma)
-    return image_gamma
+def _adjust_contrast(image, amount):
+    return (1 - amount) / 2.0 + np.multiply(image, amount)
+
+
+def adjust_gamma(in_image, amount):
+    return in_image if amount == 1 else process_img(_adjust_gamma, in_image, amount)
+
+
+def _adjust_gamma(image, amount):
+    return image ** amount
+
+
+def gaussian_blur(in_image, **kwargs):
+    return process_img(_gaussian_blur, in_image, **kwargs)
+
+
+def _gaussian_blur(image, **kwargs):
+    return cv2.filter2D(image, -1, filters.gaussian_kernel2(**kwargs))
 
 
 def filter_img_sf(img, **kwargs):

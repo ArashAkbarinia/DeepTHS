@@ -238,13 +238,16 @@ def _rnd_background(stimuli):
                 rx = np.random.randint(1, bg_img1.shape[0])
                 ry = np.random.randint(1, bg_img1.shape[1])
                 bg_img2 = np.roll(bg_img1.copy(), (rx, ry), (0, 1))
+            elif 'blur' in bg2_type:
+                sigmax = np.random.uniform(0.5, 4)
+                bg_img2 = imutils.gaussian_blur(bg_img1, sigmax=sigmax)
             else:
                 item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
                 bg_img2 = bg_db.__getitem__(item2)
             bg_imgs.append(bg_img2)
             bg_imgs = dataset_utils.shuffle(bg_imgs)
     if bg_transform is not None:
-        bg_imgs = [bg_transform(bg_img) for bg_img in bg_imgs]
+        bg_imgs = bg_transform(bg_imgs)
     return bg_imgs
 
 
