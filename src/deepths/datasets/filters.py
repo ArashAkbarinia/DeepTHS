@@ -8,7 +8,7 @@ import math
 
 def _gaussian_width(sigma, max_width=100, threshold=1e-4):
     filter_width = 1
-    for pw in range(np.int(np.floor(max_width / 2)), -1, -1):
+    for pw in range(int(np.floor(max_width / 2)), -1, -1):
         if np.exp(-(pw ** 2) / (2 * sigma ** 2)) > threshold:
             filter_width = pw
             break
