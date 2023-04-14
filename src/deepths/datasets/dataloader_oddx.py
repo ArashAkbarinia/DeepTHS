@@ -241,9 +241,11 @@ def _rnd_background(stimuli):
             elif 'blur' in bg2_type:
                 sigmax = np.random.uniform(0.5, 4)
                 bg_img2 = imutils.gaussian_blur(bg_img1, sigmax=sigmax)
-            else:
+            elif bg2_type == 'new':
                 item2 = 0 if (item1 + 1) == bg_db.__len__() else item1 + 1
                 bg_img2 = bg_db.__getitem__(item2)
+            else:
+                bg_img2 = dataset_utils.background_img(bg2_type, bg_img1.shape[:2], im2double=False)
             bg_imgs.append(bg_img2)
             bg_imgs = dataset_utils.shuffle(bg_imgs)
     if bg_transform is not None:
@@ -252,7 +254,6 @@ def _rnd_background(stimuli):
 
 
 class StimuliSettings:
-
     def __init__(self, fg, canvas, bg_loader, features=None, params=None, **kwargs):
         self.features_pool = {
             'symmetry': {
@@ -352,7 +353,6 @@ class StimuliSettings:
 
 
 class OddOneOutTrain(torch_data.Dataset):
-
     def __init__(self, bg_loader, num_imgs, target_size, transform=None, cons_features=None,
                  features_params=None, **kwargs):
         self.bg_loader = bg_loader

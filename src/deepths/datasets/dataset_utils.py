@@ -67,7 +67,7 @@ def uniform_img(bg_size, num_chns, value):
     return np.zeros((*bg_size, num_chns), dtype='uint8') + value
 
 
-def background_img(bg_type, bg_size, num_chns=3):
+def background_img(bg_type, bg_size, num_chns=3, im2double=True):
     if type(bg_size) not in [tuple, list]:
         bg_size = (bg_size, bg_size)
     if type(bg_type) == np.ndarray:
@@ -91,7 +91,7 @@ def background_img(bg_type, bg_size, num_chns=3):
         bg_img = uniform_img(bg_size, num_chns, np.array(bg_type))
     else:
         bg_img = uniform_img(bg_size, num_chns, bg_type)
-    return bg_img.astype('float32') / 255
+    return bg_img.astype('float32') / 255 if im2double else bg_img
 
 
 def random_place(fg_size, bg_size):
