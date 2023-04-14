@@ -10,6 +10,8 @@ import torch
 from torch.utils import data as torch_data
 import torchvision.transforms as torch_transforms
 
+from skimage.util import random_noise
+
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
 
 FEATURES = [
@@ -48,6 +50,10 @@ def _global_img_processing(img, contrast):
 def _make_img_on_bg(stimuli):
     shape_params = polygon_bank.handle_shape(stimuli)
     img_in = stimuli.background.copy()
+    if 'background' in stimuli.params and 'noise' in stimuli.params['background']:
+        img_in = imutils.im2double(img_in)
+        img_in = random_noise(img_in, mode='gaussian', var=1e-4, clip=False)
+        img_in = (np.minimum(np.maximum(img_in, 0), 1) * 255).astype('uint8')
     srow, scol = dataset_utils.relative_place(stimuli.canvas, img_in.shape, stimuli.position)
     img_out = dataset_utils.crop_fg_from_bg(img_in, stimuli.canvas, srow, scol)
     if stimuli.fg is not None:
@@ -285,23 +291,20 @@ class StimuliSettings:
             }
         }
 
+        self.canvas = canvas
+        self.bg_loader = bg_loader
+        self.params = dict() if params is None else params
+
         test_features = list(self.features_pool.keys()) if features is None else features
         self.unique_feature = np.random.choice(test_features)
         self.odd_class = test_features.index(self.unique_feature)
         self.feature_settings = self.set_settings(**kwargs)
         self.num_commons = 3
         self.paired_attrs = self.feature_settings['pair'][:self.num_commons]
-        self.different_features = []
-        if self.unique_feature == 'symmetry':
-            self.different_features.append('shape')
-        elif self.unique_feature == 'contrast':
-            self.different_features.append('colour')
+        self.different_features = self.set_different_features()
         self.constant_features = list(kwargs.keys())
 
         self.fg = None if self.unique_feature in ['background', 'contrast'] else fg
-        self.canvas = canvas
-        self.bg_loader = bg_loader
-        self.params = dict() if params is None else params
 
         self.background = kwargs.get("background", None)
         self.contrast = kwargs.get("contrast", None)
@@ -317,6 +320,14 @@ class StimuliSettings:
         self.shape = kwargs.get("shape", default_shape)
 
         self.fill_in_settings()
+
+    def set_different_features(self):
+        different_features = []
+        if self.unique_feature == 'symmetry':
+            different_features.append('shape')
+        elif self.unique_feature == 'contrast':
+            different_features.append('colour')
+        return different_features
 
     def set_settings(self, **cons_features):
         settings = {'unique': self.unique_feature}
