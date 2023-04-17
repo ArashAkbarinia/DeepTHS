@@ -10,7 +10,7 @@ from . import filters
 
 
 def _img_max_val(image):
-    max_val = np.max(image)
+    max_val = np.maximum(np.max(image), 1)
     for bits in [8, 16, 32, 64]:
         if image.dtype == 'uint%d' % bits:
             max_val = (2 ** bits) - 1
