@@ -83,7 +83,6 @@ class ShapeMultipleOut(ShapeDataset):
 
 
 class ShapeTrain(ShapeMultipleOut):
-
     def __init__(self, root, transform=None, colour_dist=None, **kwargs):
         ShapeMultipleOut.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
@@ -122,7 +121,6 @@ class ShapeTrain(ShapeMultipleOut):
 
 
 class ShapeSingleOut(ShapeDataset):
-
     def __init__(self, root, transform=None, colour=None, **kwargs):
         ShapeDataset.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
@@ -141,8 +139,7 @@ class ShapeSingleOut(ShapeDataset):
         return len(self.stimuli)
 
 
-class ShapeCatOdd4(ShapeDataset):
-
+class ShapeTripleColoursOdd4(ShapeDataset):
     def __init__(self, root, test_colour, ref_colours, transform=None, **kwargs):
         ShapeDataset.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
@@ -150,6 +147,7 @@ class ShapeCatOdd4(ShapeDataset):
         self.stimuli = sorted(system_utils.image_in_folder(self.imgdir))
         self.test_colour = test_colour
         self.ref_colours = ref_colours
+        self.target = 0  # target can be irrelevant depending on the experiment
 
     def __getitem__(self, item):
         mask = dataset_utils.cv2_loader(self.stimuli[item])
@@ -161,9 +159,7 @@ class ShapeCatOdd4(ShapeDataset):
 
         if self.transform is not None:
             imgs = self.transform(imgs)
-        # target is irrelevant here
-        target = 0
-        return *imgs, target
+        return *imgs, self.target
 
     def __len__(self):
         return len(self.stimuli)

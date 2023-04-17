@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from ..datasets import dataloader_colour
+from ..datasets.dataloader_colour import triple_colours_odd4
 from ..models import model_colour as networks
 from ..utils import argument_handler, common_routines, system_utils
 
@@ -76,8 +76,7 @@ def _main_worker(args):
 
 def _make_test_loader(args, test_colour, ref_colours):
     kwargs = {'test_colour': test_colour, 'ref_colours': ref_colours, 'background': args.background}
-    db = dataloader_colour.categorisation_odd4(
-        args.validation_dir, args.target_size, args.preprocess, **kwargs)
+    db = triple_colours_odd4(args.validation_dir, args.target_size, args.preprocess, **kwargs)
 
     return torch.utils.data.DataLoader(
         db, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True
@@ -117,5 +116,4 @@ def _predict_i(args, model, colour_ind):
             all_results.append(prediction2[:, :4].argmax(axis=1))
             tb_ind += 1
             header = '%s,r1%dr2%d,r1%dr2%d' % (header, ref_ind1, ref_ind2, ref_ind2, ref_ind1)
-
     np.savetxt(output_file, np.array(all_results).T, delimiter=',', fmt='%f', header=header)

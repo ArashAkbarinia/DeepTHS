@@ -7,7 +7,7 @@ import random
 
 from skimage import io
 
-from .binary_shapes import ShapeMultipleOut, ShapeTrain, ShapeCatOdd4
+from .binary_shapes import ShapeMultipleOut, ShapeTrain, ShapeTripleColoursOdd4
 from . import dataset_utils
 
 
@@ -153,6 +153,6 @@ def val_set(root, target_size, preprocess, task, **kwargs):
     return db_fun(root, transform, **kwargs)
 
 
-def categorisation_odd4(root, target_size, preprocess, **kwargs):
+def triple_colours_odd4(root, target_size, preprocess, **kwargs):
     transform = dataset_utils.eval_preprocess(target_size, preprocess)
-    return ShapeCatOdd4(root, transform=transform, **kwargs)
+    return ShapeTripleColoursOdd4(root, transform=transform, **kwargs)
