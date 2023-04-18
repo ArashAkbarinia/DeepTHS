@@ -19,36 +19,68 @@ from .utils import common_routines, report_utils, system_utils
 def main(argv):
     args = argument_handler.master_arg_parser(argv, 'odd_one_out')
     # FIXME args.paradigm
-    if args.features_path is not None:
-        if os.path.isfile(args.features_path):
-            args.train_kwargs = system_utils.read_json(args.features_path)
-            if 'single_img' in args.train_kwargs:
-                args.single_img = args.train_kwargs['single_img']
-        else:
-            sys.exit('%s does not exist!' % args.features_path)
-    else:
-        args.train_kwargs = {
-            'features': dataloader_oddx.FEATURES,
-            'single_img': args.single_img
-        }
+    args = _load_settings(args)
     args = common_routines.prepare_starting(args, 'odd_one_out')
     _main_worker(args)
+
+
+def _load_settings(args):
+    if args.test_net:
+        args.train_kwargs = None
+        args.test_kwargs = system_utils.read_json(args.features_path)
+    else:
+        if args.features_path is not None:
+            if os.path.isfile(args.features_path):
+                args.train_kwargs = system_utils.read_json(args.features_path)
+                if 'single_img' in args.train_kwargs:
+                    args.single_img = args.train_kwargs['single_img']
+            else:
+                sys.exit('%s does not exist!' % args.features_path)
+        else:
+            args.train_kwargs = {
+                'features': dataloader_oddx.FEATURES,
+                'single_img': args.single_img
+            }
+    return args
+
+
+def _prepare_train(args):
+    # loading the training set
+    dataset = dataloader_oddx.oddx_bg_folder(
+        args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
+    )
+    return args, dataset
+
+
+def _prepare_test(args):
+    # loading the test set
+    dataset = dataloader_oddx.oddx_bg_folder(
+        args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
+    )
+    test_paradigm = args.test_kwargs['test_paradigm']
+    tb_path = os.path.join(args.output_dir, 'test_%s/%s' % (test_paradigm, args.experiment_name))
+    args.tb_writers = {'test': SummaryWriter(tb_path)}
+    res_out_dir = os.path.join(args.output_dir, 'evals_%s' % test_paradigm)
+    system_utils.create_dir(res_out_dir)
+    args.log_file = '%s/%s_prediction.csv' % (res_out_dir, args.experiment_name)
+    return args, dataset
 
 
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
     model = model_oddx.oddx_net(args, args.train_kwargs)
     model = model.cuda(args.gpu)
+    dataset = _prepare_test if args.test_net else _prepare_train
 
-    # loading the training set
-    train_dataset = dataloader_oddx.oddx_bg_folder(
-        args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
-    )
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
+        dataset, batch_size=args.batch_size, shuffle=False if args.test_net else True,
         num_workers=args.workers, pin_memory=True, sampler=None
     )
-    common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
+    out_log = common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
+    if args.test_net:
+        prediction, accuracy = out_log
+        header = 'out_ind,gt_ind'
+        np.savetxt(args.log_file, np.array(prediction), delimiter=',', fmt='%f', header=header)
 
 
 def _gen_img_name(gt_settings, img_ind):
