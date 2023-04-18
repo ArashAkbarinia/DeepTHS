@@ -47,7 +47,10 @@ def _load_settings(args):
 def _prepare_train(args):
     # loading the training set
     dataset = dataloader_oddx.oddx_bg_folder(
-        args.background, args.paradigm, args.target_size, args.preprocess, **args.train_kwargs
+        args.background, args.paradigm, args.target_size, args.preprocess, **{
+            'features': dataloader_oddx.FEATURES,
+            'single_img': args.single_img
+        }
     )
     return args, dataset
 
