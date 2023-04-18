@@ -243,6 +243,12 @@ def _add_network_group(parser):
         type=str,
         help='Type of the pooling on top of extracted features (default: None)'
     )
+    network_group.add_argument(
+        '--update_bn',
+        default=False,
+        action='store_true',
+        help='Updating the parameters of the buffer, batch normalisation (default: False)'
+    )
 
 
 def _add_optimisation_group(parser):

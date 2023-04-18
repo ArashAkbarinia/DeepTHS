@@ -176,7 +176,7 @@ class EpochHelper:
 
         if self.is_train:
             self.model.train()
-            if args.transfer_weights[0] not in [None, 'none']:
+            if args.transfer_weights[0] not in [None, 'none'] and args.update_bn is False:
                 self.model.backbone.eval()
             self.num_samples = args.train_samples
             self.epoch_type = 'train'
