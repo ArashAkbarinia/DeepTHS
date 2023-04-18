@@ -70,7 +70,7 @@ def _main_worker(args):
     torch.cuda.set_device(args.gpu)
     model = model_oddx.oddx_net(args, args.train_kwargs)
     model = model.cuda(args.gpu)
-    dataset = _prepare_test if args.test_net else _prepare_train
+    args, dataset = _prepare_test if args.test_net else _prepare_train
 
     db_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False if args.test_net else True,
