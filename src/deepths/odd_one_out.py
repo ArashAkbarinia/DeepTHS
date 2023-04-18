@@ -72,15 +72,16 @@ def _main_worker(args):
     model = model.cuda(args.gpu)
     dataset = _prepare_test if args.test_net else _prepare_train
 
-    train_loader = torch.utils.data.DataLoader(
+    db_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False if args.test_net else True,
         num_workers=args.workers, pin_memory=True, sampler=None
     )
-    out_log = common_routines.do_epochs(args, _train_val, train_loader, train_loader, model)
     if args.test_net:
-        prediction, accuracy = out_log
+        prediction, accuracy = _train_val(db_loader, model, None, -1, args)
         header = 'out_ind,gt_ind'
         np.savetxt(args.log_file, np.array(prediction), delimiter=',', fmt='%f', header=header)
+    else:
+        common_routines.do_epochs(args, _train_val, db_loader, db_loader, model)
 
 
 def _gen_img_name(gt_settings, img_ind):
