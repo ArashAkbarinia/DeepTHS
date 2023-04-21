@@ -7,8 +7,9 @@ import random
 
 from skimage import io
 
-from .binary_shapes import ShapeMultipleOut, ShapeTrain, ShapeTripleColoursOdd4
+from .binary_shapes import ShapeMultipleOut, ShapeTrain, ShapeDataset
 from . import dataset_utils
+from ..utils import system_utils
 
 
 def _get_others_colour(target_colour):
@@ -139,6 +140,32 @@ class Shape2AFCVal(ShapeVal):
         # target doesn't have a meaning in this test, it's always False
         target = 0
         return imgs[0], imgs[1], target
+
+
+class ShapeTripleColoursOdd4(ShapeDataset):
+    def __init__(self, root, test_colour, ref_colours, transform=None, **kwargs):
+        ShapeDataset.__init__(self, root, transform=transform, **kwargs)
+        if self.bg is None:
+            self.bg = 128
+        self.stimuli = sorted(system_utils.image_in_folder(self.imgdir))
+        self.test_colour = test_colour
+        self.ref_colours = ref_colours
+        self.target = 0  # target can be irrelevant depending on the experiment
+
+    def __getitem__(self, item):
+        mask = dataset_utils.cv2_loader(self.stimuli[item])
+
+        img0 = self._one_out_img(mask, self.ref_colours[0].squeeze(), self.bg, 'centre')
+        img_test = self._one_out_img(mask, self.test_colour.squeeze(), self.bg, 'centre')
+        img1 = self._one_out_img(mask, self.ref_colours[1].squeeze(), self.bg, 'centre')
+        imgs = [img0, img_test, img_test, img1]
+
+        if self.transform is not None:
+            imgs = self.transform(imgs)
+        return *imgs, self.target
+
+    def __len__(self):
+        return len(self.stimuli)
 
 
 def train_set(root, target_size, preprocess, task, **kwargs):
