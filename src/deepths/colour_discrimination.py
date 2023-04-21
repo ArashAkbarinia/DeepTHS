@@ -3,7 +3,6 @@ PyTorch scripts to train/test colour discrimination.
 """
 
 import os
-import sys
 
 import numpy as np
 
@@ -12,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks
-from .utils import report_utils, argument_handler, colour_spaces
+from .utils import report_utils, argument_handler
 from .utils import common_routines, system_utils
 
 
@@ -32,7 +31,7 @@ def _main_worker(args):
         args.test_file = args.validation_dir + '/rgb_points.csv'
     test_pts = np.loadtxt(args.test_file, delimiter=',', dtype=str)
 
-    args.test_pts = _organise_test_points(test_pts)
+    args.test_pts = dataloader_colour.organise_test_points(test_pts)
 
     # defining validation set here so if only test don't do the rest
     if args.validation_dir is None:
@@ -82,40 +81,6 @@ def _main_worker(args):
     )
 
     common_routines.do_epochs(args, common_routines.train_val, train_loader, val_loader, model)
-
-
-def _organise_test_points(test_pts):
-    out_test_pts = dict()
-    for test_pt in test_pts:
-        pt_val = test_pt[:3].astype('float')
-        test_pt_name = test_pt[-2]
-        if 'ref_' == test_pt_name[:4]:
-            test_pt_name = test_pt_name[4:]
-            if test_pt[-1] == 'dkl':
-                ffun = colour_spaces.dkl2rgb01
-                bfun = colour_spaces.rgb012dkl
-                chns_name = ['D', 'K', 'L']
-            elif test_pt[-1] == 'hsv':
-                ffun = colour_spaces.hsv012rgb01
-                bfun = colour_spaces.rgb2hsv01
-                chns_name = ['H', 'S', 'V']
-            elif test_pt[-1] == 'xyy':
-                ffun = colour_spaces.xyy2rgb
-                bfun = colour_spaces.rgb2xyy
-                chns_name = ['X', 'Y', 'Y']
-            elif test_pt[-1] == 'rgb':
-                ffun = colour_spaces.identity
-                bfun = colour_spaces.identity
-                chns_name = ['R', 'G', 'B']
-            else:
-                sys.exit('Unsupported colour space %s' % test_pt[-1])
-            out_test_pts[test_pt_name] = {
-                'ref': pt_val, 'ffun': ffun, 'bfun': bfun, 'space': chns_name, 'ext': [], 'chns': []
-            }
-        else:
-            out_test_pts[test_pt_name]['ext'].append(pt_val)
-            out_test_pts[test_pt_name]['chns'].append(test_pt[-1])
-    return out_test_pts
 
 
 def _common_db_params(args):
