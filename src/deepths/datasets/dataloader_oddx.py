@@ -14,7 +14,7 @@ import torchvision.transforms as torch_transforms
 from skimage.util import random_noise
 
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
-from .dataloader_colour import ShapeTripleColoursOdd4
+from . import dataloader_colour
 
 FEATURES = [
     'symmetry', 'rotation', 'size', 'colour', 'shape',
@@ -419,12 +419,43 @@ def oddx_bg_folder(background, num_imgs, target_size, preprocess, **kwargs):
     return OddOneOutTrain(bg_loader, num_imgs, target_size, transform, **kwargs)
 
 
-class ColourOddX(ShapeTripleColoursOdd4):
+class ColourOddX(dataloader_colour.ShapeTripleColoursOdd4):
     def __getitem__(self, item):
         imgs_target = super().__getitem__(item)
         odd_class = 0
         item_settings = 0
         return *imgs_target, odd_class, item_settings
+
+
+def oddx_test_colour(test_kwargs, **db_params):
+    test_pts = np.loadtxt(test_kwargs['test_file'], delimiter=',', dtype=str)
+    test_pts = dataloader_colour.organise_test_points(test_pts)
+    test_dbs = []
+    for ref_pts in test_pts.values():
+        ref_colour = ref_pts['ffun'](np.expand_dims(ref_pts['ref'][:3], axis=(0, 1)))
+        for ext_pts in ref_pts['ext']:
+            test_colour = ref_pts['bfun'](np.expand_dims(ext_pts[:3], axis=(0, 1)))
+            # making four variations
+            db_params['test_colour'] = test_colour
+            db_params['ref_colours'] = np.array([ref_colour, test_colour])
+            db_params['target'] = 0
+            test_dbs.append(ColourOddX(**db_params))
+
+            db_params['test_colour'] = test_colour
+            db_params['ref_colours'] = np.array([test_colour, ref_colour])
+            db_params['target'] = 3
+            test_dbs.append(ColourOddX(**db_params))
+
+            db_params['test_colour'] = ref_colour
+            db_params['ref_colours'] = np.array([test_colour, ref_colour])
+            db_params['target'] = 0
+            test_dbs.append(ColourOddX(**db_params))
+
+            db_params['test_colour'] = ref_colour
+            db_params['ref_colours'] = np.array([ref_colour, test_colour])
+            db_params['target'] = 3
+            test_dbs.append(ColourOddX(**db_params))
+    return torch.utils.data.ConcatDataset(test_dbs)
 
 
 def oddx_test(test_kwargs, target_size, preprocess):
@@ -433,6 +464,6 @@ def oddx_test(test_kwargs, target_size, preprocess):
     db_params = test_kwargs['db_params']
     db_params['transform'] = transform
     if test_paradigm == 'colour':
-        return ColourOddX(**db_params)
+        return oddx_test_colour(test_kwargs, **db_params)
     else:
         sys.exit("oddx_test doesn't support %s as feature" % test_paradigm)

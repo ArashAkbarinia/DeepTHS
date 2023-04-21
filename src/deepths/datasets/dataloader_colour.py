@@ -144,14 +144,14 @@ class Shape2AFCVal(ShapeVal):
 
 
 class ShapeTripleColoursOdd4(ShapeDataset):
-    def __init__(self, root, test_colour, ref_colours, transform=None, **kwargs):
+    def __init__(self, root, test_colour, ref_colours, transform=None, target=0, **kwargs):
         ShapeDataset.__init__(self, root, transform=transform, **kwargs)
         if self.bg is None:
             self.bg = 128
         self.stimuli = sorted(system_utils.image_in_folder(self.imgdir))
         self.test_colour = test_colour
         self.ref_colours = ref_colours
-        self.target = 0  # target can be irrelevant depending on the experiment
+        self.target = target  # target can be irrelevant depending on the experiment
 
     def __getitem__(self, item):
         mask = dataset_utils.cv2_loader(self.stimuli[item])
