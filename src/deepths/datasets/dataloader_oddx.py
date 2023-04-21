@@ -3,6 +3,7 @@ Training datasets of odd-one-out task across several visual features.
 """
 
 import numpy as np
+import sys
 import random
 import itertools
 
@@ -13,6 +14,7 @@ import torchvision.transforms as torch_transforms
 from skimage.util import random_noise
 
 from . import dataset_utils, imutils, pattern_bank, polygon_bank
+from .dataloader_colour import ShapeTripleColoursOdd4
 
 FEATURES = [
     'symmetry', 'rotation', 'size', 'colour', 'shape',
@@ -415,3 +417,22 @@ def oddx_bg_folder(background, num_imgs, target_size, preprocess, **kwargs):
     transform = torch_transforms.Compose(dataset_utils.post_transform(*preprocess))
     bg_loader = dataset_utils.make_bg_loader(background, target_size)
     return OddOneOutTrain(bg_loader, num_imgs, target_size, transform, **kwargs)
+
+
+class ColourOddX(ShapeTripleColoursOdd4):
+    def __getitem__(self, item):
+        imgs_target = super().__getitem__(item)
+        odd_class = 0
+        item_settings = 0
+        return *imgs_target, odd_class, item_settings
+
+
+def oddx_test(test_kwargs, target_size, preprocess):
+    transform = dataset_utils.eval_preprocess(target_size, preprocess)
+    test_paradigm = test_kwargs['test_paradigm']
+    db_params = test_kwargs['db_params']
+    db_params['transform'] = transform
+    if test_paradigm == 'colour':
+        return ColourOddX(**db_params)
+    else:
+        sys.exit("oddx_test doesn't support %s as feature" % test_paradigm)
