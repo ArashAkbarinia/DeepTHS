@@ -54,12 +54,7 @@ def _prepare_train(args):
 
 def _prepare_test(args):
     # loading the test set
-    dataset = dataloader_oddx.oddx_bg_folder(
-        args.background, args.paradigm, args.target_size, args.preprocess, **{
-            'features': dataloader_oddx.FEATURES,
-            'single_img': args.single_img
-        }
-    )
+    dataset = dataloader_oddx.oddx_test(args.test_kwargs, args.target_size, args.preprocess)
     test_paradigm = args.test_kwargs['test_paradigm']
     tb_path = os.path.join(args.output_dir, 'test_%s/%s' % (test_paradigm, args.experiment_name))
     args.tb_writers = {'test': SummaryWriter(tb_path)}
