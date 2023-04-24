@@ -55,12 +55,12 @@ def _prepare_train(args):
 def _prepare_test(args):
     # loading the test set
     dataset = dataloader_oddx.oddx_test(args.test_kwargs, args.target_size, args.preprocess)
-    test_paradigm = args.test_kwargs['test_paradigm']
-    tb_path = os.path.join(args.output_dir, 'test_%s/%s' % (test_paradigm, args.experiment_name))
+    test_paradigm, test_name = args.test_kwargs['test_paradigm'], args.test_kwargs['test_name']
+    tb_path = os.path.join(args.output_dir, 'test_%s/%s' % (test_paradigm, test_name))
     args.tb_writers = {'test': SummaryWriter(tb_path)}
     res_out_dir = os.path.join(args.output_dir, 'evals_%s' % test_paradigm)
     system_utils.create_dir(res_out_dir)
-    args.log_file = '%s/%s_prediction.csv' % (res_out_dir, args.experiment_name)
+    args.log_file = '%s/%s_prediction.csv' % (res_out_dir, test_name)
     return args, dataset
 
 
@@ -75,9 +75,10 @@ def _main_worker(args):
         num_workers=args.workers, pin_memory=True, sampler=None
     )
     if args.test_net:
-        prediction, accuracy = _train_val(db_loader, model, None, -1, args)
-        header = 'out_ind,gt_ind'
-        np.savetxt(args.log_file, np.array(prediction), delimiter=',', fmt='%f', header=header)
+        if not os.path.exists(args.log_file):
+            prediction, accuracy = _train_val(db_loader, model, None, -1, args)
+            header = 'out_ind,gt_ind'
+            np.savetxt(args.log_file, np.array(prediction), delimiter=',', fmt='%f', header=header)
     else:
         common_routines.do_epochs(args, _train_val, db_loader, db_loader, model)
 
