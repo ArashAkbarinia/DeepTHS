@@ -166,7 +166,6 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         print(qname, pt_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
 
         all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))
-        np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
 
         new_low, new_mid, new_high = report_utils.midpoint(
             accuracy, low, mid, high, th=th, circ_chns=circ_chns
@@ -178,3 +177,4 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
         else:
             low, mid, high = new_low, new_mid, new_high
         attempt_i += 1
+    np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)

@@ -126,7 +126,6 @@ def main(argv):
     for i in range(len(lambda_waves)):
         psf_i, res_i = _sensitivity_sf(args, model, lambda_waves[i], human_sfs[i])
         all_results.extend(res_i)
-        np.savetxt(out_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
         tb_writer.add_scalar("{}".format('csf'), 1 / all_results[-1][-1], human_sfs[i])
 
         # making the psf
@@ -137,3 +136,4 @@ def main(argv):
                 "{}_{:03d}".format('psf', human_sfs[i]), psf_i['acc'][c], psf_i['contrast'][c]
             )
     tb_writer.close()
+    np.savetxt(out_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
