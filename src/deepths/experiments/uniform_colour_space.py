@@ -9,6 +9,9 @@ import sys
 import json
 
 from matplotlib import pyplot as plt
+from scipy import stats
+from skimage import color as skicolour
+import colour as colour_science
 
 import torch
 import torch.nn as nn
@@ -20,6 +23,132 @@ arch_areas = {
     'vit_b_32': [*['block%d' % i for i in [1, 4, 7, 10, 11]], 'fc'],
     'taskonomy': [*['area%d' % i for i in range(0, 5)], 'encoder']
 }
+
+
+def clip_01(x):
+    return np.maximum(np.minimum(x, 1), 0)
+
+
+def load_human_data(path):
+    human_data = read_test_pts(path)
+    human_data_ref_pts = np.expand_dims(np.array([val['ref'] for val in human_data.values()]), axis=1)
+    human_hot_cen, human_hot_bor = [], []
+    for key, val in human_data.items():
+        for pt in val['ext']:
+            human_hot_cen.append(val['ref'])
+            human_hot_bor.append(pt)
+    human_hot_cen = np.array(human_hot_cen)
+    human_hot_bor = np.array(human_hot_bor)
+    return {'data': human_data, 'ref_pts': human_data_ref_pts,
+            'hot_cen': human_hot_cen, 'hot_bor': human_hot_bor}
+
+
+def prophoto_rgb_colour_diff(a, b, diff_fun='de2000'):
+    illuminant = np.array([0.31271, 0.32902])
+    a_lab = colour_science.XYZ_to_Lab(
+        colour_science.RGB_to_XYZ(a, 'ProPhoto RGB', illuminant, chromatic_adaptation_transform=None),
+        illuminant
+    )
+    b_lab = colour_science.XYZ_to_Lab(
+        colour_science.RGB_to_XYZ(b, 'ProPhoto RGB', illuminant, chromatic_adaptation_transform=None),
+        illuminant
+    )
+    return colour_diff_lab(a_lab, b_lab, diff_fun)
+
+
+def pred_human_data(path, model, model_max=1, de_max=1, print_val=None):
+    human_data = load_human_data(path)
+    de2000 = prophoto_rgb_colour_diff(human_data['hot_cen'], human_data['hot_bor'], diff_fun='de2000')
+    cen_pred = pred_model(model, clip_01(human_data['hot_cen']))
+    bor_pred = pred_model(model, clip_01(human_data['hot_bor']))
+    pred_euc = euc_distance(cen_pred, bor_pred)
+    if print_val is not None:
+        print('%sDE-2000 %.4f [%.4f] CV [%.4f]' % (
+            print_val, np.std(de2000), np.std(de2000 / de_max), np.std(de2000) / np.mean(de2000)))
+        print('%sNetwork %.4f [%.4f] CV [%.4f]' % (
+            print_val, np.std(pred_euc), np.std(pred_euc / model_max), np.std(pred_euc) / np.mean(pred_euc)))
+    return {
+        'de2000': [np.std(de2000), np.std(de2000 / de_max)],
+        'model': [np.std(pred_euc), np.std(pred_euc / model_max)]
+    }
+
+
+def pred_macadam1972(path, model, print_val='\t'):
+    macadam1972_data = np.loadtxt(path, delimiter=',')
+    tile1 = pred_model(model, clip_01(macadam1972_data[:, 1:4]))
+    tile2 = pred_model(model, clip_01(macadam1972_data[:, 4:7]))
+    pred_euc = euc_distance(tile1, tile2)
+    pred_euc[np.isnan(pred_euc)] = 0
+    pcorr, _ = stats.pearsonr(pred_euc, macadam1972_data[:, 0])
+    scorr, _ = stats.spearmanr(pred_euc, macadam1972_data[:, 0])
+    de2000 = colour_diff_lab(macadam1972_data[:, 7:10], macadam1972_data[:, 10:13])
+    pcorr_de, _ = stats.pearsonr(de2000, macadam1972_data[:, 0])
+    scorr_de, _ = stats.spearmanr(de2000, macadam1972_data[:, 0])
+    if print_val is not None:
+        print('%sDE-2000 Pearson %.2f \t Spearman %.2f' % (print_val, pcorr_de, scorr_de))
+        print('%sNetwork Pearson %.2f \t Spearman %.2f' % (print_val, pcorr, scorr))
+    return {
+        'de2000': [pcorr_de, scorr_de],
+        'model': [pcorr, scorr]
+    }
+
+
+def test_human_data(model, human_data_dir, do_print=True):
+    print_val = '\t' if do_print else None
+    model_max, de_max = estimate_max_distance(model, 10000)
+    if do_print:
+        print('* MacAdam 1942')
+    macadam_res = pred_human_data(
+        human_data_dir + '/macadam_rgb_org.csv', model, model_max=model_max, de_max=de_max,
+        print_val=print_val
+    )
+    if do_print:
+        print('* Luo-Rigg 1986')
+    luorigg_res = pred_human_data(
+        human_data_dir + 'luorigg_rgb_org.csv', model, model_max=model_max, de_max=de_max,
+        print_val=print_val
+    )
+    if do_print:
+        print('* MacAdam 1972')
+    macadam1972_res = pred_macadam1972(
+        human_data_dir + '/macadam1972.csv', model, print_val=print_val
+    )
+    return {
+        'MacAdam': macadam_res,
+        'Luo-Rigg': luorigg_res,
+        'MacAdam1972': macadam1972_res,
+    }
+
+
+def euc_distance(a, b):
+    return np.sum((a.astype('float32') - b.astype('float32')) ** 2, axis=-1) ** 0.5
+
+
+def colour_diff_lab(a_lab, b_lab, diff_fun='de2000'):
+    if diff_fun == 'de2000':
+        diff_fun = skicolour.deltaE_ciede2000
+    elif diff_fun == 'de1994':
+        diff_fun = skicolour.deltaE_ciede94
+    else:
+        diff_fun = skicolour.deltaE_cie76
+    return diff_fun(a_lab, b_lab)
+
+
+def colour_diff(a, b, diff_fun='euc'):
+    a = a.copy().astype('float32')
+    b = b.copy().astype('float32')
+    if diff_fun == 'euc':
+        return euc_distance(a, b)
+    else:
+        return colour_diff_lab(skicolour.rgb2lab(a), skicolour.rgb2lab(b), diff_fun)
+
+
+def estimate_max_distance(model, nrands=10000):
+    rand_rgbs = np.random.uniform(0, 1, (nrands, 3))
+    rand_rgbs_pred = pred_model(model, rand_rgbs)
+    model_max = np.mean(euc_distance(rand_rgbs_pred[:nrands // 2], rand_rgbs_pred[nrands // 2:]))
+    de_max = np.mean(colour_diff(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:], diff_fun='de2000'))
+    return model_max, de_max
 
 
 def identity(x):
@@ -83,7 +212,7 @@ def centre_threshold_arrays(test_data, area_res):
 
         sen_res = area_res[focal_name]
         sense_pts = np.array(sen_res)[:, 1:4]
-        org_pts = np.expand_dims(sense_pts, axis=(1))
+        org_pts = np.expand_dims(sense_pts, axis=1)
         rgb_pts = test_pts['ffun'](org_pts.astype('float32'))
         bor_rgb = rgb_pts.squeeze()
         border_pts.append(bor_rgb)
@@ -215,8 +344,9 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Optimising Colour Spaces!')
     parser.add_argument('--in_dir', required=True, type=str)
     parser.add_argument('--test_file', required=True, type=str)
+    parser.add_argument('--human_data_dir', required=True, type=str)
     parser.add_argument('--out_dir', default='outputs', type=str)
-    parser.add_argument('--epochs', default='50000', type=int)
+    parser.add_argument('--epochs', default='5000', type=int)
 
     args = parser.parse_args(argv)
     _main_worker(args)
@@ -234,48 +364,76 @@ def _main_worker(args):
     pretrained_db = 'clip' if 'clip' in arch else 'ImageNet'
 
     network_result_summary = parse_network_results(args.in_dir, arch, rgb_test_data)
-    for layer in arch_areas[arch]:
+    for layer in ['block4', 'block7', 'block10']:  # fixme arch_areas[arch]
         optimise_layer(args, network_result_summary, (pretrained_db, arch), layer)
 
 
-def get_db(network_result_summary, layer):
-    centre_data = network_result_summary[layer]['cat_cen'].copy()
-    border_data = network_result_summary[layer]['cat_bor'].copy()
-    all_pts = []
-    centre_border_inds = []
+def train_test_splits(layer_results, test_perc=0.1):
+    num_centres = layer_results['cat_cen'].shape[0]
+    num_tests = int(num_centres * test_perc)
+    data_inds = np.arange(num_centres)
+    np.random.shuffle(data_inds)
+    train_inds = data_inds[:num_centres - num_tests]
+    test_inds = data_inds[num_centres - num_tests:]
+    train_split = {
+        'cat_cen': layer_results['cat_cen'][train_inds],
+        'cat_bor': layer_results['cat_bor'][train_inds]
+    }
+    test_split = {
+        'cat_cen': layer_results['cat_cen'][test_inds],
+        'cat_bor': layer_results['cat_bor'][test_inds]
+    }
+    return train_split, test_split
+
+
+def train_val_sets(layer_results, val_perc=0.1):
+    num_centres = layer_results['cat_cen'].shape[0]
+    num_vals = int(num_centres * val_perc)
+    data_inds = np.arange(num_centres)
+    np.random.shuffle(data_inds)
+    val_inds = data_inds[num_centres - num_vals:]
+
+    centre_data = layer_results['cat_cen'].copy()
+    border_data = layer_results['cat_bor'].copy()
+    train_pts, train_map_inds = [], []
+    val_pts, val_map_inds = [], []
     for centre_ind, centre_pt in enumerate(centre_data):
+        all_pts = val_pts if centre_ind in val_inds else train_pts
+        map_inds = val_map_inds if centre_ind in val_inds else train_map_inds
         all_pts.append(centre_pt)
         cen_in_ind = len(all_pts) - 1
         for border_pt in border_data[centre_ind]:
             all_pts.append(border_pt)
             bor_in_ind = len(all_pts) - 1
-            centre_border_inds.append([cen_in_ind, bor_in_ind])
-    all_pts = np.array(all_pts, dtype='float32')
-    centre_border_inds = np.array(centre_border_inds)
-    db = (all_pts, centre_border_inds)
-    return db
+            map_inds.append([cen_in_ind, bor_in_ind])
+    train_pts = np.array(train_pts, dtype='float32')
+    train_map_inds = np.array(train_map_inds)
+    val_pts = np.array(val_pts, dtype='float32')
+    val_map_inds = np.array(val_map_inds)
+    return (train_pts, train_map_inds), (val_pts, val_map_inds)
 
 
 class ColourSpaceNet(nn.Module):
-    def __init__(self, num_units=None, nonlin_fun=nn.ReLU()):
+    def __init__(self, units=None, nonlinearities='GELU', mean_std=None):
         super().__init__()
-        if num_units is None:
-            num_units = [5]
-        self.linear_0 = nn.Linear(in_features=3, out_features=num_units[0])
-        self.nonlin_0 = nonlin_fun
-        intermediates = []
-        for i in range(1, len(num_units)):
-            intermediates.append(nn.Linear(in_features=num_units[i - 1], out_features=num_units[i]))
-            intermediates.append(nonlin_fun)
-        self.other_layers = nn.Sequential(*intermediates)
-        self.linear_n = nn.Linear(in_features=num_units[-1], out_features=3)
+        self.mean_std = (0, 1) if mean_std is None else mean_std
+        if units is None:
+            units = [7, 15, 7]
+        num_units = [int(unit) for unit in units]
+        in_units = [3, *num_units]
+        out_units = [*num_units, 3]
+        if type(nonlinearities) is not list:
+            nonlinearities = [nonlinearities] * (len(num_units) + 1)
+        nonlinear_units = [non_linear_funs[nonlinearity] for nonlinearity in nonlinearities]
+
+        layers = []
+        for i in range(len(num_units) + 1):
+            layers.append(nn.Linear(in_units[i], out_units[i]))
+            layers.append(nonlinear_units[i])
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.linear_0(x)
-        x = self.nonlin_0(x)
-        x = self.other_layers(x)
-        x = self.linear_n(x)
-        x = torch.tanh(x)
+        x = self.layers(x)
         return x
 
 
@@ -290,8 +448,11 @@ def pred_model(model, rgbs):
 non_linear_funs = {
     'GELU': nn.GELU(),
     'ReLU': nn.ReLU(),
-    'SELU': nn.ReLU(),
-    'SiLU': nn.ReLU(),
+    'SELU': nn.SELU(),
+    'SiLU': nn.SiLU(),
+    'Tanh': nn.Tanh(),
+    'Sigmoid': nn.Sigmoid(),
+    'identity': nn.Identity()
 }
 
 optimisers = {
@@ -306,12 +467,19 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
     pretrained_db, pretrained_arch = pretrained
     layer_out_dir = '%s/%s/%s/%s/' % (args.out_dir, pretrained_db, pretrained_arch, layer)
 
-    db = get_db(network_result_summary, layer)
+    layer_results = network_result_summary[layer]
 
-    for num_units in [[25], [49], [5, 5], [7, 7]]:
-        for nonlinearity in non_linear_funs.keys():
-            for opt_method in optimisers:
-                exname = '%s_%s_%s' % (opt_method, nonlinearity, '_'.join(str(i) for i in num_units))
+    for loss in ['range', 'mean_distance']:
+        args.loss = loss
+        for i in range(10):
+            num_units = np.random.randint(7, 15, size=np.random.randint(2, 5)).tolist()
+            for non_lin_ind in range(10):
+                nonlinearity = [
+                    *list(np.random.choice(['GELU', 'ReLU', 'SELU', 'SiLU', 'Tanh'], len(num_units))),
+                    np.random.choice(['Tanh', 'Sigmoid', 'identity'], 1)[0]
+                ]
+                opt_method = 'Adamax'
+                exname = '%s_%.2d_%s' % (opt_method, non_lin_ind, '_'.join(str(i) for i in num_units))
                 for instance in range(3):
                     out_dir = '%s/%s/i%.3d/' % (layer_out_dir, exname, instance)
                     os.makedirs(out_dir, exist_ok=True)
@@ -321,22 +489,22 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
                     sys.stdout = f
 
                     args.num_units = num_units
-                    args.nonlin_fun = nonlinearity
+                    args.nonlinearities = nonlinearity
                     args.opt_method = opt_method
                     args.lr = 0.1
                     json_file_name = os.path.join(out_dir, 'args.json')
                     with open(json_file_name, 'w') as fp:
                         json.dump(dict(args._get_kwargs()), fp, sort_keys=True, indent=4)
-                    optimise_instance(args, db, out_dir)
+                    optimise_instance(args, layer_results, out_dir)
 
                     sys.stdout = orig_stdout
                     f.close()
 
 
-def optimise_instance(args, db, out_dir):
+def optimise_instance(args, layer_results, out_dir):
+    mean_std = (0.5, 0.5)
     # model
-    model = ColourSpaceNet(args.num_units, non_linear_funs[args.nonlin_fun])
-    model = model.train()
+    model = ColourSpaceNet(args.num_units, args.nonlinearities, mean_std)
     print(model)
 
     # optimisation
@@ -344,44 +512,77 @@ def optimise_instance(args, db, out_dir):
     scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=args.epochs // 3)
 
     # epoch loop
-    euc_dis = np.sum((db[0][db[1][:, 0]] - db[0][db[1][:, 1]]) ** 2, axis=-1) ** 0.5
-    print('RGB error: %.4f' % np.std(euc_dis))
     print_freq = args.epochs // 10
     losses = []
     for epoch in range(args.epochs):
+        model = model.train()
+        train_db, _ = train_val_sets(layer_results, 0.1)
         with torch.set_grad_enabled(True):
-            input_space = torch.tensor(db[0].copy()).float()
+            input_space = torch.tensor(train_db[0].copy()).float()
             out_space = model(input_space)
-            euc_dis = torch.sum((out_space[db[1][:, 0]] - out_space[db[1][:, 1]]) ** 2, axis=-1) ** 0.5
-            loss = torch.std(euc_dis)
+            euc_dis = torch.sum((out_space[train_db[1][:, 0]] - out_space[train_db[1][:, 1]]) ** 2, axis=-1) ** 0.5
+            min_vals, _ = out_space.min(axis=0)
+            max_vals, _ = out_space.max(axis=0)
+            range_dis = max_vals - min_vals
+            uniformity_euc_dis = torch.std(euc_dis)
+            if args.loss == 'range':
+                loss = uniformity_euc_dis + 0.5 * (
+                        abs(1 - range_dis[0]) + abs(1 - range_dis[1]) + abs(1 - range_dis[2])
+                )
+            elif args.loss == 'mean_distance':
+                loss = uniformity_euc_dis + 0.5 * abs(0.1 - torch.mean(euc_dis))
 
             optimiser.zero_grad()
             loss.backward()
             optimiser.step()
             scheduler.step()
 
-        if np.mod(epoch, print_freq) == 0:
-            print('[%.2d] loss=%.4f' % (epoch, loss.item()))
         if torch.isnan(loss):
             print('NaN!', epoch)
             return
-        losses.append(loss.item())
+
+        if np.mod(epoch, print_freq) == 0:
+            human_tests = test_human_data(model, args.human_data_dir, False)
+            print(
+                '[%.5d] loss=%.4f [%.2f %.2f %.2f] MacAdam=[%.4f|%.4f]vs[%.4f] Luo-Rigg=[%.4f|%.4f]vs[%.4f] r=[%.2f]vs[%.2f]' % (
+                    epoch, uniformity_euc_dis, *range_dis,
+                    human_tests['MacAdam']['model'][0], human_tests['MacAdam']['model'][1],
+                    human_tests['MacAdam']['de2000'][1],
+                    human_tests['Luo-Rigg']['model'][0], human_tests['Luo-Rigg']['model'][1],
+                    human_tests['Luo-Rigg']['de2000'][1],
+                    human_tests['MacAdam1972']['model'][0], human_tests['MacAdam1972']['de2000'][0]
+                )
+            )
+        losses.append([
+            uniformity_euc_dis.item(),
+            human_tests['MacAdam']['model'][0], human_tests['MacAdam']['model'][1],
+            human_tests['Luo-Rigg']['model'][0], human_tests['Luo-Rigg']['model'][1],
+            human_tests['MacAdam1972']['model'][0]
+        ])
 
     rgb_pts = sample_rgb()
     rgb_squeezed = rgb_pts.copy().squeeze()
-    area_space_no = pred_model(model, rgb_squeezed)
-    area_space_no = np.expand_dims(area_space_no, axis=1)
-    print('Range:\t', area_space_no.min(axis=(0, 1)), area_space_no.max(axis=(0, 1)))
-    fig = plot_colour_pts(area_space_no, rgb_pts, 'loss=%.4f' % losses[-1], axs_range='auto')
+    rgb_pts_pred = pred_model(model, rgb_squeezed)
+    rgb_pts_pred = np.expand_dims(rgb_pts_pred, axis=1)
+    print('Range:\t', rgb_pts_pred.min(axis=(0, 1)), rgb_pts_pred.max(axis=(0, 1)))
+    fig = plot_colour_pts(
+        rgb_pts_pred, rgb_pts,
+        'loss=%.4f   MacAdam=%.4f|%.4f   Luo-Rigg=%.4f|%.4f   r=%.2f' % (
+            losses[-1][0], losses[-1][1], losses[-1][2], losses[-1][3], losses[-1][4], losses[-1][5]
+        ),
+        axs_range='auto'
+    )
 
     fig.savefig('%s/rgb_pred.svg' % out_dir)
     plt.close('all')
-    np.savetxt('%s/losses.txt' % out_dir, losses)
+    header = 'loss,MacAdam_raw,MacAdam_norm,LuoRigg_raw,LuoRigg_norm,Corr'
+    np.savetxt('%s/losses.txt' % out_dir, losses, delimiter=',', header=header)
 
     torch.save({
         'state_dict': model.state_dict(),
-        'num_units': args.num_units,
-        'nonlin_fun': args.nonlin_fun
+        'units': args.num_units,
+        'nonlinearities': args.nonlinearities,
+        'mean_std': mean_std
     }, '%s/model.pth' % out_dir)
 
 
