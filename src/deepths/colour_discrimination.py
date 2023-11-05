@@ -155,6 +155,8 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     attempt_i = 0
     header = 'acc,%s,%s,%s,R,G,B' % (chns_name[0], chns_name[1], chns_name[2])
 
+    # creating an empty file so other workers dont do the same file
+    np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
     th = 0.75 if args.paradigm == '2afc' else 0.625
     while True:
         target_colour = qval['ffun'](mid)
