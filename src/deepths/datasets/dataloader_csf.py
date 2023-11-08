@@ -540,6 +540,7 @@ class GratingImages(AfcDataset, torch_data.Dataset):
                 gauss_img = gauss_img[:, :-1]
             gauss_img = gauss_img / np.max(gauss_img)
 
+
             img0 *= gauss_img
             img1 *= gauss_img
 
@@ -547,7 +548,7 @@ class GratingImages(AfcDataset, torch_data.Dataset):
         img1 = (img1 + 1) / 2
 
         # we simulate the illumination with addition
-        if self.contrast_space in ['grey', 'rgb', 'lum', 'lum_yog']:
+        if self.contrast_space in ['grey', 'rgb', 'lum', 'lum_ycc']:
             img0 += self.illuminant
             img1 += self.illuminant
 
@@ -556,20 +557,20 @@ class GratingImages(AfcDataset, torch_data.Dataset):
             img1 = np.repeat(img1[:, :, np.newaxis], 3, axis=2)
 
             # if rg or yb change only the luminance level
-            if self.contrast_space in ['rg', 'yb', 'rg_yog', 'yb_yog']:
+            if self.contrast_space in ['rg', 'yb', 'rg_ycc', 'yb_ycc']:
                 img0[:, :, 0] = (0.5 + self.illuminant)
                 img1[:, :, 0] = (0.5 + self.illuminant)
 
-            if self.contrast_space == 'yb_yog':
+            if self.contrast_space == 'yb_ycc':
                 img0[:, :, 2] = 0.5
-                img0 = colour_spaces.yog012rgb01(img0)
+                img0 = colour_spaces.ycc012rgb01(img0)
                 img1[:, :, 2] = 0.5
-                img1 = colour_spaces.yog012rgb01(img1)
-            elif self.contrast_space == 'rg_yog':
+                img1 = colour_spaces.ycc012rgb01(img1)
+            elif self.contrast_space == 'rg_ycc':
                 img0[:, :, 1] = 0.5
-                img0 = colour_spaces.yog012rgb01(img0)
+                img0 = colour_spaces.ycc012rgb01(img0)
                 img1[:, :, 1] = 0.5
-                img1 = colour_spaces.yog012rgb01(img1)
+                img1 = colour_spaces.ycc012rgb01(img1)
             elif self.contrast_space == 'yb':
                 img0[:, :, 1] = 0.5
                 img0 = colour_spaces.dkl012rgb01(img0)
@@ -586,7 +587,7 @@ class GratingImages(AfcDataset, torch_data.Dataset):
                 img0 = colour_spaces.dkl012rgb01(img0)
                 img1[:, :, [1, 2]] = 0.5
                 img1 = colour_spaces.dkl012rgb01(img1)
-            elif self.contrast_space not in ['rgb', 'lum_yog']:
+            elif self.contrast_space not in ['rgb', 'lum_ycc']:
                 sys.exit('Contrast %s not supported' % self.contrast_space)
 
         if 'grey' not in self.colour_space and self.vision_type != 'trichromat':

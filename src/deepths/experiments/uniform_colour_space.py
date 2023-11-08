@@ -95,7 +95,8 @@ def pred_macadam1974(path, model, print_val='\t'):
 
 def test_human_data(model, human_data_dir, do_print=True):
     print_val = '\t' if do_print else None
-    model_max, de_max = estimate_max_distance(model, 10000)
+    model_max = estimate_max_distance(model, 10000, rgb_type='prophoto')
+    de_max = estimate_max_distance('de2000', 10000, rgb_type='prophoto')
     if do_print:
         print('* MacAdam 1942')
     macadam_res = pred_human_data(
@@ -143,12 +144,19 @@ def colour_diff(a, b, diff_fun='euc'):
         return colour_diff_lab(skicolour.rgb2lab(a), skicolour.rgb2lab(b), diff_fun)
 
 
-def estimate_max_distance(model, nrands=10000):
-    rand_rgbs = np.random.uniform(0, 1, (nrands, 3))
-    rand_rgbs_pred = pred_model(model, rand_rgbs)
-    model_max = np.quantile(euc_distance(rand_rgbs_pred[:nrands // 2], rand_rgbs_pred[nrands // 2:]), 0.9)
-    de_max = np.quantile(colour_diff(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:], diff_fun='de2000'), 0.9)
-    return model_max, de_max
+def estimate_max_distance(diff_fun, nrands=10000, rgb_type='srgb'):
+    min_rgb, max_rgb = (0, 1) if rgb_type == 'srgb' else (0, 8.125)
+    rand_rgbs = np.random.uniform(min_rgb, max_rgb, (nrands, 3))
+    if type(diff_fun) != str:
+        netspace = pred_model(diff_fun, rand_rgbs)
+        pred = euc_distance(netspace[:nrands // 2], netspace[nrands // 2:])
+    elif diff_fun == 'euc':
+        pred = euc_distance(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:])
+    else:
+        defun = colour_diff if rgb_type == 'srgb' else prophoto_rgb_colour_diff
+        pred = defun(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:], diff_fun=diff_fun)
+    max_dis = np.quantile(pred, 0.9)
+    return max_dis
 
 
 def identity(x):
@@ -533,7 +541,7 @@ def optimise_instance(args, layer_results, out_dir):
                 range_loss = 0.5 * abs(0.1 - torch.mean(euc_dis))
             else:
                 range_loss = 0
-            loss  = uniformity_euc_dis + range_loss
+            loss = uniformity_euc_dis + range_loss
 
             optimiser.zero_grad()
             loss.backward()

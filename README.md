@@ -141,7 +141,7 @@ python src/csf_train.py -aname $MODEL --transfer_weights $WEIGHTS $LAYER  \
 ```
 
 To measure the CSFs (```$CONTRAST_SPACE``` can be one of the following values
-"lum_yog" "rg_yog" "yb_yog" corresponding to luminance, red-green and yellow-blue channels).
+"lum_ycc" "rg_ycc" "yb_ycc" corresponding to luminance, red-green and yellow-blue channels).
 
 ```shell
 python csf_test.py -aname $MODEL_PATH --contrast_space $CONTRAST_SPACE  \

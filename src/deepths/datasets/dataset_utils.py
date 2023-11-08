@@ -161,9 +161,9 @@ def rgb2opp_funs(colour_space):
     if colour_space == 'dkl':
         ffun = colour_spaces.rgb2dkl01
         bfun = colour_spaces.dkl012rgb01
-    elif colour_space == 'yog':
-        ffun = colour_spaces.rgb2yog01
-        bfun = colour_spaces.yog012rgb01
+    elif colour_space == 'ycc':
+        ffun = colour_spaces.rgb2ycc01
+        bfun = colour_spaces.ycc012rgb01
     else:
         sys.exit('Unsupported colour space %s.' % colour_space)
     return ffun, bfun
