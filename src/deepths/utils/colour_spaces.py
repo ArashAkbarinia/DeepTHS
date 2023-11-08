@@ -18,6 +18,7 @@ dkl_from_rgb = np.array(
      [0.1444000069, -0.2360000005, -0.9318999983]]
 )
 
+# https://en.wikipedia.org/wiki/YCoCg
 ycc_from_rgb = np.array(
     [[+0.25, +0.50, +0.25],
      [+0.50, +0.00, -0.50],

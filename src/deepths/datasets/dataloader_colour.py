@@ -188,6 +188,10 @@ def organise_test_points(test_pts):
                 ffun = colour_spaces.xyy2rgb
                 bfun = colour_spaces.rgb2xyy
                 chns_name = ['X', 'Y', 'Y']
+            elif test_pt[-1] == 'ycc':
+                ffun = colour_spaces.ycc012rgb01
+                bfun = colour_spaces.rgb2ycc01
+                chns_name = ['Y', 'C', 'C']
             elif test_pt[-1] == 'rgb':
                 ffun = colour_spaces.identity
                 bfun = colour_spaces.identity
