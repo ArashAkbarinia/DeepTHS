@@ -177,8 +177,8 @@ def organise_test_points(test_pts):
         if 'ref_' == test_pt_name[:4]:
             test_pt_name = test_pt_name[4:]
             if test_pt[-1] == 'dkl':
-                ffun = colour_spaces.dkl2rgb01
-                bfun = colour_spaces.rgb012dkl
+                ffun = colour_spaces.dkl012rgb01
+                bfun = colour_spaces.rgb2dkl01
                 chns_name = ['D', 'K', 'L']
             elif test_pt[-1] == 'hsv':
                 ffun = colour_spaces.hsv012rgb01
