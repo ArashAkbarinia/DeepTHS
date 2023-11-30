@@ -3,7 +3,8 @@
 A framework to compute threshold sensitivity of deep networks to visual stimuli.
 
 **I have converted this project into a pip package
-called osculari [![PyPi Status](https://img.shields.io/pypi/v/osculari.svg)](https://pypi.org/project/osculari/). Please use the [osculari package](https://github.com/ArashAkbarinia/osculari) ![GitHub Latest Release)](https://img.shields.io/github/v/release/ArashAkbarinia/osculari?logo=github) instead of
+called [osculari](https://pypi.org/project/osculari/) [![PyPi Status](https://img.shields.io/pypi/v/osculari.svg)](https://pypi.org/project/osculari/). Please use the [osculari package](https://github.com/ArashAkbarinia/osculari) 
+[![GitHub Latest Release)](https://img.shields.io/github/v/release/ArashAkbarinia/osculari?logo=github)](https://github.com/ArashAkbarinia/osculari) instead of
 this repository.**
 
 This repository provides an easy interface to train a linear classifier on top of the extract
