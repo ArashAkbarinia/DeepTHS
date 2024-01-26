@@ -146,7 +146,7 @@ To train a contrast discriminator linear classifier:
 
 ```shell
 
-python src/csf_train.py -aname $MODEL --transfer_weights $WEIGHTS $LAYER  \
+python csf_train.py -aname $MODEL --transfer_weights $WEIGHTS $LAYER  \
   --target_size 224 --classifier "nn" \ 
   -dname $DB --data_dir $DATA_DIR --train_samples 15000 --val_sample 1000 \
   --contrast_space "rgb" --colour_space "imagenet_rgb" --vision_type "trichromat" \ 
@@ -164,4 +164,52 @@ python csf_test.py -aname $MODEL_PATH --contrast_space $CONTRAST_SPACE  \
   --experiment_name $EXPERIMENT_NAME  \
   --colour_space "imagenet_rgb"  --vision_type "trichromat"  \
   --print_freq 1000 --output_dir $OUT_DIR --gpu 0
+```
+
+### Colour Discrimination
+
+We have used this repository to measure
+the [networks' colour discrimination](https://arashakbarinia.github.io/projects/deepucs/).
+
+To train a colour discriminator linear classifier:
+
+```shell
+
+python colour_discrimination.py -aname $MODEL --transfer_weights $WEIGHTS $LAYER  \
+  --target_size 224 --classifier "nn" \ 
+  -dname $DB --data_dir $DATA_DIR --train_samples 15000 --val_sample 1000 \
+  --colour_space "imagenet_rgb" \ 
+  -b 64 --experiment_name $EXPERIMENT_NAME --output_dir $OUT_DIR  \
+  -j 4 --gpu 0 --epochs 10
+```
+
+To measure the sensitivity threshold ```$TEST_FILE``` must be passed
+
+```shell
+
+python colour_discrimination.py -aname $MODEL --test_net $MODEL_PATH \
+  --target_size 224 --classifier "nn" \ 
+  -dname $DB --data_dir $DATA_DIR \
+  --test_file $TEST_FILE --background 128 \
+  --colour_space "imagenet_rgb" \ 
+  -b 64 --experiment_name $TEST_NAME --output_dir $OUT_DIR  \
+  -j 4 --gpu 0 
+```
+
+
+### Colour Categories
+
+We have used this repository to measure
+the [networks' colour categories](https://arashakbarinia.github.io/projects/colourcats/).
+
+
+```shell
+
+python colour_cat_odd4.py -aname $MODEL --test_net $MODEL_PATH \
+  --target_size 224 --classifier "nn" \ 
+  -dname $DB --data_dir $DATA_DIR \
+  --test_file $TEST_FILE --focal_file $FOCAL_FILE --background 128 \
+  --colour_space "imagenet_rgb" \ 
+  -b 64 --experiment_name $TEST_NAME --output_dir $OUT_DIR  \
+  -j 4 --gpu 0
 ```
