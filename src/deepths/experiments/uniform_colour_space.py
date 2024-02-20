@@ -144,58 +144,64 @@ def stress(de, dv=None):
     return 100 * np.sqrt(1 - (np.sum(de * dv) ** 2) / (np.sum(de ** 2) * np.sum(dv ** 2)))
 
 
-def predict_human_data(methods, test_dir, plot=True):
+def predict_human_data(methods, test_dir, discrimination, difference):
     predictions = {key: compare_human_data(method, test_dir) for key, method in methods.items()}
-    if not plot:
-        return predictions
+    # colour discrimination
+    for method in predictions.keys():
+        for db in predictions[method]['colour_discrimination'].keys():
+            data = predictions[method]['colour_discrimination'][db]
+            if discrimination == 'cv':  # coefficient of variation (CV)
+                predictions[method]['colour_discrimination'][db] = np.std(data) / np.mean(data)
+            elif discrimination == 'stress':
+                predictions[method]['colour_discrimination'][db] = stress(data)
+            else:
+                predictions[method]['colour_discrimination'][db] = np.std(data)
+    # colour difference
+    for method in predictions.keys():
+        for db in predictions[method]['colour_difference'].keys():
+            data = predictions[method]['colour_difference'][db]
+            if difference == 'pearson':
+                predictions[method]['colour_difference'][db] = data[0]
+            elif difference == 'spearman':
+                predictions[method]['colour_difference'][db] = data[1]
+            else:
+                predictions[method]['colour_difference'][db] = data[2]
+    return predictions
 
+
+def plot_predictions(predictions, ylabel_discrimination, ylabel_difference):
     fig = plt.figure(figsize=(18, 4))
     fontsize = 18
 
     datasets = list(predictions['rgb']['colour_discrimination'].keys())
-    df_columns = {}
-    for key, val in predictions.items():
-        df_columns[key] = []
-        for db in datasets:
-            tmp_data = val['colour_discrimination'][db]
-            df_columns[key].append(np.std(tmp_data/tmp_data.max()))
-            # df_columns[key].append(np.std(tmp_data) / np.mean(tmp_data))
-            # df_columns[key].append(stress(val['colour_discrimination'][db]))
     ax = fig.add_subplot(1, 2, 1)
     df = pd.DataFrame({
         'Dataset': datasets,
-        'RGB': df_columns['rgb'],
-        '$\Delta E$2000': df_columns['de2000'],
-        'Network': df_columns['network']
+        'RGB': predictions['rgb']['colour_discrimination'].values(),
+        '$\Delta E$2000': predictions['de2000']['colour_discrimination'].values(),
+        'Network': predictions['network']['colour_discrimination'].values()
     })
     tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
     sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
     ax.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
     ax.set_title('Human Ellipses', fontsize=fontsize, fontweight='bold')
     ax.set_xlabel('Method', fontsize=fontsize)
-    ax.set_ylabel('$\sigma$ Euclidean Distance', fontsize=fontsize)
+    ax.set_ylabel(ylabel_discrimination, fontsize=fontsize)
     ax.legend(fontsize=13, ncol=1)
 
     datasets = list(predictions['rgb']['colour_difference'].keys())
-    corr_type = 'pearson'
-    corr_ind = 0 if corr_type == 'pearson' else 1
-    df_columns = {}
-    for key, val in predictions.items():
-        df_columns[key] = []
-        for db in datasets:
-            df_columns[key].append(val['colour_difference'][db][corr_ind])
     ax = fig.add_subplot(1, 2, 2)
     df = pd.DataFrame({
         'Dataset': datasets,
-        'RGB': df_columns['rgb'],
-        '$\Delta E$2000': df_columns['de2000'],
-        'Network': df_columns['network']
+        'RGB': predictions['rgb']['colour_difference'].values(),
+        '$\Delta E$2000': predictions['de2000']['colour_difference'].values(),
+        'Network': predictions['network']['colour_difference'].values()
     })
     tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
     sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
     ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
     ax.set_xlabel('Dataset', fontsize=fontsize)
-    ax.set_ylabel('$r$ Pearson Correlation', fontsize=fontsize)
+    ax.set_ylabel(ylabel_difference, fontsize=fontsize)
     ax.legend(fontsize=13, ncol=1)
 
     return fig
@@ -205,127 +211,11 @@ def clip_01(x):
     return np.maximum(np.minimum(x, 1), 0)
 
 
-def load_human_data(path):
-    human_data = read_test_pts(path)
-    human_data_ref_pts = np.expand_dims(np.array([val['ref'] for val in human_data.values()]),
-                                        axis=1)
-    human_hot_cen, human_hot_bor = [], []
-    for key, val in human_data.items():
-        for pt in val['ext']:
-            human_hot_cen.append(val['ref'])
-            human_hot_bor.append(pt)
-    human_hot_cen = np.array(human_hot_cen)
-    human_hot_bor = np.array(human_hot_bor)
-    return {'data': human_data, 'ref_pts': human_data_ref_pts,
-            'hot_cen': human_hot_cen, 'hot_bor': human_hot_bor}
-
-
-def prophoto_rgb_colour_diff(a, b, diff_fun='de2000'):
-    illuminant = np.array([0.31271, 0.32902])
-    a_lab = colour_science.XYZ_to_Lab(
-        colour_science.RGB_to_XYZ(a, 'ProPhoto RGB', illuminant,
-                                  chromatic_adaptation_transform=None),
-        illuminant
-    )
-    b_lab = colour_science.XYZ_to_Lab(
-        colour_science.RGB_to_XYZ(b, 'ProPhoto RGB', illuminant,
-                                  chromatic_adaptation_transform=None),
-        illuminant
-    )
-    return colour_diff_lab(a_lab, b_lab, diff_fun)
-
-
 def srgb_colour_diff(a, b, diff_fun='de2000'):
     illuminant = np.array([0.31271, 0.32902])
     a_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(a), illuminant)
     b_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(b), illuminant)
     return colour_diff_lab(a_lab, b_lab, diff_fun)
-
-
-def pred_human_colour_discrimination(path_or_data, diff_fun, max_dis=1, rgb_type='srgb'):
-    human_data = load_human_data(path_or_data) if type(path_or_data) == str else path_or_data
-    if type(diff_fun) != str:
-        cen_pred = pred_model(diff_fun, human_data['hot_cen'])
-        bor_pred = pred_model(diff_fun, human_data['hot_bor'])
-        pred = euc_distance(cen_pred, bor_pred)
-    elif diff_fun == 'euc':
-        pred = euc_distance(human_data['hot_cen'], human_data['hot_bor'])
-    else:
-        rgb_fun = srgb_colour_diff if rgb_type == 'srgb' else prophoto_rgb_colour_diff
-        pred = rgb_fun(human_data['hot_cen'], human_data['hot_bor'], diff_fun=diff_fun)
-    if max_dis == 'from_data':
-        max_dis = estimate_max_distance(diff_fun, 10000, rgb_type=human_data['hot_cen'])
-    return np.std(pred), np.std(pred / max_dis), stress(pred)
-
-
-def pred_human_data(path, model, maxes=None):
-    if maxes is None:
-        maxes = {'rgb': 1, 'de2000': 1, 'model': 1}
-    human_data = load_human_data(path)
-    rgb_euc = pred_human_colour_discrimination(human_data, 'euc', maxes['rgb'])
-    de2000 = pred_human_colour_discrimination(human_data, 'de2000', maxes['de2000'])
-    netspace = pred_human_colour_discrimination(human_data, model, maxes['model'])
-    return {'rgb': rgb_euc, 'de2000': de2000, 'model': netspace}
-
-
-def pred_macadam1974(path, model, print_val='\t'):
-    macadam1974_data = np.loadtxt(path, delimiter=',')
-    tile1 = pred_model(model, clip_01(macadam1974_data[:, 1:4]))
-    tile2 = pred_model(model, clip_01(macadam1974_data[:, 4:7]))
-    pred_euc = euc_distance(tile1, tile2)
-    pred_euc[np.isnan(pred_euc)] = 0
-    pcorr, _ = stats.pearsonr(pred_euc, macadam1974_data[:, 0])
-    scorr, _ = stats.spearmanr(pred_euc, macadam1974_data[:, 0])
-    de2000 = colour_diff_lab(macadam1974_data[:, 7:10], macadam1974_data[:, 10:13])
-    pcorr_de, _ = stats.pearsonr(de2000, macadam1974_data[:, 0])
-    scorr_de, _ = stats.spearmanr(de2000, macadam1974_data[:, 0])
-    if print_val is not None:
-        print('%sDE-2000 Pearson %.2f \t Spearman %.2f' % (print_val, pcorr_de, scorr_de))
-        print('%sNetwork Pearson %.2f \t Spearman %.2f' % (print_val, pcorr, scorr))
-    return {
-        'de2000': [pcorr_de, scorr_de],
-        'model': [pcorr, scorr]
-    }
-
-
-def test_human_data(model, human_data_dir, do_print=True):
-    print_val = '\t' if do_print else None
-    maxes = dict()
-    maxes['rgb'] = 'from_data'
-    maxes['de2000'] = 'from_data'
-    maxes['model'] = 'from_data'
-    # model_max = estimate_max_distance(model, 10000, rgb_type='prophoto')
-    # de_max = estimate_max_distance('de2000', 10000, rgb_type='prophoto')
-    if do_print:
-        print('* MacAdam 1942')
-    macadam_res = pred_human_data(human_data_dir + '/macadam_rgb_srgb.csv', model, maxes=maxes)
-    if do_print:
-        print('* Luo-Rigg 1986')
-    luorigg_res = pred_human_data(human_data_dir + '/luorigg_rgb_srgb.csv', model, maxes=maxes)
-    # Melgosa
-    if do_print:
-        print('* Melgosa 1997')
-    melgosa97_res = pred_human_data(human_data_dir + '/melgosa1997_rgb_srgb.csv', model,
-                                    maxes=maxes)
-    # Huang
-    if do_print:
-        print('* Huang 2012')
-    huang2012_res = pred_human_data(human_data_dir + '/huang2012_rgb_srgb.csv', model, maxes=maxes)
-    # MacAdam 1974
-    if do_print:
-        print('* MacAdam 1974')
-    macadam1974_res = pred_macadam1974(
-        human_data_dir + '/macadam1974_srgb.csv', model, print_val=print_val
-    )
-    return {
-        'discrimination': {
-            'MacAdam': macadam_res,
-            'Luo-Rigg': luorigg_res,
-            'Melgosa1997': melgosa97_res,
-            'Huang2012': huang2012_res,
-        },
-        'MacAdam1974': macadam1974_res,
-    }
 
 
 def euc_distance(a, b):
@@ -366,7 +256,7 @@ def estimate_max_distance(diff_fun, nrands=10000, rgb_type='srgb'):
         if type(rgb_type) != str:
             defun = srgb_colour_diff
         else:
-            defun = colour_diff if rgb_type == 'srgb' else prophoto_rgb_colour_diff
+            defun = colour_diff
         pred = defun(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:], diff_fun=diff_fun)
     max_dis = np.quantile(pred, 0.9)
     return max_dis
@@ -768,7 +658,7 @@ def optimise_instance(args, layer_results, out_dir):
             print('NaN!', epoch)
             return
 
-        human_tests = test_human_data(model, args.human_data_dir, False)
+        human_tests = compare_human_data(model, args.human_data_dir)
         if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
             pass
             # print(
