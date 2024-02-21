@@ -12,7 +12,6 @@ import json
 from matplotlib import pyplot as plt
 import seaborn as sns
 from scipy import stats
-from skimage import color as skicolour
 import colour as colour_science
 
 import torch
@@ -82,7 +81,7 @@ def compare_colour_discrimination(test_file, method, is_onehot_vector=False):
         illuminant = np.array([0.31271, 0.32902])
         cen_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(cen_pts), illuminant)
         bor_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(bor_pts), illuminant)
-        pred = colour_diff_lab(skicolour.rgb2lab(cen_lab), skicolour.rgb2lab(bor_lab), method)
+        pred = colour_science.delta_E(cen_lab, bor_lab, method=method)
     return pred
 
 
@@ -105,7 +104,7 @@ def compare_colour_difference(path, method):
             bor_pts = colour_spaces.rgb2ycc01(bor_pts)
         pred = euc_distance(cen_pts, bor_pts)
     else:
-        pred = colour_diff_lab(human_data[:, 7:10], human_data[:, 10:13], method)
+        pred = colour_science.delta_E(human_data[:, 7:10], human_data[:, 10:13], method=method)
     pearsonr_corr, _ = stats.pearsonr(pred, gt)
     spearmanr_corr, _ = stats.spearmanr(pred, gt)
     return pearsonr_corr, spearmanr_corr, stress(pred, gt)
@@ -141,7 +140,9 @@ def compare_human_data(method, test_dir):
 def stress(de, dv=None):
     if dv is None:
         dv = np.ones(len(de))
+        # dv = np.ones(len(de)) * np.random.normal(size=len(de), loc=1.0, scale=0.1)
     return 100 * np.sqrt(1 - (np.sum(de * dv) ** 2) / (np.sum(de ** 2) * np.sum(dv ** 2)))
+    # return 100 * np.sqrt(1 - () / ())
 
 
 def predict_human_data(methods, test_dir, discrimination, difference):
@@ -149,60 +150,65 @@ def predict_human_data(methods, test_dir, discrimination, difference):
     # colour discrimination
     for method in predictions.keys():
         for db in predictions[method]['colour_discrimination'].keys():
-            data = predictions[method]['colour_discrimination'][db]
+            x = predictions[method]['colour_discrimination'][db]
             if discrimination == 'cv':  # coefficient of variation (CV)
-                predictions[method]['colour_discrimination'][db] = np.std(data) / np.mean(data)
+                predictions[method]['colour_discrimination'][db] = np.std(x) / np.mean(x)
             elif discrimination == 'stress':
-                predictions[method]['colour_discrimination'][db] = stress(data)
+                predictions[method]['colour_discrimination'][db] = stress(x)
             else:
-                predictions[method]['colour_discrimination'][db] = np.std(data)
+                predictions[method]['colour_discrimination'][db] = np.std(x)
     # colour difference
     for method in predictions.keys():
         for db in predictions[method]['colour_difference'].keys():
-            data = predictions[method]['colour_difference'][db]
+            x = predictions[method]['colour_difference'][db]
             if difference == 'pearson':
-                predictions[method]['colour_difference'][db] = data[0]
+                predictions[method]['colour_difference'][db] = x[0]
             elif difference == 'spearman':
-                predictions[method]['colour_difference'][db] = data[1]
+                predictions[method]['colour_difference'][db] = x[1]
             else:
-                predictions[method]['colour_difference'][db] = data[2]
+                predictions[method]['colour_difference'][db] = x[2]
     return predictions
 
 
 def plot_predictions(predictions, ylabel_discrimination, ylabel_difference):
-    fig = plt.figure(figsize=(18, 4))
+    fig = plt.figure(figsize=(20, 8))
     fontsize = 18
 
-    datasets = list(predictions['rgb']['colour_discrimination'].keys())
-    ax = fig.add_subplot(1, 2, 1)
+    datasets = list(predictions['RGB']['colour_discrimination'].keys())
+    ax = fig.add_subplot(1, 2, 1, polar=True)
     df = pd.DataFrame({
         'Dataset': datasets,
-        'RGB': predictions['rgb']['colour_discrimination'].values(),
-        '$\Delta E$2000': predictions['de2000']['colour_discrimination'].values(),
-        'Network': predictions['network']['colour_discrimination'].values()
+        **{key: val['colour_discrimination'].values() for key, val in predictions.items()}
     })
-    tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
-    sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
-    ax.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
-    ax.set_title('Human Ellipses', fontsize=fontsize, fontweight='bold')
-    ax.set_xlabel('Method', fontsize=fontsize)
-    ax.set_ylabel(ylabel_discrimination, fontsize=fontsize)
-    ax.legend(fontsize=13, ncol=1)
+    values = df.iloc[:, 1:].to_numpy()
+    angles = np.linspace(0, 2 * np.pi, len(datasets), endpoint=False).tolist()
+    values = np.concatenate([values, values[:1]], axis=0)
+    angles += angles[:1]
+    datasets += datasets[:1]
 
-    datasets = list(predictions['rgb']['colour_difference'].keys())
+    ax.plot(angles, values, linewidth=3, label=list(predictions.keys()))
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+    ax.set_thetagrids(np.degrees(angles), datasets, fontsize=fontsize)
+    if ylabel_discrimination != 'STRESS':
+        ax.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
+    ax.set_title(ylabel_discrimination, fontsize=fontsize, fontweight='bold')
+    ax.set_xlabel('Dataset', fontsize=fontsize)
+    ax.set_ylabel('', fontsize=fontsize)
+    ax.legend(fontsize=13, loc='upper right', bbox_to_anchor=(1.2, 1.2))
+
+    datasets = list(predictions['RGB']['colour_difference'].keys())
     ax = fig.add_subplot(1, 2, 2)
     df = pd.DataFrame({
         'Dataset': datasets,
-        'RGB': predictions['rgb']['colour_difference'].values(),
-        '$\Delta E$2000': predictions['de2000']['colour_difference'].values(),
-        'Network': predictions['network']['colour_difference'].values()
+        **{key: val['colour_difference'].values() for key, val in predictions.items()}
     })
     tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
     sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
     ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
     ax.set_xlabel('Dataset', fontsize=fontsize)
     ax.set_ylabel(ylabel_difference, fontsize=fontsize)
-    ax.legend(fontsize=13, ncol=1)
+    ax.legend(fontsize=13, ncol=4, loc='lower center')
 
     return fig
 
@@ -211,53 +217,25 @@ def clip_01(x):
     return np.maximum(np.minimum(x, 1), 0)
 
 
-def srgb_colour_diff(a, b, diff_fun='de2000'):
-    illuminant = np.array([0.31271, 0.32902])
-    a_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(a), illuminant)
-    b_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(b), illuminant)
-    return colour_diff_lab(a_lab, b_lab, diff_fun)
-
-
 def euc_distance(a, b):
     return np.sum((a.astype('float32') - b.astype('float32')) ** 2, axis=-1) ** 0.5
 
 
-def colour_diff_lab(a_lab, b_lab, diff_fun='de2000'):
-    if diff_fun == 'de2000':
-        diff_fun = skicolour.deltaE_ciede2000
-    elif diff_fun == 'de1994':
-        diff_fun = skicolour.deltaE_ciede94
-    else:
-        diff_fun = skicolour.deltaE_cie76
-    return diff_fun(a_lab, b_lab)
-
-
-def colour_diff(a, b, diff_fun='euc'):
-    a = a.copy().astype('float32')
-    b = b.copy().astype('float32')
-    if diff_fun == 'euc':
-        return euc_distance(a, b)
-    else:
-        return colour_diff_lab(skicolour.rgb2lab(a), skicolour.rgb2lab(b), diff_fun)
-
-
-def estimate_max_distance(diff_fun, nrands=10000, rgb_type='srgb'):
+def estimate_max_distance(method, nrands=10000, rgb_type='srgb'):
     if type(rgb_type) != str:
         min_rgb, max_rgb = rgb_type.min(), rgb_type.max()
     else:
         min_rgb, max_rgb = (0, 1) if rgb_type == 'srgb' else (0, 8.125)
     rand_rgbs = np.random.uniform(min_rgb, max_rgb, (nrands, 3))
-    if type(diff_fun) != str:
-        netspace = pred_model(diff_fun, rand_rgbs)
+    if type(method) != str:
+        netspace = pred_model(method, rand_rgbs)
         pred = euc_distance(netspace[:nrands // 2], netspace[nrands // 2:])
-    elif diff_fun == 'euc':
+    elif method == 'euc':
         pred = euc_distance(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:])
     else:
-        if type(rgb_type) != str:
-            defun = srgb_colour_diff
-        else:
-            defun = colour_diff
-        pred = defun(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:], diff_fun=diff_fun)
+        a_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(rand_rgbs[:nrands // 2]))
+        b_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(rand_rgbs[:nrands // 2:]))
+        pred = colour_science.delta_E(a_lab, b_lab, method=method)
     max_dis = np.quantile(pred, 0.9)
     return max_dis
 
