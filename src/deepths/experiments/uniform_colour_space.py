@@ -60,11 +60,18 @@ def compare_colour_discrimination(test_file, method, is_onehot_vector=False):
         human_data = {'hot_cen': df.iloc[:, :3].to_numpy(), 'hot_bor': df.iloc[:, 3:].to_numpy()}
     else:
         human_data = load_human_data(test_file)
-
     cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
+    illuminant = np.array([0.31271, 0.32902])
+    cen_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(cen_pts), illuminant)
+    bor_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(bor_pts), illuminant)
+    pred = method_out(method, cen_pts, bor_pts, cen_lab, bor_lab)
+    return pred
+
+
+def method_out(method, cen_pts, bor_pts, cen_pts_lab, bor_pts_lab):
     checkpoint_path = '%s/model.pth' % method
-    if os.path.exists(checkpoint_path):
-        network = load_model(checkpoint_path)
+    if not isinstance(method, str) or os.path.exists(checkpoint_path):
+        network = load_model(checkpoint_path) if isinstance(method, str) else method
         cen_pts = pred_model(network, cen_pts)
         bor_pts = pred_model(network, bor_pts)
         pred = euc_distance(cen_pts, bor_pts)
@@ -76,35 +83,20 @@ def compare_colour_discrimination(test_file, method, is_onehot_vector=False):
         elif space == 'ycc':
             cen_pts = colour_spaces.rgb2ycc01(cen_pts)
             bor_pts = colour_spaces.rgb2ycc01(bor_pts)
+        elif space == 'lab':
+            cen_pts, bor_pts = cen_pts_lab, bor_pts_lab
         pred = euc_distance(cen_pts, bor_pts)
     else:
-        illuminant = np.array([0.31271, 0.32902])
-        cen_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(cen_pts), illuminant)
-        bor_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(bor_pts), illuminant)
-        pred = colour_science.delta_E(cen_lab, bor_lab, method=method)
+        pred = colour_science.delta_E(cen_pts_lab, bor_pts_lab, method=method)
     return pred
 
 
 def compare_colour_difference(path, method):
     human_data = np.loadtxt(path, delimiter=',')
     gt, cen_pts, bor_pts = human_data[:, 0], human_data[:, 1:4], human_data[:, 4:7]
-    checkpoint_path = '%s/model.pth' % method
-    if os.path.exists(checkpoint_path):
-        network = load_model(checkpoint_path)
-        cen_pts = pred_model(network, cen_pts)
-        bor_pts = pred_model(network, bor_pts)
-        pred = euc_distance(cen_pts, bor_pts)
-    elif 'euc' in method:
-        space = method.split('_')[1]
-        if space == 'dkl':
-            cen_pts = colour_spaces.rgb2dkl01(cen_pts)
-            bor_pts = colour_spaces.rgb2dkl01(bor_pts)
-        elif space == 'ycc':
-            cen_pts = colour_spaces.rgb2ycc01(cen_pts)
-            bor_pts = colour_spaces.rgb2ycc01(bor_pts)
-        pred = euc_distance(cen_pts, bor_pts)
-    else:
-        pred = colour_science.delta_E(human_data[:, 7:10], human_data[:, 10:13], method=method)
+    pred = method_out(method, cen_pts, bor_pts, human_data[:, 7:10], human_data[:, 10:13])
+    if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+        return 0, 0, 0
     pearsonr_corr, _ = stats.pearsonr(pred, gt)
     spearmanr_corr, _ = stats.spearmanr(pred, gt)
     return pearsonr_corr, spearmanr_corr, stress(pred, gt)
@@ -141,8 +133,8 @@ def stress(de, dv=None):
     if dv is None:
         dv = np.ones(len(de))
         # dv = np.ones(len(de)) * np.random.normal(size=len(de), loc=1.0, scale=0.1)
-    return 100 * np.sqrt(1 - (np.sum(de * dv) ** 2) / (np.sum(de ** 2) * np.sum(dv ** 2)))
-    # return 100 * np.sqrt(1 - () / ())
+    # return np.sqrt(1 - (np.sum(de * dv) ** 2) / (np.sum(de ** 2) * np.sum(dv ** 2)))
+    return colour_science.index_stress(de, dv)
 
 
 def predict_human_data(methods, test_dir, discrimination, difference):
@@ -156,7 +148,7 @@ def predict_human_data(methods, test_dir, discrimination, difference):
             elif discrimination == 'stress':
                 predictions[method]['colour_discrimination'][db] = stress(x)
             else:
-                predictions[method]['colour_discrimination'][db] = np.std(x)
+                predictions[method]['colour_discrimination'][db] = np.std(x / x.max())
     # colour difference
     for method in predictions.keys():
         for db in predictions[method]['colour_difference'].keys():
@@ -222,12 +214,12 @@ def euc_distance(a, b):
 
 
 def estimate_max_distance(method, nrands=10000, rgb_type='srgb'):
-    if type(rgb_type) != str:
+    if not isinstance(rgb_type, str):
         min_rgb, max_rgb = rgb_type.min(), rgb_type.max()
     else:
         min_rgb, max_rgb = (0, 1) if rgb_type == 'srgb' else (0, 8.125)
     rand_rgbs = np.random.uniform(min_rgb, max_rgb, (nrands, 3))
-    if type(method) != str:
+    if not isinstance(method, str):
         netspace = pred_model(method, rand_rgbs)
         pred = euc_distance(netspace[:nrands // 2], netspace[nrands // 2:])
     elif method == 'euc':
@@ -334,7 +326,7 @@ def parse_network_results(net_res_dir, arch, test_data, exclude_list=None):
 
 
 def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
-                    projections=None, axs_range=None):
+                    projections=None, axs_range=None, fontsize=10):
     if whichd == '2d':
         naxis = 3
     elif whichd == '3d':
@@ -343,7 +335,6 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
         naxis = 4
     fig = plt.figure(figsize=(naxis * 5 + 3, 5))
 
-    fontsize = 18
     axis_names = ['Ax=0', 'Ax=1', 'Ax=2'] if axis_names is None else axis_names
     if axs_range == 'auto':
         min_pts = points.min(axis=(1, 0))
@@ -352,20 +343,20 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
         axs_range = list(zip(-0.05 * abs(axs_len) + min_pts, 0.05 * abs(axs_len) + max_pts))
     if whichd != '2d':
         ax_3d = fig.add_subplot(1, naxis, 1, projection='3d')
-        ax_3d = scatter_3D(points, colours, ax_3d, axis_names, fontsize, axs_range)
+        scatter3d(points, colours, ax_3d, axis_names, fontsize, axs_range)
     if whichd != '3d':
         if projections is None:
             projections = [None] * 3
         axs_2d = [fig.add_subplot(
             1, naxis, chn, projection=projections[chn - 2]
         ) for chn in range(naxis - 2, naxis + 1)]
-        axs_2d = scatter_2D(points, colours, axs_2d, axis_names, fontsize, axs_range)
+        axs_2d = scatter2d(points, colours, axs_2d, axis_names, fontsize, axs_range)
     if title is not None:
         fig.suptitle(title, fontsize=int(fontsize * 1.5))
     return fig
 
 
-def scatter_3D(points, colours, ax, axis_names, fontsize=14, axs_range=None):
+def scatter3d(points, colours, ax, axis_names, fontsize=14, axs_range=None):
     """Plotting the points in a 3D space."""
     s_size = 8 ** 2
 
@@ -395,7 +386,7 @@ def scatter_3D(points, colours, ax, axis_names, fontsize=14, axs_range=None):
     return ax
 
 
-def scatter_2D(points, colours, axs, axis_names, fontsize=14, axs_range=None):
+def scatter2d(points, colours, axs, axis_names, fontsize=14, axs_range=None):
     """Plotting three planes of a 3D space."""
     s_size = 10 ** 2
 
@@ -558,7 +549,7 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
 
     layer_results = network_result_summary[layer]
 
-    args.loss = 'range'
+    args.loss = 'nada!'
     losses = ['range', 'mean_distance']
     for opt_method in ['Adamax', 'Adam']:
         for i in range(10):
@@ -611,21 +602,20 @@ def optimise_instance(args, layer_results, out_dir):
         with torch.set_grad_enabled(True):
             input_space = torch.tensor(train_db[0].copy()).float()
             out_space = model(input_space)
-            euc_dis = torch.sum((out_space[train_db[1][:, 0]] - out_space[train_db[1][:, 1]]) ** 2,
-                                axis=-1) ** 0.5
+            euc_dis = torch.sum(
+                (out_space[train_db[1][:, 0]] - out_space[train_db[1][:, 1]]) ** 2, axis=-1
+            ) ** 0.5
             min_vals, _ = out_space.min(axis=0)
             max_vals, _ = out_space.max(axis=0)
-            range_dis = max_vals - min_vals
-            uniformity_euc_dis = torch.std(euc_dis)
+            deltad = max_vals - min_vals
+            uniformity_loss = torch.std(euc_dis) / torch.mean(euc_dis)
             if args.loss == 'range':
-                range_loss = 0.5 * (
-                        abs(1 - range_dis[0]) + abs(1 - range_dis[1]) + abs(1 - range_dis[2])
-                )
+                range_loss = 0.5 * (abs(1 - deltad[0]) + abs(1 - deltad[1]) + abs(1 - deltad[2]))
             elif args.loss == 'mean_distance':
                 range_loss = 0.5 * abs(0.1 - torch.mean(euc_dis))
             else:
                 range_loss = 0
-            loss = uniformity_euc_dis + range_loss
+            loss = uniformity_loss + range_loss
 
             optimiser.zero_grad()
             loss.backward()
@@ -636,25 +626,34 @@ def optimise_instance(args, layer_results, out_dir):
             print('NaN!', epoch)
             return
 
-        human_tests = compare_human_data(model, args.human_data_dir)
+        human_cv = predict_human_data({'Network': model}, args.human_data_dir, 'cv', 'pearson')
+        human_stress = predict_human_data({'Network': model}, args.human_data_dir, 'stress',
+                                          'pearson')
+        cv_str = '[ '
+        for key, val in human_cv['Network']['colour_discrimination'].items():
+            cv_str += ('%s: %.2f ' % (key, val))
+        cv_str += ']'
+        stress_str = '[ '
+        for key, val in human_stress['Network']['colour_discrimination'].items():
+            stress_str += ('%s: %.2f ' % (key, val))
+        stress_str += ']'
         if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
-            pass
-            # print(
-            #     '[%.5d] loss=%.4f [%.2f %.2f %.2f] MacAdam=[%.4f|%.4f]vs[%.4f] Luo-Rigg=[%.4f|%.4f]vs[%.4f] r=[%.2f]vs[%.2f]' % (
-            #         epoch, uniformity_euc_dis, *range_dis,
-            #         human_tests['MacAdam']['model'][0], human_tests['MacAdam']['model'][1],
-            #         human_tests['MacAdam']['de2000'][1],
-            #         human_tests['Luo-Rigg']['model'][0], human_tests['Luo-Rigg']['model'][1],
-            #         human_tests['Luo-Rigg']['de2000'][1],
-            #         human_tests['MacAdam1974']['model'][0], human_tests['MacAdam1974']['de2000'][0]
-            #     )
-            # )
-        epoch_loss = [uniformity_euc_dis.item()]
-        for dbname, db_res in human_tests['discrimination'].items():
-            # epoch_loss.append((db_res['model'][0]))
-            # epoch_loss.append((db_res['model'][1]))
-            epoch_loss.append((db_res['model'][2]))
-        epoch_loss.append(human_tests['MacAdam1974']['model'][0])
+            print(
+                '[%.5d] loss=%.4f [%.2f %.2f %.2f] CV=%s STRESS=%s CORR=%.2f' % (
+                    epoch, uniformity_loss, *deltad, cv_str, stress_str,
+                    human_cv['Network']['colour_difference']['MacAdam1974']
+                )
+            )
+        header = 'loss,'
+        epoch_loss = [uniformity_loss.item()]
+        for dbname, db_res in human_cv['Network']['colour_discrimination'].items():
+            epoch_loss.append(db_res)
+            header += 'CV_%s,' % dbname
+        for dbname, db_res in human_stress['Network']['colour_discrimination'].items():
+            epoch_loss.append(db_res)
+            header += 'STRESS_%s,' % dbname
+        header += 'CORR_MacAdam1974'
+        epoch_loss.append(human_cv['Network']['colour_difference']['MacAdam1974'])
         losses.append(epoch_loss)
 
     rgb_pts = sample_rgb()
@@ -665,16 +664,15 @@ def optimise_instance(args, layer_results, out_dir):
     print('Network-space range:\t%s (%.3f, %.3f %.3f)' % ('', *space_range))
     fig = plot_colour_pts(
         rgb_pts_pred, rgb_pts,
-        'loss=%.4f   MacAdam=%.1f   Luo-Rigg=%.1f   Melgosa=%.1f   Huang=%.1f   r=%.2f' % (
-            losses[-1][0], losses[-1][1], losses[-1][2], losses[-1][3], losses[-1][4],
-            losses[-1][-1]
+        'loss=%.4f   CV=%s   STRESS=%s   r=%.2f' % (
+            uniformity_loss, cv_str, stress_str,
+            human_cv['Network']['colour_difference']['MacAdam1974']
         ),
         axs_range='auto'
     )
 
     fig.savefig('%s/rgb_pred.svg' % out_dir)
     plt.close('all')
-    header = 'loss,MacAdam,LuoRig,Melgosa,Huang,Corr'
     np.savetxt('%s/losses.txt' % out_dir, losses, delimiter=',', header=header)
 
     torch.save({
