@@ -137,6 +137,13 @@ def stress(de, dv=None):
     return colour_science.index_stress(de, dv)
 
 
+def stress_torch(de, dv=None):
+    if dv is None:
+        dv = torch.ones(len(de))
+        # dv = np.ones(len(de)) * np.random.normal(size=len(de), loc=1.0, scale=0.1)
+    return torch.sqrt(1 - (torch.sum(de * dv) ** 2) / (torch.sum(de ** 2) * torch.sum(dv ** 2)))
+
+
 def predict_human_data(methods, test_dir, discrimination, difference):
     predictions = {key: compare_human_data(method, test_dir) for key, method in methods.items()}
     # colour discrimination
@@ -147,8 +154,14 @@ def predict_human_data(methods, test_dir, discrimination, difference):
                 predictions[method]['colour_discrimination'][db] = np.std(x) / np.mean(x)
             elif discrimination == 'stress':
                 predictions[method]['colour_discrimination'][db] = stress(x)
+            elif discrimination == 'entropy':
+                predictions[method]['colour_discrimination'][db] = stats.entropy(x)
+            elif discrimination == 'mad':
+                predictions[method]['colour_discrimination'][db] = stats.median_abs_deviation(x)
+            elif discrimination == 'interquartile':
+                predictions[method]['colour_discrimination'][db] = stats.iqr(x)
             else:
-                predictions[method]['colour_discrimination'][db] = np.std(x / x.max())
+                predictions[method]['colour_discrimination'][db] = np.std(x) / (x.max() - x.min())
     # colour difference
     for method in predictions.keys():
         for db in predictions[method]['colour_difference'].keys():
@@ -549,6 +562,7 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
 
     layer_results = network_result_summary[layer]
 
+    intermediate_nonlinears = ['GELU', 'ReLU', 'SELU', 'SiLU', 'Tanh']
     args.loss = 'nada!'
     losses = ['range', 'mean_distance']
     for opt_method in ['Adamax', 'Adam']:
@@ -556,8 +570,7 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
             num_units = np.random.randint(7, 15, size=np.random.randint(2, 5)).tolist()
             for non_lin_ind in range(5):
                 nonlinearity = [
-                    *list(
-                        np.random.choice(['GELU', 'ReLU', 'SELU', 'SiLU', 'Tanh'], len(num_units))),
+                    *list(np.random.choice(intermediate_nonlinears, len(num_units))),
                     np.random.choice(['Tanh', 'Sigmoid', 'identity'], 1)[0]
                 ]
                 exname = '%s_%.2d_%s' % (
@@ -596,9 +609,10 @@ def optimise_instance(args, layer_results, out_dir):
     # epoch loop
     print_freq = args.epochs // 10
     losses = []
+    train_db, _ = train_val_sets(layer_results, 0)
     for epoch in range(args.epochs):
         model = model.train()
-        train_db, _ = train_val_sets(layer_results, 0.1)
+        # train_db, _ = train_val_sets(layer_results, 0.1)
         with torch.set_grad_enabled(True):
             input_space = torch.tensor(train_db[0].copy()).float()
             out_space = model(input_space)
@@ -608,7 +622,8 @@ def optimise_instance(args, layer_results, out_dir):
             min_vals, _ = out_space.min(axis=0)
             max_vals, _ = out_space.max(axis=0)
             deltad = max_vals - min_vals
-            uniformity_loss = torch.std(euc_dis) / torch.mean(euc_dis)
+            uniformity_loss = torch.std(euc_dis)  # / torch.mean(euc_dis)
+            # uniformity_loss = stress_torch(euc_dis)
             if args.loss == 'range':
                 range_loss = 0.5 * (abs(1 - deltad[0]) + abs(1 - deltad[1]) + abs(1 - deltad[2]))
             elif args.loss == 'mean_distance':
@@ -631,11 +646,13 @@ def optimise_instance(args, layer_results, out_dir):
                                           'pearson')
         cv_str = '[ '
         for key, val in human_cv['Network']['colour_discrimination'].items():
-            cv_str += ('%s: %.2f ' % (key, val))
+            if key in ['Huang2012', 'TeamK']:
+                cv_str += ('%s: %.2f ' % (key[:2], val))
         cv_str += ']'
         stress_str = '[ '
         for key, val in human_stress['Network']['colour_discrimination'].items():
-            stress_str += ('%s: %.2f ' % (key, val))
+            if key in ['Huang2012', 'TeamK']:
+                stress_str += ('%s: %.2f ' % (key[:2], val))
         stress_str += ']'
         if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
             print(
