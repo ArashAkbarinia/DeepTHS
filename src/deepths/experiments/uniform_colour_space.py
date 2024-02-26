@@ -54,16 +54,21 @@ def load_human_data(path):
             'hot_cen': hot_cen, 'hot_bor': hot_bor}
 
 
-def compare_colour_discrimination(test_file, method, is_onehot_vector=False):
+def db_discriminate(test_file, method, rgb='sRGB', is_onehot_vector=False):
     if is_onehot_vector:
         df = pd.read_csv(test_file)
-        human_data = {'hot_cen': df.iloc[:, :3].to_numpy(), 'hot_bor': df.iloc[:, 3:].to_numpy()}
+        cen_pts = clip_01(df.iloc[:, :3].to_numpy()) ** 2.2
+        bor_pts = clip_01(df.iloc[:, 3:6].to_numpy()) ** 2.2
+        cen_xyz = df.loc[:, ['Ref X', 'Ref Y', 'Ref Z']].to_numpy()
+        bor_xyz = df.loc[:, ['JND X', 'JND Y', 'JND Z']].to_numpy()
     else:
         human_data = load_human_data(test_file)
-    cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
-    illuminant = np.array([0.31271, 0.32902])
-    cen_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(cen_pts), illuminant)
-    bor_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(bor_pts), illuminant)
+        cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
+        cen_xyz = colour_science.RGB_to_XYZ(cen_pts, rgb)
+        bor_xyz = colour_science.RGB_to_XYZ(bor_pts, rgb)
+    illuminant = colour_science.CCS_ILLUMINANTS['CIE 1931 2 Degree Standard Observer']['D65']
+    cen_lab = colour_science.XYZ_to_Lab(cen_xyz, illuminant)
+    bor_lab = colour_science.XYZ_to_Lab(bor_xyz, illuminant)
     pred = method_out(method, cen_pts, bor_pts, cen_lab, bor_lab)
     return pred
 
@@ -91,7 +96,7 @@ def method_out(method, cen_pts, bor_pts, cen_pts_lab, bor_pts_lab):
     return pred
 
 
-def compare_colour_difference(path, method):
+def db_difference(path, method):
     human_data = np.loadtxt(path, delimiter=',')
     gt, cen_pts, bor_pts = human_data[:, 0], human_data[:, 1:4], human_data[:, 4:7]
     pred = method_out(method, cen_pts, bor_pts, human_data[:, 7:10], human_data[:, 10:13])
@@ -102,26 +107,31 @@ def compare_colour_difference(path, method):
     return pearsonr_corr, spearmanr_corr, stress(pred, gt)
 
 
-def compare_human_data(method, test_dir):
+def compare_human_data(method, test_dir, rgb_type):
+    rgbs = {
+        'srgb': 'sRGB',
+        'AdobeRgb1998': 'Adobe RGB (1998)'
+    }
+    rgb = rgbs[rgb_type]
     # MacAdam 1942
-    macadam_res = compare_colour_discrimination('%s/macadam_rgb_srgb.csv' % test_dir, method)
+    macadam_res = db_discriminate('%s/macadam_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
     # Luo-Rigg 1986
-    luorigg_res = compare_colour_discrimination('%s/luorigg_rgb_srgb.csv' % test_dir, method)
+    luorigg_res = db_discriminate('%s/luorigg_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
     # Melgosa
-    melgosa97_res = compare_colour_discrimination('%s/melgosa1997_rgb_srgb.csv' % test_dir, method)
+    melgosa97_res = db_discriminate('%s/melgosa1997_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
     # Huang
-    huang2012_res = compare_colour_discrimination('%s/huang2012_rgb_srgb.csv' % test_dir, method)
-    # KTeam
-    kteam_res = compare_colour_discrimination('%s/kteam_thresholds.csv' % test_dir, method, True)
+    huang2012_res = db_discriminate('%s/huang2012_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
+    # TeamK
+    teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
     # MacAdam 1974
-    macadam1974_res = compare_colour_difference('%s/macadam1974_srgb.csv' % test_dir, method)
+    macadam1974_res = db_difference('%s/macadam1974_%s.csv' % (test_dir, rgb_type), method)
     return {
         'colour_discrimination': {
             'MacAdam': macadam_res,
             'Luo-Rigg': luorigg_res,
             'Melgosa1997': melgosa97_res,
             'Huang2012': huang2012_res,
-            'TeamK': kteam_res
+            'TeamK': teamk_res
         },
         'colour_difference': {
             'MacAdam1974': macadam1974_res
@@ -144,8 +154,10 @@ def stress_torch(de, dv=None):
     return torch.sqrt(1 - (torch.sum(de * dv) ** 2) / (torch.sum(de ** 2) * torch.sum(dv ** 2)))
 
 
-def predict_human_data(methods, test_dir, discrimination, difference):
-    predictions = {key: compare_human_data(method, test_dir) for key, method in methods.items()}
+def predict_human_data(methods, test_dir, discrimination, difference, rgb_type='srgb'):
+    predictions = {
+        key: compare_human_data(method, test_dir, rgb_type) for key, method in methods.items()
+    }
     # colour discrimination
     for method in predictions.keys():
         for db in predictions[method]['colour_discrimination'].keys():
