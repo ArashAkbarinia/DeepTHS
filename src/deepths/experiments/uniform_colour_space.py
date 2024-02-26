@@ -10,6 +10,7 @@ import sys
 import json
 
 from matplotlib import pyplot as plt
+from matplotlib.gridspec import GridSpec
 import seaborn as sns
 from scipy import stats
 import colour as colour_science
@@ -55,15 +56,19 @@ def load_human_data(path):
 
 
 def db_discriminate(test_file, method, rgb='sRGB', is_onehot_vector=False):
-    if is_onehot_vector:
+    if is_onehot_vector and 'teamk' in test_file:
         df = pd.read_csv(test_file)
         cen_pts = clip_01(df.iloc[:, :3].to_numpy()) ** 2.2
         bor_pts = clip_01(df.iloc[:, 3:6].to_numpy()) ** 2.2
         cen_xyz = df.loc[:, ['Ref X', 'Ref Y', 'Ref Z']].to_numpy()
         bor_xyz = df.loc[:, ['JND X', 'JND Y', 'JND Z']].to_numpy()
     else:
-        human_data = load_human_data(test_file)
-        cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
+        if is_onehot_vector:
+            human_data = np.loadtxt(test_file, delimiter=',')
+            cen_pts, bor_pts = human_data[:, :3], human_data[:, 3:6]
+        else:
+            human_data = load_human_data(test_file)
+            cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
         cen_xyz = colour_science.RGB_to_XYZ(cen_pts, rgb)
         bor_xyz = colour_science.RGB_to_XYZ(bor_pts, rgb)
     illuminant = colour_science.CCS_ILLUMINANTS['CIE 1931 2 Degree Standard Observer']['D65']
@@ -121,6 +126,9 @@ def compare_human_data(method, test_dir, rgb_type):
     melgosa97_res = db_discriminate('%s/melgosa1997_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
     # Huang
     huang2012_res = db_discriminate('%s/huang2012_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
+    # RIT-DuPont
+    ritdupont_res = db_discriminate('%s/rit-dupont_rgb_%s.csv' % (test_dir, rgb_type), method,
+                                    is_onehot_vector=True)
     # TeamK
     teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
     # MacAdam 1974
@@ -131,6 +139,7 @@ def compare_human_data(method, test_dir, rgb_type):
             'Luo-Rigg': luorigg_res,
             'Melgosa1997': melgosa97_res,
             'Huang2012': huang2012_res,
+            'RIT-DuPont': ritdupont_res,
             'TeamK': teamk_res
         },
         'colour_difference': {
@@ -154,78 +163,95 @@ def stress_torch(de, dv=None):
     return torch.sqrt(1 - (torch.sum(de * dv) ** 2) / (torch.sum(de ** 2) * torch.sum(dv ** 2)))
 
 
-def predict_human_data(methods, test_dir, discrimination, difference, rgb_type='srgb'):
+def predict_human_data(methods, test_dir, rgb_type='srgb'):
     predictions = {
         key: compare_human_data(method, test_dir, rgb_type) for key, method in methods.items()
     }
-    # colour discrimination
-    for method in predictions.keys():
-        for db in predictions[method]['colour_discrimination'].keys():
-            x = predictions[method]['colour_discrimination'][db]
-            if discrimination == 'cv':  # coefficient of variation (CV)
-                predictions[method]['colour_discrimination'][db] = np.std(x) / np.mean(x)
-            elif discrimination == 'stress':
-                predictions[method]['colour_discrimination'][db] = stress(x)
-            elif discrimination == 'entropy':
-                predictions[method]['colour_discrimination'][db] = stats.entropy(x)
-            elif discrimination == 'mad':
-                predictions[method]['colour_discrimination'][db] = stats.median_abs_deviation(x)
-            elif discrimination == 'interquartile':
-                predictions[method]['colour_discrimination'][db] = stats.iqr(x)
-            else:
-                predictions[method]['colour_discrimination'][db] = np.std(x) / (x.max() - x.min())
-    # colour difference
-    for method in predictions.keys():
-        for db in predictions[method]['colour_difference'].keys():
-            x = predictions[method]['colour_difference'][db]
-            if difference == 'pearson':
-                predictions[method]['colour_difference'][db] = x[0]
-            elif difference == 'spearman':
-                predictions[method]['colour_difference'][db] = x[1]
-            else:
-                predictions[method]['colour_difference'][db] = x[2]
     return predictions
 
 
-def plot_predictions(predictions, ylabel_discrimination, ylabel_difference):
-    fig = plt.figure(figsize=(20, 8))
+def evaluate_discrimination(predictions, discrimination):
+    eval_pred = dict()
+    # colour discrimination
+    for method in predictions.keys():
+        eval_pred[method] = {'colour_discrimination': dict()}
+        for db in predictions[method]['colour_discrimination'].keys():
+            x = predictions[method]['colour_discrimination'][db]
+            if discrimination == 'cv':  # coefficient of variation (CV)
+                eval_pred[method]['colour_discrimination'][db] = np.std(x) / np.mean(x)
+            elif discrimination == 'stress':
+                eval_pred[method]['colour_discrimination'][db] = stress(x)
+            elif discrimination == 'entropy':
+                eval_pred[method]['colour_discrimination'][db] = stats.entropy(x)
+            elif discrimination == 'mad':
+                eval_pred[method]['colour_discrimination'][db] = stats.median_abs_deviation(x)
+            elif discrimination == 'interquartile':
+                eval_pred[method]['colour_discrimination'][db] = stats.iqr(x)
+            else:
+                eval_pred[method]['colour_discrimination'][db] = np.std(x) / (x.max() - x.min())
+    return eval_pred
+
+
+def evaluate_difference(predictions, difference):
+    eval_pred = dict()
+    # colour difference
+    for method in predictions.keys():
+        eval_pred[method] = {'colour_difference': dict()}
+        for db in predictions[method]['colour_difference'].keys():
+            x = predictions[method]['colour_difference'][db]
+            if difference == 'pearson':
+                eval_pred[method]['colour_difference'][db] = x[0]
+            elif difference == 'spearman':
+                eval_pred[method]['colour_difference'][db] = x[1]
+            else:
+                eval_pred[method]['colour_difference'][db] = x[2]
+    return eval_pred
+
+
+def plot_predictions(preds, discriminations, differences):
+    eval_discrimination = [evaluate_discrimination(preds, metric) for metric in discriminations]
+    eval_differences = [evaluate_difference(preds, metric) for metric in differences]
+    fig = plt.figure(figsize=(20, 12), layout="constrained")
+    gs = GridSpec(2, max(len(eval_discrimination), len(eval_differences)), figure=fig)
     fontsize = 18
 
-    datasets = list(predictions['RGB']['colour_discrimination'].keys())
-    ax = fig.add_subplot(1, 2, 1, polar=True)
-    df = pd.DataFrame({
-        'Dataset': datasets,
-        **{key: val['colour_discrimination'].values() for key, val in predictions.items()}
-    })
-    values = df.iloc[:, 1:].to_numpy()
-    angles = np.linspace(0, 2 * np.pi, len(datasets), endpoint=False).tolist()
-    values = np.concatenate([values, values[:1]], axis=0)
-    angles += angles[:1]
-    datasets += datasets[:1]
+    for dis_ind, dis_res in enumerate(eval_discrimination):
+        datasets = list(dis_res['RGB']['colour_discrimination'].keys())
+        ax = fig.add_subplot(gs[0, dis_ind], polar=True)
+        df = pd.DataFrame({
+            'Dataset': datasets,
+            **{key: val['colour_discrimination'].values() for key, val in dis_res.items()}
+        })
+        values = df.iloc[:, 1:].to_numpy()
+        angles = np.linspace(0, 2 * np.pi, len(datasets), endpoint=False).tolist()
+        values = np.concatenate([values, values[:1]], axis=0)
+        angles += angles[:1]
+        datasets += datasets[:1]
 
-    ax.plot(angles, values, linewidth=3, label=list(predictions.keys()))
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
-    ax.set_thetagrids(np.degrees(angles), datasets, fontsize=fontsize)
-    if ylabel_discrimination != 'STRESS':
-        ax.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
-    ax.set_title(ylabel_discrimination, fontsize=fontsize, fontweight='bold')
-    ax.set_xlabel('Dataset', fontsize=fontsize)
-    ax.set_ylabel('', fontsize=fontsize)
-    ax.legend(fontsize=13, loc='upper right', bbox_to_anchor=(1.2, 1.2))
+        ax.plot(angles, values, linewidth=3, label=list(dis_res.keys()))
+        ax.set_theta_offset(np.pi / 2)
+        ax.set_theta_direction(-1)
+        ax.set_thetagrids(np.degrees(angles), datasets, fontsize=fontsize)
+        # ax.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
+        ax.set_title(discriminations[dis_ind], fontsize=fontsize, fontweight='bold')
+        ax.set_xlabel('', fontsize=fontsize)
+        ax.set_ylabel('', fontsize=fontsize)
+        if dis_ind == 0:
+            ax.legend(fontsize=15, loc='upper right', bbox_to_anchor=(1.2, 1.1))
 
-    datasets = list(predictions['RGB']['colour_difference'].keys())
-    ax = fig.add_subplot(1, 2, 2)
-    df = pd.DataFrame({
-        'Dataset': datasets,
-        **{key: val['colour_difference'].values() for key, val in predictions.items()}
-    })
-    tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
-    sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
-    ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
-    ax.set_xlabel('Dataset', fontsize=fontsize)
-    ax.set_ylabel(ylabel_difference, fontsize=fontsize)
-    ax.legend(fontsize=13, ncol=4, loc='lower center')
+    for diff_ind, diff_res in enumerate(eval_differences):
+        datasets = list(diff_res['RGB']['colour_difference'].keys())
+        ax = fig.add_subplot(gs[1, diff_ind])
+        df = pd.DataFrame({
+            'Dataset': datasets,
+            **{key: val['colour_difference'].values() for key, val in diff_res.items()}
+        })
+        tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
+        sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
+        ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
+        ax.set_xlabel('', fontsize=fontsize)
+        ax.set_ylabel(differences[diff_ind], fontsize=fontsize)
+        ax.legend(fontsize=13, ncol=4, loc='lower center')
 
     return fig
 
@@ -653,16 +679,17 @@ def optimise_instance(args, layer_results, out_dir):
             print('NaN!', epoch)
             return
 
-        human_cv = predict_human_data({'Network': model}, args.human_data_dir, 'cv', 'pearson')
-        human_stress = predict_human_data({'Network': model}, args.human_data_dir, 'stress',
-                                          'pearson')
+        human_pred = predict_human_data({'Network': model}, args.human_data_dir)
+        metric_cv = evaluate_discrimination(human_pred, 'cv')
+        metric_stress = evaluate_discrimination(human_pred, 'stress')
+        metric_pearson = evaluate_difference(human_pred, 'pearson')
         cv_str = '[ '
-        for key, val in human_cv['Network']['colour_discrimination'].items():
+        for key, val in metric_cv['Network']['colour_discrimination'].items():
             if key in ['Huang2012', 'TeamK']:
                 cv_str += ('%s: %.2f ' % (key[:2], val))
         cv_str += ']'
         stress_str = '[ '
-        for key, val in human_stress['Network']['colour_discrimination'].items():
+        for key, val in metric_stress['Network']['colour_discrimination'].items():
             if key in ['Huang2012', 'TeamK']:
                 stress_str += ('%s: %.2f ' % (key[:2], val))
         stress_str += ']'
@@ -670,19 +697,19 @@ def optimise_instance(args, layer_results, out_dir):
             print(
                 '[%.5d] loss=%.4f [%.2f %.2f %.2f] CV=%s STRESS=%s CORR=%.2f' % (
                     epoch, uniformity_loss, *deltad, cv_str, stress_str,
-                    human_cv['Network']['colour_difference']['MacAdam1974']
+                    metric_pearson['Network']['colour_difference']['MacAdam1974']
                 )
             )
         header = 'loss,'
         epoch_loss = [uniformity_loss.item()]
-        for dbname, db_res in human_cv['Network']['colour_discrimination'].items():
+        for dbname, db_res in metric_cv['Network']['colour_discrimination'].items():
             epoch_loss.append(db_res)
             header += 'CV_%s,' % dbname
-        for dbname, db_res in human_stress['Network']['colour_discrimination'].items():
+        for dbname, db_res in metric_stress['Network']['colour_discrimination'].items():
             epoch_loss.append(db_res)
             header += 'STRESS_%s,' % dbname
         header += 'CORR_MacAdam1974'
-        epoch_loss.append(human_cv['Network']['colour_difference']['MacAdam1974'])
+        epoch_loss.append(metric_cv['Network']['colour_difference']['MacAdam1974'])
         losses.append(epoch_loss)
 
     rgb_pts = sample_rgb()
@@ -695,7 +722,7 @@ def optimise_instance(args, layer_results, out_dir):
         rgb_pts_pred, rgb_pts,
         'loss=%.4f   CV=%s   STRESS=%s   r=%.2f' % (
             uniformity_loss, cv_str, stress_str,
-            human_cv['Network']['colour_difference']['MacAdam1974']
+            metric_cv['Network']['colour_difference']['MacAdam1974']
         ),
         axs_range='auto'
     )
