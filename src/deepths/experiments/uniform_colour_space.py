@@ -115,6 +115,7 @@ def db_difference(path, method):
 def compare_human_data(method, test_dir, rgb_type):
     rgbs = {
         'srgb': 'sRGB',
+        'prophoto': 'prophoto',
         'AdobeRgb1998': 'Adobe RGB (1998)'
     }
     rgb = rgbs[rgb_type]
