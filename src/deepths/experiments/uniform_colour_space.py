@@ -134,17 +134,23 @@ def compare_human_data(method, test_dir, rgb_type):
     teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
     # MacAdam 1974
     macadam1974_res = db_difference('%s/macadam1974_%s.csv' % (test_dir, rgb_type), method)
+    # Witt
+    witt_res = db_difference('%s/witt_rgb_%s.csv' % (test_dir, rgb_type), method)
+
+    discrimination_res = {
+        'MacAdam': macadam_res,
+        'Luo-Rigg': luorigg_res,
+        'Melgosa1997': melgosa97_res,
+        'Huang2012': huang2012_res,
+        'RIT-DuPont': ritdupont_res,
+        'TeamK': teamk_res
+    }
+    discrimination_res['All'] = np.array([x for db in discrimination_res.values() for x in db])
     return {
-        'colour_discrimination': {
-            'MacAdam': macadam_res,
-            'Luo-Rigg': luorigg_res,
-            'Melgosa1997': melgosa97_res,
-            'Huang2012': huang2012_res,
-            'RIT-DuPont': ritdupont_res,
-            'TeamK': teamk_res
-        },
+        'colour_discrimination': discrimination_res,
         'colour_difference': {
-            'MacAdam1974': macadam1974_res
+            'MacAdam1974': macadam1974_res,
+            'Witt1999': witt_res
         }
     }
 
@@ -152,8 +158,6 @@ def compare_human_data(method, test_dir, rgb_type):
 def stress(de, dv=None):
     if dv is None:
         dv = np.ones(len(de))
-        # dv = np.ones(len(de)) * np.random.normal(size=len(de), loc=1.0, scale=0.1)
-    # return np.sqrt(1 - (np.sum(de * dv) ** 2) / (np.sum(de ** 2) * np.sum(dv ** 2)))
     return colour_science.index_stress(de, dv)
 
 
@@ -188,6 +192,8 @@ def evaluate_discrimination(predictions, discrimination):
                 eval_pred[method]['colour_discrimination'][db] = stats.median_abs_deviation(x)
             elif discrimination == 'interquartile':
                 eval_pred[method]['colour_discrimination'][db] = stats.iqr(x)
+            elif discrimination == 'normalised-STD':
+                eval_pred[method]['colour_discrimination'][db] = np.std(x / x.max())
             else:
                 eval_pred[method]['colour_discrimination'][db] = np.std(x) / (x.max() - x.min())
     return eval_pred
@@ -238,7 +244,7 @@ def plot_predictions(preds, discriminations, differences):
         ax.set_xlabel('', fontsize=fontsize)
         ax.set_ylabel('', fontsize=fontsize)
         if dis_ind == 0:
-            ax.legend(fontsize=15, loc='upper right', bbox_to_anchor=(1.2, 1.1))
+            ax.legend(fontsize=15, loc='upper right', bbox_to_anchor=(1.2, 1.2))
 
     for diff_ind, diff_res in enumerate(eval_differences):
         datasets = list(diff_res['RGB']['colour_difference'].keys())
@@ -249,7 +255,7 @@ def plot_predictions(preds, discriminations, differences):
         })
         tidy = df.melt(id_vars='Dataset', var_name='Method').rename(columns=str.title)
         sns.barplot(x='Dataset', y='Value', hue='Method', data=tidy, ax=ax)
-        ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
+        # ax.set_title('MacAdam 1974', fontsize=fontsize, fontweight='bold')
         ax.set_xlabel('', fontsize=fontsize)
         ax.set_ylabel(differences[diff_ind], fontsize=fontsize)
         ax.legend(fontsize=13, ncol=4, loc='lower center')
@@ -713,10 +719,7 @@ def optimise_instance(args, layer_results, out_dir):
         epoch_loss.append(metric_cv['Network']['colour_difference']['MacAdam1974'])
         losses.append(epoch_loss)
 
-    rgb_pts = sample_rgb()
-    rgb_squeezed = rgb_pts.copy().squeeze()
-    rgb_pts_pred = pred_model(model, rgb_squeezed)
-    rgb_pts_pred = np.expand_dims(rgb_pts_pred, axis=1)
+    rgb_pts, rgb_pts_pred = rgb_mapping(model)
     space_range = list(rgb_pts_pred.max(axis=(0, 1)) - rgb_pts_pred.min(axis=(0, 1)))
     print('Network-space range:\t%s (%.3f, %.3f %.3f)' % ('', *space_range))
     fig = plot_colour_pts(
@@ -738,6 +741,16 @@ def optimise_instance(args, layer_results, out_dir):
         'nonlinearities': args.nonlinearities,
         'mean_std': mean_std
     }, '%s/model.pth' % out_dir)
+
+
+def rgb_mapping(model, cube_samples=1000):
+    if isinstance(model, str):
+        model = load_model(model)
+    rgb_pts = sample_rgb(cube_samples)
+    rgb_squeezed = rgb_pts.copy().squeeze()
+    rgb_pts_pred = pred_model(model, rgb_squeezed)
+    rgb_pts_pred = np.expand_dims(rgb_pts_pred, axis=1)
+    return rgb_pts, rgb_pts_pred
 
 
 if __name__ == '__main__':
