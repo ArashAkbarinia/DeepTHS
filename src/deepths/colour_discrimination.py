@@ -5,6 +5,7 @@ PyTorch scripts to train/test colour discrimination.
 import os
 
 import numpy as np
+import pandas as pd
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -94,15 +95,38 @@ def _sensitivity_test_points(args, model):
 
 
 def _accuracy_test_points(args, model):
+    bg_suffix = '_rnd' if type(args.background) is str else '_%.3d' % args.background
+    res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
+    output_file = os.path.join(res_out_dir, 'accuracy.csv')
+    if os.path.exists(output_file):
+        return
+    tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
+    args.tb_writers = {'test': SummaryWriter(tb_dir)}
+    tosave = []
     for qname, qval in args.test_pts.items():
-        tosave = []
+        qval = args.test_pts[qname]
+        ref_pt = np.expand_dims(qval['ref'][:3], axis=(0, 1))
         for pt_ind in range(0, len(qval['ext'])):
-            acc = _accuracy_test_point(args, model, qname, pt_ind)
-            tosave.append([acc, *qval['ext'][pt_ind], qval['chns'][pt_ind]])
-        output_file = os.path.join(args.output_dir, 'accuracy_%s.csv' % qname)
-        chns_name = qval['space']
-        header = 'acc,%s,%s,%s,chn' % (chns_name[0], chns_name[1], chns_name[2])
-        np.savetxt(output_file, np.array(tosave), delimiter=',', fmt='%s', header=header)
+            test_pt = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
+
+            others_colour = qval['ffun'](ref_pt)
+            target_colour = qval['ffun'](test_pt)
+            db_loader = _make_test_loader(args, target_colour, others_colour)
+            _, accuracy = common_routines.train_val(
+                db_loader, model, None, -1, args, print_test=False
+            )
+
+            tosave.append([
+                *ref_pt.squeeze().tolist(),
+                *test_pt.squeeze().tolist(),
+                accuracy
+            ])
+    df = pd.DataFrame(tosave, columns=[
+        'Ref-R', 'Ref-G', 'Ref-B',
+        'Test-R', 'Test-G', 'Test-B',
+        'Accuracy'
+    ])
+    df.to_csv(output_file)
 
 
 def _make_test_loader(args, target_colour, others_colour):
@@ -114,21 +138,6 @@ def _make_test_loader(args, target_colour, others_colour):
     return torch.utils.data.DataLoader(
         db, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True
     )
-
-
-def _accuracy_test_point(args, model, qname, pt_ind):
-    qval = args.test_pts[qname]
-
-    low = np.expand_dims(qval['ref'][:3], axis=(0, 1))
-    high = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
-
-    others_colour = qval['ffun'](low)
-    target_colour = qval['ffun'](high)
-    db_loader = _make_test_loader(args, target_colour, others_colour)
-
-    _, accuracy = common_routines.train_val(db_loader, model, None, -1, args, print_test=False)
-    print(qname, pt_ind, accuracy, low.squeeze(), high.squeeze())
-    return accuracy
 
 
 def _sensitivity_test_point(args, model, qname, pt_ind):
