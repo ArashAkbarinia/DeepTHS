@@ -89,9 +89,9 @@ def _common_db_params(args):
 
 
 def _sensitivity_test_points(args, model):
-    for qname, qval in args.test_pts.items():
-        for pt_ind in range(0, len(qval['ext'])):
-            _sensitivity_test_point(args, model, qname, pt_ind)
+    for ref_name, ref_val in args.test_pts.items():
+        for test_ind in range(0, len(ref_val['ext'])):
+            _sensitivity_test_point(args, model, ref_name, test_ind)
 
 
 def _accuracy_test_points(args, model):
@@ -104,17 +104,16 @@ def _accuracy_test_points(args, model):
     tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
     args.tb_writers = {'test': SummaryWriter(tb_dir)}
     tosave = []
-    for qname, qval in args.test_pts.items():
-        qval = args.test_pts[qname]
-        ref_pt = np.expand_dims(qval['ref'][:3], axis=(0, 1))
-        for pt_ind in range(0, len(qval['ext'])):
-            test_pt = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
+    for ref_ind, (ref_name, ref_val) in enumerate(args.test_pts.items()):
+        ref_pt = np.expand_dims(ref_val['ref'][:3], axis=(0, 1))
+        for test_ind in range(0, len(ref_val['ext'])):
+            test_pt = np.expand_dims(ref_val['ext'][test_ind][:3], axis=(0, 1))
 
-            ref_colour = qval['ffun'](ref_pt)
-            test_colour = qval['ffun'](test_pt)
+            ref_colour = ref_val['ffun'](ref_pt)
+            test_colour = ref_val['ffun'](test_pt)
             db_loader = _make_test_loader(args, test_colour, ref_colour)
             _, accuracy = common_routines.train_val(
-                db_loader, model, None, -1 - pt_ind, args, print_test=False
+                db_loader, model, None, -1 - ref_ind, args, print_test=False
             )
 
             tosave.append([
@@ -130,8 +129,8 @@ def _accuracy_test_points(args, model):
     df.to_csv(output_file)
 
 
-def _make_test_loader(args, target_colour, others_colour):
-    kwargs = {'target_colour': target_colour, 'others_colour': others_colour,
+def _make_test_loader(args, test_colour, ref_colour):
+    kwargs = {'target_colour': test_colour, 'others_colour': ref_colour,
               **_common_db_params(args)}
     db = dataloader_colour.val_set(args.validation_dir, args.target_size, args.preprocess,
                                    task=args.paradigm, **kwargs)
@@ -141,25 +140,25 @@ def _make_test_loader(args, target_colour, others_colour):
     )
 
 
-def _sensitivity_test_point(args, model, qname, pt_ind):
+def _sensitivity_test_point(args, model, ref_name, test_ind):
     bg_suffix = '_rnd' if type(args.background) is str else '_%.3d' % args.background
     res_out_dir = os.path.join(args.output_dir, 'evals_%s%s' % (args.experiment_name, bg_suffix))
-    output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (qname, pt_ind))
+    output_file = os.path.join(res_out_dir, 'evolution_%s_%d.csv' % (ref_name, test_ind))
     if os.path.exists(output_file):
         return
     system_utils.create_dir(res_out_dir)
     tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
-    args.tb_writers = {'test': SummaryWriter(os.path.join(tb_dir, '%s_%d' % (qname, pt_ind)))}
+    args.tb_writers = {'test': SummaryWriter(os.path.join(tb_dir, '%s_%d' % (ref_name, test_ind)))}
 
-    qval = args.test_pts[qname]
-    chns_name = qval['space']
+    ref_val = args.test_pts[ref_name]
+    chns_name = ref_val['space']
     circ_chns = [0] if chns_name[0] == 'H' else []
 
-    low = np.expand_dims(qval['ref'][:3], axis=(0, 1))
-    high = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
+    low = np.expand_dims(ref_val['ref'][:3], axis=(0, 1))
+    high = np.expand_dims(ref_val['ext'][test_ind][:3], axis=(0, 1))
     mid = report_utils.compute_avg(low, high, circ_chns)
 
-    others_colour = qval['ffun'](low)
+    ref_colour = ref_val['ffun'](low)
 
     all_results = []
     attempt_i = 0
@@ -169,15 +168,15 @@ def _sensitivity_test_point(args, model, qname, pt_ind):
     np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
     th = 0.75 if args.paradigm == '2afc' else 0.625
     while True:
-        target_colour = qval['ffun'](mid)
-        db_loader = _make_test_loader(args, target_colour, others_colour)
+        test_colour = ref_val['ffun'](mid)
+        db_loader = _make_test_loader(args, test_colour, ref_colour)
 
         _, accuracy = common_routines.train_val(
             db_loader, model, None, -1 - attempt_i, args, print_test=False
         )
-        print(qname, pt_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
+        print(ref_name, test_ind, accuracy, attempt_i, low.squeeze(), mid.squeeze(), high.squeeze())
 
-        all_results.append(np.array([accuracy, *mid.squeeze(), *target_colour.squeeze()]))
+        all_results.append(np.array([accuracy, *mid.squeeze(), *test_colour.squeeze()]))
 
         new_low, new_mid, new_high = report_utils.midpoint(
             accuracy, low, mid, high, th=th, circ_chns=circ_chns
