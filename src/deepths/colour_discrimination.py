@@ -100,6 +100,7 @@ def _accuracy_test_points(args, model):
     output_file = os.path.join(res_out_dir, 'accuracy.csv')
     if os.path.exists(output_file):
         return
+    system_utils.create_dir(res_out_dir)
     tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
     args.tb_writers = {'test': SummaryWriter(tb_dir)}
     tosave = []
