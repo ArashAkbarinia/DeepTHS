@@ -114,7 +114,7 @@ def _accuracy_test_points(args, model):
             test_colour = qval['ffun'](test_pt)
             db_loader = _make_test_loader(args, test_colour, ref_colour)
             _, accuracy = common_routines.train_val(
-                db_loader, model, None, -1, args, print_test=False
+                db_loader, model, None, -1 - pt_ind, args, print_test=False
             )
 
             tosave.append([
