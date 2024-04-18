@@ -45,6 +45,7 @@ class ShapeDataset(torch_data.Dataset):
         return bg
 
     def _one_out_img(self, mask, colour, bg, place_fun):
+        mask = mask.astype('uint8') * 255
         crop = dataset_utils.check_place_fun(place_fun)(self.mask_size, self.target_size)
         mask = cv2.resize(mask, self.mask_size, interpolation=cv2.INTER_NEAREST)
         full_img = dataset_utils.background_img(bg, self.target_size)

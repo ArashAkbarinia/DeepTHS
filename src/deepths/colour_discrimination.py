@@ -109,9 +109,9 @@ def _accuracy_test_points(args, model):
         for pt_ind in range(0, len(qval['ext'])):
             test_pt = np.expand_dims(qval['ext'][pt_ind][:3], axis=(0, 1))
 
-            others_colour = qval['ffun'](ref_pt)
-            target_colour = qval['ffun'](test_pt)
-            db_loader = _make_test_loader(args, target_colour, others_colour)
+            ref_colour = qval['ffun'](ref_pt)
+            test_colour = qval['ffun'](test_pt)
+            db_loader = _make_test_loader(args, test_colour, ref_colour)
             _, accuracy = common_routines.train_val(
                 db_loader, model, None, -1, args, print_test=False
             )
