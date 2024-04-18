@@ -104,6 +104,7 @@ def _accuracy_test_points(args, model):
     tb_dir = os.path.join(args.output_dir, 'tests_%s%s' % (args.experiment_name, bg_suffix))
     args.tb_writers = {'test': SummaryWriter(tb_dir)}
     tosave = []
+    trial_ind = 0
     for ref_ind, (ref_name, ref_val) in enumerate(args.test_pts.items()):
         ref_pt = np.expand_dims(ref_val['ref'][:3], axis=(0, 1))
         for test_ind in range(0, len(ref_val['ext'])):
@@ -113,8 +114,9 @@ def _accuracy_test_points(args, model):
             test_colour = ref_val['ffun'](test_pt)
             db_loader = _make_test_loader(args, test_colour, ref_colour)
             _, accuracy = common_routines.train_val(
-                db_loader, model, None, -1 - ref_ind, args, print_test=False
+                db_loader, model, None, -1 - trial_ind, args, print_test=False
             )
+            trial_ind += 1
 
             tosave.append([
                 *ref_pt.squeeze().tolist(),
