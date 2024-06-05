@@ -94,7 +94,11 @@ class ShapeTrain(ShapeMultipleOut):
         self.img_paths = sorted(glob.glob(self.imgdir + '*.png'))
         self.colour_dist = colour_dist
         if self.colour_dist is not None:
-            self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
+            dist_range_check = self.colour_dist.split(',')
+            if len(dist_range_check) == 2:
+                self.colour_dist = [float(s) for s in dist_range_check]
+            else:
+                self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
 
     def _mul_train_imgs(self, masks, others_colour, target_colour, bg):
         others_colour = np.array(others_colour).astype('float32') / 255
@@ -103,8 +107,11 @@ class ShapeTrain(ShapeMultipleOut):
 
     def _get_target_colour(self):
         if self.colour_dist is not None:
-            rand_row = random.randint(0, len(self.colour_dist) - 1)
-            target_colour = self.colour_dist[rand_row]
+            if type(self.colour_dist) is list and len(self.colour_dist) == 2:
+                target_colour = [random.uniform(*self.colour_dist) for _ in range(3)]
+            else:
+                rand_row = random.randint(0, len(self.colour_dist) - 1)
+                target_colour = self.colour_dist[rand_row]
         else:
             target_colour = dataset_utils.random_colour()
         return target_colour
