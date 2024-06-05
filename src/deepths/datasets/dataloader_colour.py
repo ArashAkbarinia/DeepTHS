@@ -209,13 +209,13 @@ def organise_test_points(test_pts):
 
 def train_set(root, target_size, preprocess, task, **kwargs):
     db_fun = ShapeOddOneOutTrain if task == 'odd4' else Shape2AFCTrain
-    transform = dataset_utils.train_preprocess(target_size, preprocess, (0.8, 1.0))
+    transform = dataset_utils.train_preprocess(target_size, preprocess, (0.8, 1.0), im2double=False)
     return db_fun(root, transform, **kwargs)
 
 
 def val_set(root, target_size, preprocess, task, **kwargs):
     db_fun = ShapeOddOneOutVal if task == 'odd4' else Shape2AFCVal
-    transform = dataset_utils.eval_preprocess(target_size, preprocess)
+    transform = dataset_utils.eval_preprocess(target_size, preprocess, im2double=False)
     return db_fun(root, transform, **kwargs)
 
 

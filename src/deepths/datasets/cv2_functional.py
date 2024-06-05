@@ -34,7 +34,7 @@ def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
 
 
-def to_tensor(pic):
+def to_tensor(pic, im2double=False):
     """Converts a numpy.ndarray (H x W x C) in the range [0, 255] to a
     torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0].
 
@@ -51,7 +51,7 @@ def to_tensor(pic):
             pic = np.expand_dims(pic, axis=2)
         img = torch.from_numpy(pic.transpose((2, 0, 1))).type(torch.FloatTensor)
         # backward compatibility
-        if isinstance(img, torch.ByteTensor) or img.max() > 1:
+        if im2double and (isinstance(img, torch.ByteTensor) or img.max() > 1):
             return img.float().div(255)
         else:
             return img

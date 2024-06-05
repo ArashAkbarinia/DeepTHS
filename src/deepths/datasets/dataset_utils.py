@@ -194,17 +194,17 @@ def apply_vision_type(opp_img, colour_space, vision_type):
     return opp_img
 
 
-def eval_preprocess(target_size, preprocess):
+def eval_preprocess(target_size, preprocess, im2double=True):
     return torch_transforms.Compose([
         *pre_transform_eval(target_size),
-        *post_transform(*preprocess)
+        *post_transform(*preprocess, im2double)
     ])
 
 
-def train_preprocess(target_size, preprocess, scale):
+def train_preprocess(target_size, preprocess, scale, im2double=True):
     return torch_transforms.Compose([
         *pre_transform_train(target_size, scale),
-        *post_transform(*preprocess)
+        *post_transform(*preprocess, im2double)
     ])
 
 
@@ -222,9 +222,9 @@ def pre_transform_eval(target_size):
     ]
 
 
-def post_transform(mean, std):
+def post_transform(mean, std, im2double=True):
     return [
-        cv2_transforms.ToTensor(),
+        cv2_transforms.ToTensor(im2double),
         cv2_transforms.Normalize(mean, std),
     ]
 

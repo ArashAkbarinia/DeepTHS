@@ -347,6 +347,10 @@ class ToTensor(object):
     In the other cases, tensors are returned without scaling.
     """
 
+    def __init__(self, im2double=True):
+        self.im2double = im2double
+        self.kwargs = {'im2double': self.im2double}
+
     def __call__(self, pics):
         """
         Args:
@@ -356,7 +360,7 @@ class ToTensor(object):
             Tensor: Converted images.
         """
         fun = tfunctional.to_tensor
-        return _call_recursive(pics, fun)
+        return _call_recursive(pics, fun, **self.kwargs)
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
