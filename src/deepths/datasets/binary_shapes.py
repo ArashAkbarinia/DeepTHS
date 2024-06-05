@@ -101,8 +101,11 @@ class ShapeTrain(ShapeMultipleOut):
                 self.colour_dist = np.loadtxt(self.colour_dist, delimiter=',', dtype=int)
 
     def _mul_train_imgs(self, masks, others_colour, target_colour, bg):
-        others_colour = np.array(others_colour).astype('float32') / 255
-        target_colour = np.array(target_colour).astype('float32') / 255
+        if type(self.colour_dist) is list and len(self.colour_dist) == 2:
+            pass
+        else:
+            others_colour = np.array(others_colour).astype('float32') / 255
+            target_colour = np.array(target_colour).astype('float32') / 255
         return self._mul_out_imgs(masks, others_colour, target_colour, bg, 'random')
 
     def _get_target_colour(self):
@@ -115,6 +118,14 @@ class ShapeTrain(ShapeMultipleOut):
         else:
             target_colour = dataset_utils.random_colour()
         return target_colour
+
+    def _get_others_colour(self, target_colour):
+        others_colour = []
+        for chn_ind in range(3):
+            diff_val = random.choice([1, -1]) * random.uniform(0.001, 0.5)
+            chn_colour = target_colour[chn_ind] + diff_val
+            others_colour.append(chn_colour)
+        return others_colour
 
     def _angle_paths(self, path, samples):
         angle = int(ntpath.basename(path[:-4]).split('_')[-1].replace('angle', ''))

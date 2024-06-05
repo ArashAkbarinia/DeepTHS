@@ -60,7 +60,7 @@ class ShapeOddOneOutTrain(ShapeTrain):
 
         # set the colours
         target_colour = self._get_target_colour()
-        others_colour = _get_others_colour(target_colour)
+        others_colour = self._get_others_colour(target_colour)
         bg = self._unique_bg([target_colour, others_colour])
         imgs = self._mul_train_imgs(masks, others_colour, target_colour, bg)
 
