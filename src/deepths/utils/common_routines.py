@@ -221,7 +221,6 @@ class EpochHelper:
         if not self.is_train and print_acc:
             # printing the accuracy of the epoch
             print(' * Acc@1 {top1.avg:.3f}'.format(top1=self.log_acc))
-        print()
 
         # writing to tensorboard
         if self.epoch_type != 'test':
