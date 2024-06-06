@@ -213,12 +213,12 @@ class EpochHelper:
     def break_batch(self, b_ind, batch):
         return not self.is_test and b_ind * len(batch) > self.num_samples
 
-    def finish_epoch(self):
+    def finish_epoch(self, print_acc=False):
         # the case of non NN classifier
         if self.all_xs is not None:
             self.train_non_nn()
 
-        if not self.is_train:
+        if not self.is_train and print_acc:
             # printing the accuracy of the epoch
             print(' * Acc@1 {top1.avg:.3f}'.format(top1=self.log_acc))
         print()
@@ -327,8 +327,9 @@ def train_val(db_loader, model, optimizer, epoch, args, print_test=True, name_ge
                 all_predictions[j].append(out)
 
             # printing the accuracy at certain intervals
-            if ep_helper.is_test and print_test:
-                print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
+            if ep_helper.is_test:
+                if print_test:
+                    print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
             elif batch_ind % args.print_freq == 0:
                 ep_helper.print_epoch(db_loader, batch_ind)
             if ep_helper.break_batch(batch_ind, cu_batch[0]):

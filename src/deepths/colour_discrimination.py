@@ -106,6 +106,7 @@ def _accuracy_test_points(args, model):
     tosave = []
     trial_ind = 0
     for ref_ind, (ref_name, ref_val) in enumerate(args.test_pts.items()):
+        print(f"Testing {ref_ind:05d}/{len(args.test_pts):05d}")
         ref_pt = np.expand_dims(ref_val['ref'][:3], axis=(0, 1))
         for test_ind in range(0, len(ref_val['ext'])):
             test_pt = np.expand_dims(ref_val['ext'][test_ind][:3], axis=(0, 1))
