@@ -55,56 +55,47 @@ def load_human_data(path):
             'hot_cen': hot_cen, 'hot_bor': hot_bor}
 
 
-def db_discriminate(test_file, method, rgb='sRGB', is_onehot_vector=False):
-    if is_onehot_vector and 'teamk' in test_file:
-        df = pd.read_csv(test_file)
-        cen_pts = clip_01(df.iloc[:, :3].to_numpy()) ** 2.2
-        bor_pts = clip_01(df.iloc[:, 3:6].to_numpy()) ** 2.2
-        cen_xyz = df.loc[:, ['Ref X', 'Ref Y', 'Ref Z']].to_numpy()
-        bor_xyz = df.loc[:, ['JND X', 'JND Y', 'JND Z']].to_numpy()
-    else:
-        if is_onehot_vector:
-            human_data = np.loadtxt(test_file, delimiter=',')
-            cen_pts, bor_pts = human_data[:, :3], human_data[:, 3:6]
-        else:
-            human_data = load_human_data(test_file)
-            cen_pts, bor_pts = human_data['hot_cen'], human_data['hot_bor']
-        cen_xyz = colour_science.RGB_to_XYZ(cen_pts, rgb)
-        bor_xyz = colour_science.RGB_to_XYZ(bor_pts, rgb)
-    illuminant = colour_science.CCS_ILLUMINANTS['CIE 1931 2 Degree Standard Observer']['D65']
-    cen_lab = colour_science.XYZ_to_Lab(cen_xyz, illuminant)
-    bor_lab = colour_science.XYZ_to_Lab(bor_xyz, illuminant)
-    pred = method_out(method, cen_pts, bor_pts, cen_lab, bor_lab)
+def db_discriminate(test_file, method):
+    data = pd.read_csv(test_file)
+    pred = method_out(method, data)
     return pred
 
 
-def method_out(method, cen_pts, bor_pts, cen_pts_lab, bor_pts_lab):
+def method_out(method, data):
+    ref_rgb = data.loc[:, ['Ref-R', 'Ref-G', 'Ref-B']].to_numpy().astype('float32')
+    test_rgb = data.loc[:, ['Test-R', 'Test-G', 'Test-B']].to_numpy().astype('float32')
+    ref_lab = data.loc[:, ['Ref-L', 'Ref-a', 'Ref-b']].to_numpy().astype('float32')
+    test_lab = data.loc[:, ['Test-L', 'Test-a', 'Test-b']].to_numpy().astype('float32')
     checkpoint_path = '%s/model.pth' % method
     if not isinstance(method, str) or os.path.exists(checkpoint_path):
         network = load_model(checkpoint_path) if isinstance(method, str) else method
-        cen_pts = pred_model(network, cen_pts)
-        bor_pts = pred_model(network, bor_pts)
-        pred = euc_distance(cen_pts, bor_pts)
+        ref_rgb = pred_model(network, ref_rgb)
+        test_rgb = pred_model(network, test_rgb)
+        pred = euc_distance(ref_rgb, test_rgb)
     elif 'euc' in method:
         space = method.split('_')[1]
-        if space == 'dkl':
-            cen_pts = colour_spaces.rgb2dkl01(cen_pts)
-            bor_pts = colour_spaces.rgb2dkl01(bor_pts)
+        if space == 'rgb':
+            ref_val, test_val = ref_rgb, test_rgb
+        elif space == 'dkl':
+            ref_val = colour_spaces.rgb2dkl01(ref_rgb)
+            test_val = colour_spaces.rgb2dkl01(test_rgb)
         elif space == 'ycc':
-            cen_pts = colour_spaces.rgb2ycc01(cen_pts)
-            bor_pts = colour_spaces.rgb2ycc01(bor_pts)
+            ref_val = colour_spaces.rgb2ycc01(ref_rgb)
+            test_val = colour_spaces.rgb2ycc01(test_rgb)
         elif space == 'lab':
-            cen_pts, bor_pts = cen_pts_lab, bor_pts_lab
-        pred = euc_distance(cen_pts, bor_pts)
+            ref_val, test_val = ref_lab, test_lab
+        else:
+            sys.exit(f"Colour space {space} is not supported.")
+        pred = euc_distance(ref_val, test_val)
     else:
-        pred = colour_science.delta_E(cen_pts_lab, bor_pts_lab, method=method)
+        pred = colour_science.delta_E(ref_lab, test_lab, method=method)
     return pred
 
 
 def db_difference(path, method):
-    human_data = np.loadtxt(path, delimiter=',')
-    gt, cen_pts, bor_pts = human_data[:, 0], human_data[:, 1:4], human_data[:, 4:7]
-    pred = method_out(method, cen_pts, bor_pts, human_data[:, 7:10], human_data[:, 10:13])
+    human_data = pd.read_csv(path)
+    gt = human_data['DV']
+    pred = method_out(method, human_data)
     if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
         return 0, 0, 0
     pearsonr_corr, _ = stats.pearsonr(pred, gt)
@@ -120,37 +111,42 @@ def compare_human_data(method, test_dir, rgb_type):
     }
     rgb = rgbs[rgb_type]
     # MacAdam 1942
-    macadam_res = db_discriminate('%s/macadam_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # Luo-Rigg 1986
-    luorigg_res = db_discriminate('%s/luorigg_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # Melgosa
-    melgosa97_res = db_discriminate('%s/melgosa1997_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # Huang
-    huang2012_res = db_discriminate('%s/huang2012_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # RIT-DuPont
-    ritdupont_res = db_discriminate('%s/rit-dupont_rgb_%s.csv' % (test_dir, rgb_type), method,
-                                    is_onehot_vector=True)
+    macadam1942_res = db_discriminate('%s/macadam1942_%s_d65.csv' % (test_dir, rgb_type), method)
+    # # Luo-Rigg 1986
+    # luorigg_res = db_discriminate('%s/luorigg_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
+    # # Melgosa
+    # melgosa97_res = db_discriminate('%s/melgosa1997_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
+    # # Huang
+    # huang2012_res = db_discriminate('%s/huang2012_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
+    # # RIT-DuPont
+    ritdupont_res = db_discriminate('%s/rit-dupont_%s.csv' % (test_dir, rgb_type), method)
     # TeamK
-    teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
+    # teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
     # MacAdam 1974
-    macadam1974_res = db_difference('%s/macadam1974_%s.csv' % (test_dir, rgb_type), method)
+    macadam1974_res = db_difference('%s/macadam1974_%s_d65.csv' % (test_dir, rgb_type), method)
     # Witt
-    witt_res = db_difference('%s/witt_rgb_%s.csv' % (test_dir, rgb_type), method)
+    witt_res = db_difference('%s/witt_%s.csv' % (test_dir, rgb_type), method)
+    # Leeds
+    leeds_res = db_difference('%s/leeds_%s.csv' % (test_dir, rgb_type), method)
+    # BFD
+    bfd_res = db_difference('%s/bfd_%s.csv' % (test_dir, rgb_type), method)
 
     discrimination_res = {
-        'MacAdam': macadam_res,
-        'Luo-Rigg': luorigg_res,
-        'Melgosa1997': melgosa97_res,
-        'Huang2012': huang2012_res,
-        'RIT-DuPont': ritdupont_res,
-        'TeamK': teamk_res
+        'MacAdam1942': macadam1942_res,
+        # 'Luo-Rigg': luorigg_res,
+        # 'Melgosa1997': melgosa97_res,
+        # 'Huang2012': huang2012_res,
+        'RIT-DuPont1991': ritdupont_res,
+        'TeamK': ritdupont_res
     }
     discrimination_res['All'] = np.array([x for db in discrimination_res.values() for x in db])
     return {
         'colour_discrimination': discrimination_res,
         'colour_difference': {
             'MacAdam1974': macadam1974_res,
-            'Witt1999': witt_res
+            'BFD1986': bfd_res,
+            'Leeds1997': leeds_res,
+            'Witt1999': witt_res,
         }
     }
 
