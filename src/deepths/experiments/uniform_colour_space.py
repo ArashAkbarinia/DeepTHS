@@ -164,8 +164,8 @@ def stress(de, dv=None):
 def stress_torch(de, dv=None):
     if dv is None:
         dv = torch.ones(len(de))
-        # dv = np.ones(len(de)) * np.random.normal(size=len(de), loc=1.0, scale=0.1)
-    return torch.sqrt(1 - (torch.sum(de * dv) ** 2) / (torch.sum(de ** 2) * torch.sum(dv ** 2)))
+    f1 = torch.sum(de ** 2) / torch.sum(de * dv)
+    return torch.sqrt(torch.sum((de - f1 * dv) ** 2) / torch.sum(f1 ** 2 * dv ** 2))
 
 
 def predict_human_data(methods, test_dir, rgb_type='srgb'):
