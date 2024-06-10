@@ -170,6 +170,7 @@ def _sensitivity_test_point(args, model, ref_name, test_ind):
     # creating an empty file so other workers dont do the same file
     np.savetxt(output_file, np.array(all_results), delimiter=',', fmt='%f', header=header)
     th = 0.75 if args.paradigm == '2afc' else 0.625
+    ep = 1e-5
     while True:
         test_colour = ref_val['ffun'](mid)
         db_loader = _make_test_loader(args, test_colour, ref_colour)
@@ -186,6 +187,9 @@ def _sensitivity_test_point(args, model, ref_name, test_ind):
         )
 
         if new_low is None or attempt_i == args.test_attempts:
+            print('had to skip')
+            break
+        elif abs(new_mid - mid) < ep:
             print('had to skip')
             break
         else:
