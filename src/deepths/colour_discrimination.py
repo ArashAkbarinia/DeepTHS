@@ -189,7 +189,7 @@ def _sensitivity_test_point(args, model, ref_name, test_ind):
         if new_low is None or attempt_i == args.test_attempts:
             print('had to skip')
             break
-        elif abs(new_mid - mid) < ep:
+        elif np.all(abs(new_mid - mid) < ep):
             print('had to skip')
             break
         else:
