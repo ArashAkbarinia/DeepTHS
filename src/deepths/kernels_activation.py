@@ -22,7 +22,7 @@ def activation_distance_two_stimuli(db_loader, model, args, test_step, print_tes
             out0 = model(cu_batch[0])
             out1 = model(cu_batch[1])
             for img_ind in range(cu_batch[0].shape[0]):
-                all_distances.append(torch.linalg.norm(out0[img_ind] - out1[img_ind], 'fro').item())
+                all_distances.append(torch.linalg.norm(out0[img_ind] - out1[img_ind]).item())
 
             if batch_ind == 0:
                 common_routines.tb_write_images(
