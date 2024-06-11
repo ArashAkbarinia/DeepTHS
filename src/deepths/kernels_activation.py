@@ -32,8 +32,6 @@ def activation_distance_two_stimuli(db_loader, model, args, test_step, print_tes
             # printing the accuracy at certain intervals
             if print_test:
                 print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
-            if batch_ind * len(cu_batch[0]) > args.val_samples:
-                break
     return all_distances, np.mean(all_distances)
 
 

@@ -27,7 +27,7 @@ def main(argv):
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
     if args.activation_distance:
-        model = readout.ActivationLoader(args.architecture, args.transfer_weights[0])
+        model = readout.FeatureExtractor(args.architecture, args.transfer_weights, args.target_size)
         model.eval()
         args.paradigm = '2afc'
     else:
