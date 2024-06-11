@@ -15,12 +15,13 @@ from .models import readout, model_utils, lesion_utils
 from .utils import system_utils, common_routines, argument_handler
 
 
-def activation_distance_two_stimuli(db_loader, model, args, test_step, print_test=False):
+def activation_distance_two_stimuli(db_loader, model, args, test_step, flatten=False,
+                                    print_test=False):
     all_distances = []
     with torch.set_grad_enabled(False):
         for batch_ind, cu_batch in enumerate(db_loader):
-            out0 = model(cu_batch[0])
-            out1 = model(cu_batch[1])
+            out0 = model(cu_batch[0], flatten=flatten)
+            out1 = model(cu_batch[1], flatten=flatten)
             for img_ind in range(cu_batch[0].shape[0]):
                 all_distances.append(torch.linalg.norm(out0[img_ind] - out1[img_ind]).item())
 
