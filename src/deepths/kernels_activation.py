@@ -15,6 +15,28 @@ from .models import readout, model_utils, lesion_utils
 from .utils import system_utils, common_routines, argument_handler
 
 
+def activation_distance_two_stimuli(db_loader, model, args, test_step, print_test=False):
+    all_distances = []
+    with torch.set_grad_enabled(False):
+        for batch_ind, cu_batch in enumerate(db_loader):
+            out0 = model(cu_batch[0])
+            out1 = model(cu_batch[1])
+            for img_ind in range(cu_batch[0].shape[0]):
+                all_distances.append(torch.linalg.norm(out0[img_ind] - out1[img_ind], 'fro').item())
+
+            if batch_ind == 0:
+                common_routines.tb_write_images(
+                    args.tb_writers['test'], test_step, [cu_batch[0]], *args.preprocess
+                )
+
+            # printing the accuracy at certain intervals
+            if print_test:
+                print('Testing: [{0}/{1}]'.format(batch_ind, len(db_loader)))
+            if batch_ind * len(cu_batch[0]) > args.val_samples:
+                break
+    return all_distances, np.mean(all_distances)
+
+
 def _activation_db(db_loader, model, args, test_step, print_test=False):
     act_dict, rf_hooks = model_utils.register_model_hooks(
         model.backbone, args.architecture, args.transfer_weights[1:]

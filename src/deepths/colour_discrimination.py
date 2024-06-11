@@ -12,8 +12,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .datasets import dataloader_colour
 from .models import model_colour as networks
+from .models import readout
 from .utils import report_utils, argument_handler
 from .utils import common_routines, system_utils
+from .kernels_activation import activation_distance_two_stimuli
 
 
 def main(argv):
@@ -24,7 +26,12 @@ def main(argv):
 
 def _main_worker(args):
     torch.cuda.set_device(args.gpu)
-    model = networks.colour_discrimination_net(args)
+    if args.activation_distance:
+        model = readout.ActivationLoader(args.architecture, args.transfer_weights[0])
+        model.eval()
+        args.paradigm = '2afc'
+    else:
+        model = networks.colour_discrimination_net(args)
     model = model.cuda(args.gpu)
 
     # setting the quadrant points
@@ -114,9 +121,12 @@ def _accuracy_test_points(args, model):
             ref_colour = ref_val['ffun'](ref_pt)
             test_colour = ref_val['ffun'](test_pt)
             db_loader = _make_test_loader(args, test_colour, ref_colour)
-            _, accuracy = common_routines.train_val(
-                db_loader, model, None, -1 - trial_ind, args, print_test=False
-            )
+            if args.activation_distance:
+                _, accuracy = activation_distance_two_stimuli(db_loader, model, args, trial_ind)
+            else:
+                _, accuracy = common_routines.train_val(
+                    db_loader, model, None, -1 - trial_ind, args, print_test=False
+                )
             trial_ind += 1
 
             tosave.append([

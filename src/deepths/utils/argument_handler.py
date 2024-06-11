@@ -161,6 +161,12 @@ def _add_misc_group(parser):
         type=int,
         help='Number of attempts to test between reference and target (default: 20)'
     )
+    misc_group.add_argument(
+        '--activation_distance',
+        action='store_true',
+        default=False,
+        help='Computing the activation distance between two set of data (default: False)'
+    )
 
 
 def _add_logging_group(parser):
