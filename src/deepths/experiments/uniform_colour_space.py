@@ -619,22 +619,7 @@ def optimise_instance(args, layer_results, out_dir):
             else:
                 range_loss = 0
 
-            human_pred = predict_human_data({'Network': model}, args.human_data_dir)
-            dis_metrics = ['stress']
-            eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
-            diff_metrics = ['stress']
-            eval_differences = [evaluate_difference(human_pred, _m) for _m in diff_metrics]
-
-            # human_loss = []
-            # for m_ind, _eval in enumerate(eval_discrimination):
-            #     for key, val in _eval['Network']['colour_discrimination'].items():
-            #         human_loss.append(val)
-            #
-            # for m_ind, _eval in enumerate(eval_differences):
-            #     for key, val in _eval['Network']['colour_difference'].items():
-            #         human_loss.append(val)
-
-            loss = uniformity_loss + range_loss  # + torch.sum(human_loss)
+            loss = uniformity_loss + range_loss
 
             optimiser.zero_grad()
             loss.backward()
