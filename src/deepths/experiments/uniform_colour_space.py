@@ -18,8 +18,6 @@ import colour as colour_science
 import torch
 import torch.nn as nn
 
-from ..utils import colour_spaces
-
 arch_areas = {
     'clip_RN50': [*['area%d' % i for i in range(0, 5)], 'encoder'],
     'clip_B32': [*['block%d' % i for i in [1, 4, 7, 10, 11]], 'encoder'],
@@ -63,12 +61,6 @@ def method_out(method, data):
         space = method.split('_')[1]
         if space == 'rgb':
             ref_val, test_val = ref_rgb, test_rgb
-        elif space == 'dkl':
-            ref_val = colour_spaces.rgb2dkl01(ref_rgb)
-            test_val = colour_spaces.rgb2dkl01(test_rgb)
-        elif space == 'ycc':
-            ref_val = colour_spaces.rgb2ycc01(ref_rgb)
-            test_val = colour_spaces.rgb2ycc01(test_rgb)
         elif space == 'lab':
             ref_val, test_val = ref_lab, test_lab
         else:
@@ -113,13 +105,12 @@ def compare_human_data(method, test_dir, rgb_type):
     # TeamK
     teamk_res = db_difference('%s/teamk_%s_m2.csv' % (test_dir, rgb_type), method)
 
-    discrimination_res = {
-        'MacAdam1942': macadam1942_res,
-        'RIT-DuPont1991': ritdupont_res,
-    }
     # discrimination_res['All'] = np.array([x for db in discrimination_res.values() for x in db])
     return {
-        'colour_discrimination': discrimination_res,
+        'colour_discrimination': {
+            'MacAdam1942': macadam1942_res,
+            'RIT-DuPont1991': ritdupont_res
+        },
         'colour_difference': {
             'Leeds1997': leeds_res,
             'Witt1999': witt_res,
@@ -454,7 +445,7 @@ def _main_worker(args):
     pretrained_db = 'clip' if 'clip' in arch else 'ImageNet'
 
     network_result_summary = parse_network_results(args.in_dir, arch, rgb_test_data)
-    for layer in ['block7']:  # fixme arch_areas[arch]
+    for layer in arch_areas[arch]:
         optimise_layer(args, network_result_summary, (pretrained_db, arch), layer)
 
 
