@@ -42,19 +42,6 @@ def load_model(path, return_info=False):
     return model
 
 
-def load_human_data(path):
-    data = read_test_pts(path)
-    ref_pts = np.expand_dims(np.array([val['ref'] for val in data.values()]), axis=1)
-    hot_cen, hot_bor = [], []
-    for key, val in data.items():
-        for pt in val['ext']:
-            hot_cen.append(val['ref'])
-            hot_bor.append(pt)
-    hot_cen, hot_bor = np.array(hot_cen), np.array(hot_bor)
-    return {'data': data, 'ref_pts': ref_pts,
-            'hot_cen': hot_cen, 'hot_bor': hot_bor}
-
-
 def db_discriminate(test_file, method):
     data = pd.read_csv(test_file)
     pred = method_out(method, data)
@@ -112,16 +99,9 @@ def compare_human_data(method, test_dir, rgb_type):
     rgb = rgbs[rgb_type]
     # MacAdam 1942
     macadam1942_res = db_discriminate('%s/macadam1942_%s_d65.csv' % (test_dir, rgb_type), method)
-    # # Luo-Rigg 1986
-    # luorigg_res = db_discriminate('%s/luorigg_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # # Melgosa
-    # melgosa97_res = db_discriminate('%s/melgosa1997_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
-    # # Huang
-    # huang2012_res = db_discriminate('%s/huang2012_rgb_%s.csv' % (test_dir, rgb_type), method, rgb)
     # # RIT-DuPont
     ritdupont_res = db_discriminate('%s/rit-dupont_%s.csv' % (test_dir, rgb_type), method)
-    # TeamK
-    # teamk_res = db_discriminate('%s/teamk_thresholds.csv' % test_dir, method, is_onehot_vector=True)
+
     # MacAdam 1974
     macadam1974_res = db_difference('%s/macadam1974_%s_d65.csv' % (test_dir, rgb_type), method)
     # Witt
@@ -130,11 +110,12 @@ def compare_human_data(method, test_dir, rgb_type):
     leeds_res = db_difference('%s/leeds_%s.csv' % (test_dir, rgb_type), method)
     # BFD
     bfd_res = db_difference('%s/bfd_%s.csv' % (test_dir, rgb_type), method)
+    # TeamK
+    teamk_res = db_difference('%s/teamk_%s_m2.csv' % (test_dir, rgb_type), method)
 
     discrimination_res = {
         'MacAdam1942': macadam1942_res,
         'RIT-DuPont1991': ritdupont_res,
-        # 'TeamK': ritdupont_res
     }
     # discrimination_res['All'] = np.array([x for db in discrimination_res.values() for x in db])
     return {
@@ -144,6 +125,7 @@ def compare_human_data(method, test_dir, rgb_type):
             'Witt1999': witt_res,
             'MacAdam1974': macadam1974_res,
             'BFD1986': bfd_res,
+            'TeamK': teamk_res
         }
     }
 
@@ -258,25 +240,6 @@ def plot_predictions(preds, discriminations, differences):
 
 def euc_distance(a, b):
     return np.sum((a.astype('float32') - b.astype('float32')) ** 2, axis=-1) ** 0.5
-
-
-def estimate_max_distance(method, nrands=10000, rgb_type='srgb'):
-    if not isinstance(rgb_type, str):
-        min_rgb, max_rgb = rgb_type.min(), rgb_type.max()
-    else:
-        min_rgb, max_rgb = (0, 1) if rgb_type == 'srgb' else (0, 8.125)
-    rand_rgbs = np.random.uniform(min_rgb, max_rgb, (nrands, 3))
-    if not isinstance(method, str):
-        netspace = pred_model(method, rand_rgbs)
-        pred = euc_distance(netspace[:nrands // 2], netspace[nrands // 2:])
-    elif method == 'euc':
-        pred = euc_distance(rand_rgbs[:nrands // 2], rand_rgbs[nrands // 2:])
-    else:
-        a_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(rand_rgbs[:nrands // 2]))
-        b_lab = colour_science.XYZ_to_Lab(colour_science.sRGB_to_XYZ(rand_rgbs[:nrands // 2:]))
-        pred = colour_science.delta_E(a_lab, b_lab, method=method)
-    max_dis = np.quantile(pred, 0.9)
-    return max_dis
 
 
 def identity(x):
@@ -650,9 +613,9 @@ def optimise_instance(args, layer_results, out_dir):
         with torch.set_grad_enabled(True):
             input_space = torch.tensor(train_db[0].copy()).float()
             out_space = model(input_space)
-            euc_dis = torch.sum(
-                (out_space[train_db[1][:, 0]] - out_space[train_db[1][:, 1]]) ** 2, axis=-1
-            ) ** 0.5
+            euc_dis = torch.linalg.norm(
+                out_space[train_db[1][:, 0]] - out_space[train_db[1][:, 1]], ord=2, dim=1
+            )
             min_vals, _ = out_space.min(axis=0)
             max_vals, _ = out_space.max(axis=0)
             deltad = max_vals - min_vals
@@ -664,7 +627,23 @@ def optimise_instance(args, layer_results, out_dir):
                 range_loss = 0.5 * abs(0.1 - torch.mean(euc_dis))
             else:
                 range_loss = 0
-            loss = uniformity_loss + range_loss
+
+            human_pred = predict_human_data({'Network': model}, args.human_data_dir)
+            dis_metrics = ['stress']
+            eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
+            diff_metrics = ['stress']
+            eval_differences = [evaluate_difference(human_pred, _m) for _m in diff_metrics]
+
+            # human_loss = []
+            # for m_ind, _eval in enumerate(eval_discrimination):
+            #     for key, val in _eval['Network']['colour_discrimination'].items():
+            #         human_loss.append(val)
+            #
+            # for m_ind, _eval in enumerate(eval_differences):
+            #     for key, val in _eval['Network']['colour_difference'].items():
+            #         human_loss.append(val)
+
+            loss = uniformity_loss + range_loss  # + torch.sum(human_loss)
 
             optimiser.zero_grad()
             loss.backward()
@@ -676,40 +655,44 @@ def optimise_instance(args, layer_results, out_dir):
             return
 
         human_pred = predict_human_data({'Network': model}, args.human_data_dir)
-        dis_metrics = ['cv', 'stress']
+        dis_metrics = ['stress', 'cv']
         eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
-        diff_metrics = ['pearson', 'stress']
+        diff_metrics = ['stress', 'pearson']
         eval_differences = [evaluate_difference(human_pred, _m) for _m in diff_metrics]
 
-        disc_str = ''
-        for m_ind, _eval in enumerate(eval_discrimination):
-            disc_str += f"{dis_metrics[m_ind]} [ "
-            for key, val in _eval['Network']['colour_discrimination'].items():
-                disc_str += ('%s: %.2f ' % (key[:2], val))
-            disc_str += ']'
+        epoch_loss = [uniformity_loss.item()]
+        headers = ['loss']
 
-        diff_str = ''
+        tmp_strs_i = []
+        for m_ind, _eval in enumerate(eval_discrimination):
+            tmp_strs_j = []
+            for key, val in _eval['Network']['colour_discrimination'].items():
+                tmp_strs_j.append('%s=%.2f' % (key[:2], val))
+                epoch_loss.append(val)
+                headers.append(f"{dis_metrics[m_ind]}_{key}")
+            tmp_strs_i.append(
+                f"{dis_metrics[m_ind]} [" + ' '.join(_tj for _tj in tmp_strs_j) + ']'
+            )
+        disc_str = ' '.join(_ti for _ti in tmp_strs_i)
+
+        tmp_strs_i = []
         for m_ind, _eval in enumerate(eval_differences):
-            diff_str += f" {diff_metrics[m_ind]} ["
+            tmp_strs_j = []
             for key, val in _eval['Network']['colour_difference'].items():
-                diff_str += ('%s: %.2f ' % (key[:2], val))
-            diff_str += ']'
+                tmp_strs_j.append('%s=%.2f' % (key[:2], val))
+                epoch_loss.append(val)
+                headers.append(f"{diff_metrics[m_ind]}_{key}")
+            tmp_strs_i.append(
+                f"{diff_metrics[m_ind]} [" + ' '.join(_tj for _tj in tmp_strs_j) + ']'
+            )
+        diff_str = ' '.join(_ti for _ti in tmp_strs_i)
+
+        losses.append(epoch_loss)
 
         if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
             print(
-                '[%.5d] loss=%.4f %s %s' % (epoch, uniformity_loss, disc_str, diff_str)
+                '[%.5d] loss=%.4f \n\t%s \n\t%s' % (epoch, uniformity_loss, disc_str, diff_str)
             )
-        epoch_loss = [uniformity_loss.item()]
-        header = 'loss,'
-        # for dbname, db_res in met_dis_cv['Network']['colour_discrimination'].items():
-        #     epoch_loss.append(db_res)
-        #     header += 'CV_%s,' % dbname
-        # for dbname, db_res in met_dis_st['Network']['colour_discrimination'].items():
-        #     epoch_loss.append(db_res)
-        #     header += 'STRESS_%s,' % dbname
-        # header += 'CORR_MacAdam1974'
-        # epoch_loss.append(met_dis_cv['Network']['colour_difference']['MacAdam1974'])
-        losses.append(epoch_loss)
 
     rgb_pts, rgb_pts_pred = rgb_mapping(model)
     space_range = list(rgb_pts_pred.max(axis=(0, 1)) - rgb_pts_pred.min(axis=(0, 1)))
@@ -722,7 +705,9 @@ def optimise_instance(args, layer_results, out_dir):
 
     fig.savefig('%s/rgb_pred.svg' % out_dir)
     plt.close('all')
-    np.savetxt('%s/losses.txt' % out_dir, losses, delimiter=',', header=header)
+
+    df = pd.DataFrame(columns=headers, data=losses)
+    df.to_csv('%s/losses.csv' % out_dir)
 
     torch.save({
         'state_dict': model.state_dict(),
