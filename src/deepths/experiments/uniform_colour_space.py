@@ -40,12 +40,6 @@ def load_model(path, return_info=False):
     return model
 
 
-def db_discriminate(test_file, method):
-    data = pd.read_csv(test_file)
-    pred = method_out(method, data)
-    return pred
-
-
 def method_out(method, data):
     ref_rgb = data.loc[:, ['Ref-R', 'Ref-G', 'Ref-B']].to_numpy().astype('float32')
     test_rgb = data.loc[:, ['Test-R', 'Test-G', 'Test-B']].to_numpy().astype('float32')
@@ -71,15 +65,10 @@ def method_out(method, data):
     return pred
 
 
-def db_difference(path, method):
+def db_pred(path, method):
     human_data = pd.read_csv(path)
-    gt = human_data['DV']
     pred = method_out(method, human_data)
-    if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
-        return 0, 0, 0
-    pearsonr_corr, _ = stats.pearsonr(pred, gt)
-    spearmanr_corr, _ = stats.spearmanr(pred, gt)
-    return pearsonr_corr, spearmanr_corr, stress(pred, gt)
+    return pred
 
 
 def compare_human_data(method, test_dir, rgb_type):
@@ -90,22 +79,21 @@ def compare_human_data(method, test_dir, rgb_type):
     }
     rgb = rgbs[rgb_type]
     # MacAdam 1942
-    macadam1942_res = db_discriminate('%s/macadam1942_%s_d65.csv' % (test_dir, rgb_type), method)
+    macadam1942_res = db_pred('%s/macadam1942_%s_d65.csv' % (test_dir, rgb_type), method)
     # # RIT-DuPont
-    ritdupont_res = db_discriminate('%s/rit-dupont_%s.csv' % (test_dir, rgb_type), method)
+    ritdupont_res = db_pred('%s/rit-dupont_%s.csv' % (test_dir, rgb_type), method)
 
     # MacAdam 1974
-    macadam1974_res = db_difference('%s/macadam1974_%s_d65.csv' % (test_dir, rgb_type), method)
+    macadam1974_res = db_pred('%s/macadam1974_%s_d65.csv' % (test_dir, rgb_type), method)
     # Witt
-    witt_res = db_difference('%s/witt_%s.csv' % (test_dir, rgb_type), method)
+    witt_res = db_pred('%s/witt_%s.csv' % (test_dir, rgb_type), method)
     # Leeds
-    leeds_res = db_difference('%s/leeds_%s.csv' % (test_dir, rgb_type), method)
+    leeds_res = db_pred('%s/leeds_%s.csv' % (test_dir, rgb_type), method)
     # BFD
-    bfd_res = db_difference('%s/bfd_%s.csv' % (test_dir, rgb_type), method)
+    bfd_res = db_pred('%s/bfd_%s.csv' % (test_dir, rgb_type), method)
     # TeamK
-    teamk_res = db_difference('%s/teamk_%s_m2.csv' % (test_dir, rgb_type), method)
+    teamk_res = db_pred('%s/teamk_%s_m2.csv' % (test_dir, rgb_type), method)
 
-    # discrimination_res['All'] = np.array([x for db in discrimination_res.values() for x in db])
     return {
         'colour_discrimination': {
             'MacAdam1942': macadam1942_res,
@@ -165,25 +153,49 @@ def evaluate_discrimination(predictions, discrimination):
     return eval_pred
 
 
-def evaluate_difference(predictions, difference):
+def evaluate_difference(predictions, difference, gts):
     eval_pred = dict()
     # colour difference
     for method in predictions.keys():
         eval_pred[method] = {'colour_difference': dict()}
         for db in predictions[method]['colour_difference'].keys():
             x = predictions[method]['colour_difference'][db]
-            if difference == 'pearson':
-                eval_pred[method]['colour_difference'][db] = x[0]
-            elif difference == 'spearman':
-                eval_pred[method]['colour_difference'][db] = x[1]
+            if np.any(np.isnan(x)) or np.any(np.isinf(x)):
+                eval_pred[method]['colour_difference'][db] = 0
             else:
-                eval_pred[method]['colour_difference'][db] = x[2]
+                if difference == 'pearson':
+                    pearsonr_corr, _ = stats.pearsonr(x, gts[db])
+                    eval_pred[method]['colour_difference'][db] = pearsonr_corr
+                elif difference == 'spearman':
+                    spearmanr_corr, _ = stats.spearmanr(x, gts[db])
+                    eval_pred[method]['colour_difference'][db] = spearmanr_corr
+                else:
+                    eval_pred[method]['colour_difference'][db] = stress(x, gts[db])
     return eval_pred
 
 
-def plot_predictions(preds, discriminations, differences):
+def plot_predictions(preds, discriminations, differences, test_dir):
+    for _cspace in preds.keys():
+        preds[_cspace]['colour_discrimination']['All'] = np.array(
+            [x for db in preds[_cspace]['colour_discrimination'].values() for x in db]
+        )
+        preds[_cspace]['colour_difference']['All'] = np.array(
+            [x for db in preds[_cspace]['colour_difference'].values() for x in db]
+        )
+
+    mega_db = pd.read_csv(f"{test_dir}/meta_dbs_srgb.csv")
+    gts = {
+        'Leeds1997': mega_db.loc[mega_db['Dataset'] == 'LEEDS', 'DV'],
+        'Witt1999': mega_db.loc[mega_db['Dataset'] == 'WITT', 'DV'],
+        'MacAdam1974': mega_db.loc[mega_db['Dataset'] == 'MacAdam1974', 'DV'],
+        'BFD1986': mega_db.loc[
+            mega_db['Dataset'].isin(['BFD-P(D65)', 'BFD-P( C )', 'BFD-P(M)']), 'DV'],
+        'TeamK': mega_db.loc[mega_db['Dataset'] == 'Laysa2024', 'DV'],
+    }
+    gts['All'] = np.concatenate([_gt for _gt in gts.values()])
+
     eval_discrimination = [evaluate_discrimination(preds, metric) for metric in discriminations]
-    eval_differences = [evaluate_difference(preds, metric) for metric in differences]
+    eval_differences = [evaluate_difference(preds, metric, gts) for metric in differences]
     fig = plt.figure(figsize=(20, 12), layout="constrained")
     gs = GridSpec(2, max(len(eval_discrimination), len(eval_differences)), figure=fig)
     fontsize = 18
@@ -225,6 +237,21 @@ def plot_predictions(preds, discriminations, differences):
         ax.set_xlabel('', fontsize=fontsize)
         ax.set_ylabel(differences[diff_ind], fontsize=fontsize)
         ax.legend(fontsize=13, ncol=4, loc='lower center')
+
+    method = 'Network'
+    preds_mega_ordered = np.concatenate([
+        preds[method]['colour_difference']['BFD1986'],
+        preds[method]['colour_difference']['Leeds1997'],
+        preds[method]['colour_discrimination']['RIT-DuPont1991'],
+        preds[method]['colour_difference']['Witt1999'],
+        preds[method]['colour_discrimination']['MacAdam1942'],
+        preds[method]['colour_difference']['MacAdam1974'],
+        preds[method]['colour_difference']['TeamK'],
+    ])
+
+    ax = fig.add_subplot(gs[0, 2])
+    _ = plot_human_vs_method(preds_mega_ordered, mega_db,
+                             ax=ax, method_name='Network Euclidean')
 
     return fig
 
@@ -355,6 +382,91 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
     if title is not None:
         fig.suptitle(title, fontsize=int(fontsize * 1.5))
     return fig
+
+
+def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
+                         method_name='', ax=None):
+    if ylabel is None:
+        ylabel = 'Human Observed Difference'
+    if ax is None:
+        fig = plt.figure(figsize=(4, 6))
+        ax = fig.add_subplot(1, 1, 1)
+    else:
+        fig = None
+
+    method_prediction = np.array(method_prediction)
+    comparison_data = data.loc[:, 'DV']
+    comparison_data = comparison_data.to_numpy()
+
+    which_rows = ~(data['Dataset'].isin(
+        []  # ['Laysa2024', 'MacAdam1974', 'MacAdam1942']
+    ))
+
+    if docorr:
+        r_p, p = stats.pearsonr(method_prediction[which_rows], comparison_data[which_rows])
+        r_s, p = stats.spearmanr(method_prediction[which_rows], comparison_data[which_rows])
+        title_str = "$r_p$=%.2f $r_s$=%.2f" % (r_p, r_s)
+    else:
+        cv = np.std(method_prediction) / np.mean(method_prediction)
+        title_str = f"cv={cv:.02f}"
+    stress_val = stress(method_prediction[which_rows], comparison_data[which_rows])
+
+    ax.set_title("%s $S$=%.2f" % (title_str, stress_val))
+    if 'Dataset' in data.columns:
+        unique_dbs = np.unique(data['Dataset'])
+        db_num_elements = [comparison_data[data['Dataset'] == db].shape[0] for db in unique_dbs]
+        order_dbs = np.argsort(db_num_elements)[::-1]
+        order_dbs = [0, 1, 2, 6, 8, 3, 4, 5, 7]
+
+        for db in unique_dbs[order_dbs]:
+            alpha = 0.5
+            db_label = db
+            if 'BFD' in db:
+                colour = 'blue'
+                marker = 'D'
+                db_label = 'BFD-1986' if 'D65' in db else '_'
+                alpha = 0.25
+            elif 'WITT' in db:
+                colour = 'green'
+                marker = 's'
+                alpha = 1
+                db_label = 'Witt-1999'
+            elif 'RIT-DuPont' in db:
+                colour = 'orange'
+                marker = 'o'
+                # alpha=1
+                db_label = 'RIT-DuPont-1991'
+            elif 'LEEDS' in db:
+                colour = 'red'
+                marker = 'H'
+                # alpha=0.3
+                db_label = 'Leeds-1997'
+            elif 'Laysa' in db:
+                colour = 'gray'
+                marker = 'v'
+                db_label = 'Hedjar-2024'
+            elif 'MacAdam1974' in db:
+                colour = 'magenta'
+                marker = 'p'
+                # alpha = 1
+                db_label = 'MacAdam-1974'
+            elif 'MacAdam1942' in db:
+                colour = 'lime'
+                marker = '*'
+                # alpha=0.3
+                db_label = 'MacAdam-1942'
+            else:
+                print('UPS!', db)
+            ax.plot(method_prediction[data['Dataset'] == db],
+                    comparison_data[data['Dataset'] == db], marker,
+                    markeredgecolor=colour, alpha=alpha, label=db_label,
+                    fillstyle='none')
+        ax.legend()
+    else:
+        ax.plot(method_prediction, comparison_data, 'x')
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel('%s Distance' % method_name)
+    return ax if fig is None else fig
 
 
 def scatter3d(points, colours, ax, axis_names, fontsize=14, axs_range=None):
@@ -598,6 +710,17 @@ def optimise_instance(args, layer_results, out_dir):
     print_freq = args.epochs // 10
     losses = []
     train_db, _ = train_val_sets(layer_results, 0)
+
+    mega_db = pd.read_csv(f"{args.human_data_dir}/meta_dbs_srgb.csv")
+    gts = {
+        'Leeds1997': mega_db.loc[mega_db['Dataset'] == 'LEEDS', 'DV'],
+        'Witt1999': mega_db.loc[mega_db['Dataset'] == 'WITT', 'DV'],
+        'MacAdam1974': mega_db.loc[mega_db['Dataset'] == 'MacAdam1974', 'DV'],
+        'BFD1986': mega_db.loc[
+            mega_db['Dataset'].isin(['BFD-P(D65)', 'BFD-P( C )', 'BFD-P(M)']), 'DV'],
+        'TeamK': mega_db.loc[mega_db['Dataset'] == 'Laysa2024', 'DV'],
+    }
+
     for epoch in range(args.epochs):
         model = model.train()
         # train_db, _ = train_val_sets(layer_results, 0.1)
@@ -634,7 +757,7 @@ def optimise_instance(args, layer_results, out_dir):
         dis_metrics = ['stress', 'cv']
         eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
         diff_metrics = ['stress', 'pearson']
-        eval_differences = [evaluate_difference(human_pred, _m) for _m in diff_metrics]
+        eval_differences = [evaluate_difference(human_pred, _m, gts) for _m in diff_metrics]
 
         epoch_loss = [uniformity_loss.item()]
         headers = ['loss']
