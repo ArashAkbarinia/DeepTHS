@@ -653,6 +653,8 @@ optimisers = {
     'Adamax': torch.optim.Adamax,
     'Adagrad': torch.optim.Adagrad,
     'SGD': torch.optim.SGD,
+    'SparseAdam': torch.optim.SparseAdam,
+    'AdamW': torch.optim.AdamW
 }
 
 
@@ -758,6 +760,128 @@ def optimise_instance(args, layer_results, out_dir):
         eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
         diff_metrics = ['stress', 'pearson']
         eval_differences = [evaluate_difference(human_pred, _m, gts) for _m in diff_metrics]
+
+        epoch_loss = [uniformity_loss.item()]
+        headers = ['loss']
+
+        tmp_strs_i = []
+        for m_ind, _eval in enumerate(eval_discrimination):
+            tmp_strs_j = []
+            for key, val in _eval['Network']['colour_discrimination'].items():
+                tmp_strs_j.append('%s=%.2f' % (key[:2], val))
+                epoch_loss.append(val)
+                headers.append(f"{dis_metrics[m_ind]}_{key}")
+            tmp_strs_i.append(
+                f"{dis_metrics[m_ind]} [" + ' '.join(_tj for _tj in tmp_strs_j) + ']'
+            )
+        disc_str = ' '.join(_ti for _ti in tmp_strs_i)
+
+        tmp_strs_i = []
+        for m_ind, _eval in enumerate(eval_differences):
+            tmp_strs_j = []
+            for key, val in _eval['Network']['colour_difference'].items():
+                tmp_strs_j.append('%s=%.2f' % (key[:2], val))
+                epoch_loss.append(val)
+                headers.append(f"{diff_metrics[m_ind]}_{key}")
+            tmp_strs_i.append(
+                f"{diff_metrics[m_ind]} [" + ' '.join(_tj for _tj in tmp_strs_j) + ']'
+            )
+        diff_str = ' '.join(_ti for _ti in tmp_strs_i)
+
+        losses.append(epoch_loss)
+
+        if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
+            print(
+                '[%.5d] loss=%.4f \n\t%s \n\t%s' % (epoch, uniformity_loss, disc_str, diff_str)
+            )
+
+    rgb_pts, rgb_pts_pred = rgb_mapping(model)
+    space_range = list(rgb_pts_pred.max(axis=(0, 1)) - rgb_pts_pred.min(axis=(0, 1)))
+    print('Network-space range:\t%s (%.3f, %.3f %.3f)' % ('', *space_range))
+    fig = plot_colour_pts(
+        rgb_pts_pred, rgb_pts,
+        'loss=%.4f   %s %s' % (uniformity_loss, disc_str, diff_str),
+        axs_range='auto'
+    )
+
+    fig.savefig('%s/rgb_pred.svg' % out_dir)
+    plt.close('all')
+
+    df = pd.DataFrame(columns=headers, data=losses)
+    df.to_csv('%s/losses.csv' % out_dir)
+
+    torch.save({
+        'state_dict': model.state_dict(),
+        'units': args.num_units,
+        'nonlinearities': args.nonlinearities,
+        'mean_std': mean_std
+    }, '%s/model.pth' % out_dir)
+
+
+def optimise_points(args, points, out_dir):
+    mean_std = (0.5, 0.5)
+    # model
+    model = ColourSpaceNet(args.num_units, args.nonlinearities, mean_std)
+    print(model)
+
+    # optimisation
+    optimiser = optimisers[args.opt_method](params=model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=args.epochs // 3)
+
+    # epoch loop
+    print_freq = args.epochs // 10
+    losses = []
+    # train_db, _ = train_val_sets(layer_results, 0)
+
+    mega_db = pd.read_csv(f"{args.human_data_dir}/meta_dbs_srgb.csv")
+    human_gts = {
+        'Leeds1997': mega_db.loc[mega_db['Dataset'] == 'LEEDS', 'DV'],
+        'Witt1999': mega_db.loc[mega_db['Dataset'] == 'WITT', 'DV'],
+        'MacAdam1974': mega_db.loc[mega_db['Dataset'] == 'MacAdam1974', 'DV'],
+        'BFD1986': mega_db.loc[
+            mega_db['Dataset'].isin(['BFD-P(D65)', 'BFD-P( C )', 'BFD-P(M)']), 'DV'],
+        'TeamK': mega_db.loc[mega_db['Dataset'] == 'Laysa2024', 'DV'],
+    }
+
+    dv = torch.tensor(points['DV']).float()
+    print(dv.shape)
+    for epoch in range(args.epochs):
+        model = model.train()
+        # train_db, _ = train_val_sets(layer_results, 0.1)
+        with torch.set_grad_enabled(True):
+            ref_pts_in = torch.tensor(points['Ref-RGB'].copy()).float()
+            ref_pts_out = model(ref_pts_in)
+            test_pts_in = torch.tensor(points['Test-RGB'].copy()).float()
+            test_pts_out = model(test_pts_in)
+            de = torch.linalg.norm(ref_pts_out - test_pts_out, ord=2, dim=1)
+            min_vals, _ = ref_pts_out.min(axis=0)
+            max_vals, _ = ref_pts_out.max(axis=0)
+            deltad = max_vals - min_vals
+            # uniformity_loss = torch.std(euc_dis)  # / torch.mean(euc_dis)
+            uniformity_loss = stress_torch(de, dv)
+            if args.loss == 'range':
+                range_loss = 0.5 * (abs(1 - deltad[0]) + abs(1 - deltad[1]) + abs(1 - deltad[2]))
+            elif args.loss == 'mean_distance':
+                range_loss = 0.5 * abs(0.1 - torch.mean(de))
+            else:
+                range_loss = 0
+
+            loss = uniformity_loss + range_loss
+
+            optimiser.zero_grad()
+            loss.backward()
+            optimiser.step()
+            scheduler.step()
+
+        if torch.isnan(loss):
+            print('NaN!', epoch)
+            return
+
+        human_pred = predict_human_data({'Network': model}, args.human_data_dir)
+        dis_metrics = ['stress', 'cv']
+        eval_discrimination = [evaluate_discrimination(human_pred, _m) for _m in dis_metrics]
+        diff_metrics = ['stress', 'pearson']
+        eval_differences = [evaluate_difference(human_pred, _m, human_gts) for _m in diff_metrics]
 
         epoch_loss = [uniformity_loss.item()]
         headers = ['loss']
