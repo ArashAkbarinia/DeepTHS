@@ -718,6 +718,21 @@ def optimise_instance(args, layer_results, out_dir):
     return optimise_points(args, train_points, out_dir)
 
 
+def optimise_all_layers(args, network_results, out_dir):
+    train_points = {
+        'DV': [],
+        'Ref-RGB': [],
+        'Test-RGB': [],
+    }
+    for layer_results in network_results.values():
+        layer_points, _ = train_val_sets(layer_results, 0)
+        for key, val in layer_points.items():
+            train_points[key].extend(val)
+    for key, val in train_points.items():
+        train_points[key] = np.array(val)
+    return optimise_points(args, train_points, out_dir)
+
+
 def optimise_points(args, points, out_dir):
     mean_std = (0.5, 0.5)
     # model
@@ -731,7 +746,6 @@ def optimise_points(args, points, out_dir):
     # epoch loop
     print_freq = args.epochs // 10
     losses = []
-    # train_db, _ = train_val_sets(layer_results, 0)
 
     mega_db = pd.read_csv(f"{args.human_data_dir}/meta_dbs_srgb.csv")
     human_gts = {
