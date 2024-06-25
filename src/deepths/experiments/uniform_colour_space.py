@@ -384,8 +384,60 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
     return fig
 
 
+def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xlabel='Accuracy'):
+    networks = ['clip_B32', 'clip_RN50', 'vit_b_32', 'resnet50']
+
+    mega_db = pd.read_csv(f"{test_dir}/meta_dbs_srgb.csv")
+
+    fig = plt.figure(figsize=(26, 20))
+    ax_ind = 1
+
+    dbs_dict = {
+        'bfd': 'bfd_srgb',
+        'leeds': 'leeds_srgb',
+        'rit-duppont': 'rit-dupont_srgb',
+        'witt': 'witt_srgb',
+        'macadam1942': 'macadam1942_srgb_d65',
+        'macadam1974': 'macadam1974_srgb_d65',
+        'teamk_m2': 'teamk_srgb_m2'
+    }
+
+    metrics_networks = {'pearson': dict(), 'spearman': dict(), 'stress': dict()}
+    network_accuracies = []
+    for net_name in networks:
+        predb = 'clip' if 'clip' in net_name else 'imagenet'
+        for _key in metrics_networks.keys():
+            metrics_networks[_key][net_name] = []
+        for block in arch_areas[net_name]:
+            preds_mega_ordered = []
+            for db_res_name, db_test_name in dbs_dict.items():
+                net_dir = f"{results_dir}/bw_4afc_{db_res_name}/bg128/{predb}/{net_name}/{ins_name}"
+
+                if not os.path.exists(f"{net_dir}/{block}.csv"):
+                    # print(f"{net_dir}/{block}.csv")
+                    continue
+                block_res = pd.read_csv(f"{net_dir}/{block}.csv")
+                network_accuracies.append(block_res.loc[:, 'Accuracy'].mean())
+                network_prediction = block_res.loc[:, 'Accuracy'].to_numpy()
+                # network_prediction = network_prediction ** (14)
+                preds_mega_ordered.append(network_prediction)
+
+            ax = fig.add_subplot(4, 6, ax_ind)
+            ax_ind += 1
+            preds_mega_ordered = np.concatenate(preds_mega_ordered)
+
+            r_p, r_s, stress_val = plot_human_vs_method(
+                preds_mega_ordered, mega_db, ax=ax, method_name='Network Euclidean',
+                return_metrics=True
+            )
+            metrics_networks['pearson'] = r_p
+            metrics_networks['spearman'] = r_s
+            metrics_networks['stress'] = stress_val
+    return fig, metrics_networks
+
+
 def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
-                         method_name='', ax=None):
+                         method_name='', ax=None, return_metrics=False):
     if ylabel is None:
         ylabel = 'Human Observed Difference'
     if ax is None:
@@ -466,6 +518,8 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
         ax.plot(method_prediction, comparison_data, 'x')
     ax.set_ylabel(ylabel)
     ax.set_xlabel('%s Distance' % method_name)
+    if return_metrics:
+        return r_p, r_s, stress_val
     return ax if fig is None else fig
 
 
