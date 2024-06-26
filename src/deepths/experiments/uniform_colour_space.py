@@ -251,7 +251,7 @@ def plot_predictions(preds, discriminations, differences, test_dir):
 
     ax = fig.add_subplot(gs[0, 2])
     _ = plot_human_vs_method(preds_mega_ordered, mega_db,
-                             ax=ax, method_name='Network Euclidean')
+                             ax=ax, xlabel='Network Euclidean')
 
     return fig
 
@@ -389,7 +389,7 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xla
 
     mega_db = pd.read_csv(f"{test_dir}/meta_dbs_srgb.csv")
 
-    fig = plt.figure(figsize=(26, 20))
+    fig = plt.figure(figsize=(36, 24))
     ax_ind = 1
 
     dbs_dict = {
@@ -411,10 +411,10 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xla
         for block in arch_areas[net_name]:
             preds_mega_ordered = []
             for db_res_name, db_test_name in dbs_dict.items():
-                net_dir = f"{results_dir}/bw_4afc_{db_res_name}/bg128/{predb}/{net_name}/{ins_name}"
+                net_dir = f"{results_dir}/bw_4afc_{db_res_name}/bg_128/{predb}/{net_name}/{ins_name}"
 
                 if not os.path.exists(f"{net_dir}/{block}.csv"):
-                    # print(f"{net_dir}/{block}.csv")
+                    print(f"{net_dir}/{block}.csv")
                     continue
                 block_res = pd.read_csv(f"{net_dir}/{block}.csv")
                 network_accuracies.append(block_res.loc[:, 'Accuracy'].mean())
@@ -426,18 +426,64 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xla
             ax_ind += 1
             preds_mega_ordered = np.concatenate(preds_mega_ordered)
 
+            if net_name == 'clip_B32':
+                net_label = 'CLIP ViT-B32'
+            elif net_name == 'clip_RN50':
+                net_label = 'CLIP ResNet50'
+            elif net_name == 'vit_b_32':
+                net_label = 'ImageNet ViT-B32'
+            else:
+                net_label = 'ImageNet ResNet50'
+            xlabel = f"{net_label} {block} Accuracy"
             r_p, r_s, stress_val = plot_human_vs_method(
-                preds_mega_ordered, mega_db, ax=ax, method_name='Network Euclidean',
-                return_metrics=True
+                preds_mega_ordered, mega_db, ax=ax, xlabel=xlabel, return_metrics=True
             )
-            metrics_networks['pearson'] = r_p
-            metrics_networks['spearman'] = r_s
-            metrics_networks['stress'] = stress_val
+            metrics_networks['pearson'][net_name].append(r_p)
+            metrics_networks['spearman'][net_name].append(r_s)
+            metrics_networks['stress'][net_name].append(stress_val)
     return fig, metrics_networks
 
 
+def data_vs_metrics(data):
+    methods = [
+        'CIE 1976', 'CIE 1994', 'CIE 2000',
+        # 'CMC', 'ITP', 'CAM02-LCD', 'CAM02-SCD',
+        # 'CAM02-UCS', 'CAM16-LCD', 'CAM16-SCD', 'CAM16-UCS',
+        # 'DIN99',
+        'RGB'
+    ]
+    fig = plt.figure(figsize=(24, 6))
+    for ax_ind, method_name in enumerate(methods):
+        if method_name == 'RGB':
+            ref_pt = data.loc[:, ['Ref-R', 'Ref-G', 'Ref-B']].to_numpy().astype('float32')
+            test_pt = data.loc[:, ['Test-R', 'Test-G', 'Test-B']].to_numpy().astype('float32')
+            method_prediction = np.linalg.norm(ref_pt - test_pt, axis=1)
+        else:
+            ref_lab = data.loc[:, ['Ref-L', 'Ref-a', 'Ref-b']]
+            test_lab = data.loc[:, ['Test-L', 'Test-a', 'Test-b']]
+            method_prediction = colour_science.delta_E(ref_lab, test_lab, method=method_name)
+        method_prediction = np.array(method_prediction)
+
+        if method_name == 'CIE 1976':
+            xlabel = 'Lab Euclidean Distance'
+        elif method_name == 'CIE 1994':
+            xlabel = "$\Delta E_{1994}$"
+        elif method_name == 'CIE 2000':
+            xlabel = "$\Delta E_{2000}$"
+        else:
+            xlabel = 'RGB Euclidean Distance'
+
+        ax = fig.add_subplot(1, 4, ax_ind + 1)
+        plot_human_vs_method(method_prediction, data, xlabel=xlabel, ax=ax)
+        if ax_ind != 0:
+            ax.set_ylabel('')
+            ax.set_yticklabels([])
+    return fig
+
+
 def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
-                         method_name='', ax=None, return_metrics=False):
+                         xlabel=None, ax=None, return_metrics=False,
+                         include_db=None, exclude_db=None):
     if ylabel is None:
         ylabel = 'Human Observed Difference'
     if ax is None:
@@ -450,20 +496,24 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
     comparison_data = data.loc[:, 'DV']
     comparison_data = comparison_data.to_numpy()
 
-    which_rows = ~(data['Dataset'].isin(
-        []  # ['Laysa2024', 'MacAdam1974', 'MacAdam1942']
-    ))
+    if include_db is not None:
+        which_rows = data['Dataset'].isin(include_db)
+    elif exclude_db is not None:
+        which_rows = ~(data['Dataset'].isin(exclude_db))
+    else:
+        which_rows = np.arange(data.shape[0])
 
     if docorr:
         r_p, p = stats.pearsonr(method_prediction[which_rows], comparison_data[which_rows])
         r_s, p = stats.spearmanr(method_prediction[which_rows], comparison_data[which_rows])
-        title_str = "$r_p$=%.2f $r_s$=%.2f" % (r_p, r_s)
+        title_str = "$r_p$=%.2f    $r_s$=%.2f" % (r_p, r_s)
     else:
         cv = np.std(method_prediction) / np.mean(method_prediction)
         title_str = f"cv={cv:.02f}"
     stress_val = stress(method_prediction[which_rows], comparison_data[which_rows])
 
-    ax.set_title("%s $S$=%.2f" % (title_str, stress_val))
+    fsize = 18
+    ax.set_title("%s    $S$=%.2f" % (title_str, stress_val), fontsize=fsize)
     if 'Dataset' in data.columns:
         unique_dbs = np.unique(data['Dataset'])
         db_num_elements = [comparison_data[data['Dataset'] == db].shape[0] for db in unique_dbs]
@@ -471,6 +521,10 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
         order_dbs = [0, 1, 2, 6, 8, 3, 4, 5, 7]
 
         for db in unique_dbs[order_dbs]:
+            if exclude_db is not None and db in exclude_db:
+                continue
+            if include_db is not None and db not in include_db:
+                continue
             alpha = 0.5
             db_label = db
             if 'BFD' in db:
@@ -513,11 +567,12 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                     comparison_data[data['Dataset'] == db], marker,
                     markeredgecolor=colour, alpha=alpha, label=db_label,
                     fillstyle='none')
-        ax.legend()
+        ax.legend(prop={'size': fsize-5})
     else:
         ax.plot(method_prediction, comparison_data, 'x')
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel('%s Distance' % method_name)
+    ax.set_ylabel(ylabel, fontsize=fsize)
+    xlabel = 'Distance' if xlabel is None else xlabel
+    ax.set_xlabel(xlabel, fontsize=fsize)
     if return_metrics:
         return r_p, r_s, stress_val
     return ax if fig is None else fig
