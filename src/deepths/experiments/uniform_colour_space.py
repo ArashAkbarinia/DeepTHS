@@ -673,6 +673,7 @@ def sample_rgb(cube_samples=1000):
 def main(argv):
     parser = argparse.ArgumentParser(description='Optimising Colour Spaces!')
     parser.add_argument('--in_dir', required=True, type=str)
+    parser.add_argument('--in_dir_fine_grain', default=None, type=str)
     parser.add_argument('--test_file', required=True, type=str)
     parser.add_argument('--human_data_dir', required=True, type=str)
     parser.add_argument('--out_dir', default='outputs', type=str)
@@ -693,9 +694,19 @@ def _main_worker(args):
         sys.exit('Unsupported architecture %s' % arch)
     pretrained_db = 'clip' if 'clip' in arch else 'ImageNet'
 
-    network_result_summary = parse_network_results(args.in_dir, arch, rgb_test_data)
-    for layer in arch_areas[arch]:
-        optimise_layer(args, network_result_summary, (pretrained_db, arch), layer)
+    if args.in_dir_fine_grain is not None:
+        for layer in arch_areas[arch]:
+            layer_data = pd.read_csv(f"{args.in_dir_fine_grain}/{layer}.csv")
+            points = {
+                'DV': layer_data['DV'],
+                'Ref-RGB': layer_data.loc[:, ['Ref-R', 'Ref-G', 'Ref-B']].to_numpy(),
+                'Test-RGB': layer_data.loc[:, ['Test-R', 'Test-G', 'Test-B']].to_numpy(),
+            }
+            optimise_layer(args, points, (pretrained_db, arch), layer)
+    else:
+        network_result_summary = parse_network_results(args.in_dir, arch, rgb_test_data)
+        for layer in arch_areas[arch]:
+            optimise_layer(args, network_result_summary, (pretrained_db, arch), layer)
 
 
 def train_test_splits(layer_results, test_perc=0.1):
@@ -814,8 +825,6 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
     pretrained_db, pretrained_arch = pretrained
     layer_out_dir = '%s/%s/%s/%s/' % (args.out_dir, pretrained_db, pretrained_arch, layer)
 
-    layer_results = network_result_summary[layer]
-
     intermediate_nonlinears = ['GELU', 'ReLU', 'SELU', 'SiLU', 'Tanh']
     args.loss = 'nada!'
     losses = ['range', 'mean_distance']
@@ -844,7 +853,10 @@ def optimise_layer(args, network_result_summary, pretrained, layer):
                     json_file_name = os.path.join(out_dir, 'args.json')
                     with open(json_file_name, 'w') as fp:
                         json.dump(dict(args._get_kwargs()), fp, sort_keys=True, indent=4)
-                    optimise_instance(args, layer_results, out_dir)
+                    if args.in_dir_fine_grain is not None:
+                        optimise_points(args, network_result_summary, out_dir)
+                    else:
+                        optimise_instance(args, network_result_summary[layer], out_dir)
 
                     sys.stdout = orig_stdout
                     f.close()
