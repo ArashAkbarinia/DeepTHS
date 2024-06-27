@@ -908,6 +908,7 @@ def optimise_points(args, points, out_dir):
 
     dv = torch.tensor(points['DV']).float()
     print(dv.shape)
+    best_stress = -np.inf
     for epoch in range(args.epochs):
         model = model.train()
         with torch.set_grad_enabled(True):
@@ -972,7 +973,37 @@ def optimise_points(args, points, out_dir):
             )
         diff_str = ' '.join(_ti for _ti in tmp_strs_i)
 
+        method = 'Network'
+        preds_mega_ordered = np.concatenate([
+            human_pred[method]['colour_difference']['BFD1986'],
+            human_pred[method]['colour_difference']['Leeds1997'],
+            human_pred[method]['colour_discrimination']['RIT-DuPont1991'],
+            human_pred[method]['colour_difference']['Witt1999'],
+            human_pred[method]['colour_discrimination']['MacAdam1942'],
+            human_pred[method]['colour_difference']['MacAdam1974'],
+            human_pred[method]['colour_difference']['TeamK'],
+        ])
+
+        r_p, p = stats.pearsonr(preds_mega_ordered, mega_db)
+        r_s, p = stats.spearmanr(preds_mega_ordered, mega_db)
+        stress_val = stress(preds_mega_ordered, mega_db)
+        epoch_loss.append(r_p)
+        epoch_loss.append(r_s)
+        epoch_loss.append(stress_val)
+        headers.append('pearson_mega')
+        headers.append('spearman_mega')
+        headers.append('stress_mega')
+
         losses.append(epoch_loss)
+
+        if stress_val < best_stress:
+            best_stress = stress_val
+            torch.save({
+                'state_dict': model.state_dict(),
+                'units': args.num_units,
+                'nonlinearities': args.nonlinearities,
+                'mean_std': mean_std
+            }, '%s/model_best_stress.pth' % out_dir)
 
         if np.mod(epoch, print_freq) == 0 or epoch == (args.epochs - 1):
             print(
