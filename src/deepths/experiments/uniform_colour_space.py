@@ -174,7 +174,7 @@ def evaluate_difference(predictions, difference, gts):
     return eval_pred
 
 
-def plot_predictions(preds, discriminations, differences, test_dir):
+def plot_predictions(preds, discriminations, differences, test_dir, return_metrics=False, **kargs):
     for _cspace in preds.keys():
         preds[_cspace]['colour_discrimination']['All'] = np.array(
             [x for db in preds[_cspace]['colour_discrimination'].values() for x in db]
@@ -250,9 +250,10 @@ def plot_predictions(preds, discriminations, differences, test_dir):
     ])
 
     ax = fig.add_subplot(gs[0, 2])
-    _ = plot_human_vs_method(preds_mega_ordered, mega_db,
-                             ax=ax, xlabel='Network Euclidean')
-
+    metrics = plot_human_vs_method(preds_mega_ordered, mega_db, return_metrics=return_metrics,
+                                   ax=ax, xlabel='Network Euclidean', **kargs)
+    if return_metrics:
+        return metrics
     return fig
 
 
@@ -305,6 +306,33 @@ def read_network_results(res_dir, arch, test_data, exclude_list=None):
                 sens_th = current_result if len(current_result.shape) == 1 else current_result[-1]
                 area_result[ps].append(sens_th)
             area_result[ps] = np.array(area_result[ps])
+        net_result[area] = area_result
+    return net_result
+
+
+def read_network_results_all_pts(res_dir, arch, test_data, exclude_list=None):
+    if exclude_list is None:
+        exclude_list = []
+    net_result = dict()
+    for area in arch_areas[arch]:
+        area_result = []
+        for ps in test_data.keys():
+            if ps in exclude_list:
+                continue
+            for pind in range(len(test_data[ps]['ext'])):
+                res_path = '%s/%s/evolution_%s_%d.csv' % (res_dir, area, ps, pind)
+                if not os.path.exists(res_path):
+                    continue
+                current_result = np.loadtxt(res_path, delimiter=',')
+                if len(current_result.shape) == 1:
+                    current_result = [current_result]
+
+                for test_pt in current_result:
+                    area_result.append([test_pt[0], *test_data[ps]['ref'], *test_pt[1:4]])
+        area_result = pd.DataFrame(
+            area_result,
+            columns=['DV', 'Ref-R', 'Ref-G', 'Ref-B', 'Test-R', 'Test-G', 'Test-B']
+        )
         net_result[area] = area_result
     return net_result
 
@@ -384,7 +412,7 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
     return fig
 
 
-def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xlabel='Accuracy'):
+def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0'):
     networks = ['clip_B32', 'clip_RN50', 'vit_b_32', 'resnet50']
 
     mega_db = pd.read_csv(f"{test_dir}/meta_dbs_srgb.csv")
@@ -444,7 +472,7 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0', xla
     return fig, metrics_networks
 
 
-def data_vs_metrics(data):
+def data_vs_metrics(data, **kwargs):
     methods = [
         'CIE 1976', 'CIE 1994', 'CIE 2000',
         # 'CMC', 'ITP', 'CAM02-LCD', 'CAM02-SCD',
@@ -474,7 +502,7 @@ def data_vs_metrics(data):
             xlabel = 'RGB Euclidean Distance'
 
         ax = fig.add_subplot(1, 4, ax_ind + 1)
-        plot_human_vs_method(method_prediction, data, xlabel=xlabel, ax=ax)
+        plot_human_vs_method(method_prediction, data, xlabel=xlabel, ax=ax, **kwargs)
         if ax_ind != 0:
             ax.set_ylabel('')
             ax.set_yticklabels([])
@@ -567,7 +595,7 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                     comparison_data[data['Dataset'] == db], marker,
                     markeredgecolor=colour, alpha=alpha, label=db_label,
                     fillstyle='none')
-        ax.legend(prop={'size': fsize-5})
+        ax.legend(prop={'size': fsize - 5})
     else:
         ax.plot(method_prediction, comparison_data, 'x')
     ax.set_ylabel(ylabel, fontsize=fsize)
