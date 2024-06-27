@@ -910,7 +910,7 @@ def optimise_points(args, points, out_dir):
 
     dv = torch.tensor(points['DV']).float()
     print(dv.shape)
-    best_stress = -np.inf
+    best_stress = np.inf
     for epoch in range(args.epochs):
         model = model.train()
         with torch.set_grad_enabled(True):
