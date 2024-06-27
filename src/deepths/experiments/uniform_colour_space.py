@@ -984,9 +984,11 @@ def optimise_points(args, points, out_dir):
             human_pred[method]['colour_difference']['TeamK'],
         ])
 
-        r_p, p = stats.pearsonr(preds_mega_ordered, mega_db)
-        r_s, p = stats.spearmanr(preds_mega_ordered, mega_db)
-        stress_val = stress(preds_mega_ordered, mega_db)
+        comparison_data = mega_db.loc[:, 'DV']
+        comparison_data = comparison_data.to_numpy()
+        r_p, p = stats.pearsonr(preds_mega_ordered, comparison_data)
+        r_s, p = stats.spearmanr(preds_mega_ordered, comparison_data)
+        stress_val = stress(preds_mega_ordered, comparison_data)
         epoch_loss.append(r_p)
         epoch_loss.append(r_s)
         epoch_loss.append(stress_val)
