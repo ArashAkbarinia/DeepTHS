@@ -905,6 +905,8 @@ def optimise_points(args, points, out_dir):
             mega_db['Dataset'].isin(['BFD-P(D65)', 'BFD-P( C )', 'BFD-P(M)']), 'DV'],
         'TeamK': mega_db.loc[mega_db['Dataset'] == 'Laysa2024', 'DV'],
     }
+    comparison_data = mega_db.loc[:, 'DV']
+    comparison_data = comparison_data.to_numpy()
 
     dv = torch.tensor(points['DV']).float()
     print(dv.shape)
@@ -984,8 +986,6 @@ def optimise_points(args, points, out_dir):
             human_pred[method]['colour_difference']['TeamK'],
         ])
 
-        comparison_data = mega_db.loc[:, 'DV']
-        comparison_data = comparison_data.to_numpy()
         r_p, p = stats.pearsonr(preds_mega_ordered, comparison_data)
         r_s, p = stats.spearmanr(preds_mega_ordered, comparison_data)
         stress_val = stress(preds_mega_ordered, comparison_data)
