@@ -546,7 +546,10 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
         unique_dbs = np.unique(data['Dataset'])
         db_num_elements = [comparison_data[data['Dataset'] == db].shape[0] for db in unique_dbs]
         order_dbs = np.argsort(db_num_elements)[::-1]
-        order_dbs = [0, 1, 2, 6, 8, 3, 4, 5, 7]
+        if 'Gegenfurtner' in unique_dbs:
+            order_dbs = [0, 1, 2, 7, 9, 4, 5, 6, 8, 3]
+        else:
+            order_dbs = [0, 1, 2, 6, 8, 3, 4, 5, 7]
 
         for db in unique_dbs[order_dbs]:
             if exclude_db is not None and db in exclude_db:
@@ -554,6 +557,7 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
             if include_db is not None and db not in include_db:
                 continue
             alpha = 0.5
+            vis_w = 1
             db_label = db
             if 'BFD' in db:
                 colour = 'blue'
@@ -579,6 +583,11 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                 colour = 'gray'
                 marker = 'v'
                 db_label = 'Hedjar-2024'
+            elif 'Gegenfurtner' in db:
+                colour = 'brown'
+                marker = '^'
+                db_label = 'Gegenfurtner-1992'
+                vis_w = 0.6
             elif 'MacAdam1974' in db:
                 colour = 'magenta'
                 marker = 'p'
@@ -589,10 +598,11 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                 marker = '*'
                 # alpha=0.3
                 db_label = 'MacAdam-1942'
+                vis_w = 0.8
             else:
                 print('UPS!', db)
             ax.plot(method_prediction[data['Dataset'] == db],
-                    comparison_data[data['Dataset'] == db], marker,
+                    comparison_data[data['Dataset'] == db] * vis_w, marker,
                     markeredgecolor=colour, alpha=alpha, label=db_label,
                     fillstyle='none')
         ax.legend(prop={'size': fsize - 5})
