@@ -10,6 +10,7 @@ import sys
 import json
 
 from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
 import seaborn as sns
 from scipy import stats
@@ -80,8 +81,10 @@ def compare_human_data(method, test_dir, rgb_type):
     rgb = rgbs[rgb_type]
     # MacAdam 1942
     macadam1942_res = db_pred('%s/macadam1942_%s_d65.csv' % (test_dir, rgb_type), method)
-    # # RIT-DuPont
+    # RIT-DuPont
     ritdupont_res = db_pred('%s/rit-dupont_%s.csv' % (test_dir, rgb_type), method)
+    # Karl
+    karl_res = db_pred('%s/karl_%s.csv' % (test_dir, rgb_type), method)
 
     # MacAdam 1974
     macadam1974_res = db_pred('%s/macadam1974_%s_d65.csv' % (test_dir, rgb_type), method)
@@ -92,12 +95,13 @@ def compare_human_data(method, test_dir, rgb_type):
     # BFD
     bfd_res = db_pred('%s/bfd_%s.csv' % (test_dir, rgb_type), method)
     # TeamK
-    teamk_res = db_pred('%s/teamk_%s_m2.csv' % (test_dir, rgb_type), method)
+    teamk_res = db_pred('%s/teamk_%s_m2j2.csv' % (test_dir, rgb_type), method)
 
     return {
         'colour_discrimination': {
             'MacAdam1942': macadam1942_res,
-            'RIT-DuPont1991': ritdupont_res
+            'RIT-DuPont1991': ritdupont_res,
+            'Gegenfurtner': karl_res,
         },
         'colour_difference': {
             'Leeds1997': leeds_res,
@@ -174,6 +178,28 @@ def evaluate_difference(predictions, difference, gts):
     return eval_pred
 
 
+def data_vs_network(preds, test_dir, **kwargs):
+    method = 'Network'
+    preds_mega_ordered = np.concatenate([
+        preds[method]['colour_difference']['BFD1986'],
+        preds[method]['colour_difference']['Leeds1997'],
+        preds[method]['colour_discrimination']['RIT-DuPont1991'],
+        preds[method]['colour_difference']['Witt1999'],
+        preds[method]['colour_discrimination']['MacAdam1942'],
+        preds[method]['colour_difference']['MacAdam1974'],
+        preds[method]['colour_discrimination']['Gegenfurtner'],
+        preds[method]['colour_difference']['TeamK'],
+    ])
+
+    mega_db = pd.read_csv(f"{test_dir}/meta_dbs_srgb.csv")
+
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(1, 1, 1)
+    metrics = plot_human_vs_method(preds_mega_ordered, mega_db, return_metrics=True,
+                                   ax=ax, xlabel='Network Euclidean', **kwargs)
+    return fig, metrics
+
+
 def plot_predictions(preds, discriminations, differences, test_dir, return_metrics=False, **kargs):
     for _cspace in preds.keys():
         preds[_cspace]['colour_discrimination']['All'] = np.array(
@@ -246,6 +272,7 @@ def plot_predictions(preds, discriminations, differences, test_dir, return_metri
         preds[method]['colour_difference']['Witt1999'],
         preds[method]['colour_discrimination']['MacAdam1942'],
         preds[method]['colour_difference']['MacAdam1974'],
+        preds[method]['colour_discrimination']['Gegenfurtner'],
         preds[method]['colour_difference']['TeamK'],
     ])
 
@@ -474,11 +501,11 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0'):
 
 def data_vs_metrics(data, **kwargs):
     methods = [
+        'RGB',
         'CIE 1976', 'CIE 1994', 'CIE 2000',
         # 'CMC', 'ITP', 'CAM02-LCD', 'CAM02-SCD',
         # 'CAM02-UCS', 'CAM16-LCD', 'CAM16-SCD', 'CAM16-UCS',
         # 'DIN99',
-        'RGB'
     ]
     fig = plt.figure(figsize=(24, 6))
     for ax_ind, method_name in enumerate(methods):
@@ -547,10 +574,11 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
         db_num_elements = [comparison_data[data['Dataset'] == db].shape[0] for db in unique_dbs]
         order_dbs = np.argsort(db_num_elements)[::-1]
         if 'Gegenfurtner' in unique_dbs:
-            order_dbs = [0, 1, 2, 7, 9, 4, 5, 6, 8, 3]
+            order_dbs = [5, 0, 1, 2, 7, 9, 4, 6, 8, 3]
         else:
             order_dbs = [0, 1, 2, 6, 8, 3, 4, 5, 7]
 
+        legend_elements = []
         for db in unique_dbs[order_dbs]:
             if exclude_db is not None and db in exclude_db:
                 continue
@@ -595,7 +623,7 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                 db_label = 'MacAdam-1974'
             elif 'MacAdam1942' in db:
                 colour = 'lime'
-                marker = '*'
+                marker = '>'
                 # alpha=0.3
                 db_label = 'MacAdam-1942'
                 vis_w = 0.8
@@ -603,9 +631,13 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                 print('UPS!', db)
             ax.plot(method_prediction[data['Dataset'] == db],
                     comparison_data[data['Dataset'] == db] * vis_w, marker,
-                    markeredgecolor=colour, alpha=alpha, label=db_label,
+                    markeredgecolor=colour, alpha=alpha,  # label=db_label,
                     fillstyle='none')
-        ax.legend(prop={'size': fsize - 5})
+            legend_elements.append(Line2D(
+                [0], [0], marker=marker, color='w', label=db_label,
+                markerfacecolor=colour, markersize=15))
+        # legend_elements = [legend_elements[i] for i in [2, 1, 4, 3, 0, 5, 6, 7]]
+        ax.legend(prop={'size': fsize - 5}, handles=legend_elements)
     else:
         ax.plot(method_prediction, comparison_data, 'x')
     ax.set_ylabel(ylabel, fontsize=fsize)
