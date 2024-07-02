@@ -196,7 +196,7 @@ def data_vs_network(preds, test_dir, **kwargs):
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(1, 1, 1)
     metrics = plot_human_vs_method(preds_mega_ordered, mega_db, return_metrics=True,
-                                   ax=ax, xlabel='Network Euclidean', **kwargs)
+                                   ax=ax, xlabel='Network Euclidean Distance', **kwargs)
     return fig, metrics
 
 
@@ -278,7 +278,7 @@ def plot_predictions(preds, discriminations, differences, test_dir, return_metri
 
     ax = fig.add_subplot(gs[0, 2])
     metrics = plot_human_vs_method(preds_mega_ordered, mega_db, return_metrics=return_metrics,
-                                   ax=ax, xlabel='Network Euclidean', **kargs)
+                                   ax=ax, xlabel='Network Euclidean Distance', **kargs)
     if return_metrics:
         return metrics
     return fig
@@ -418,7 +418,7 @@ def plot_colour_pts(points, colours, title=None, axis_names=None, whichd='all',
         naxis = 4
     fig = plt.figure(figsize=(naxis * 5 + 3, 5))
 
-    axis_names = ['Ax=0', 'Ax=1', 'Ax=2'] if axis_names is None else axis_names
+    axis_names = ['Ax0', 'Ax1', 'Ax2'] if axis_names is None else axis_names
     if axs_range == 'auto':
         min_pts = points.min(axis=(1, 0))
         max_pts = points.max(axis=(1, 0))
@@ -1025,6 +1025,7 @@ def optimise_points(args, points, out_dir):
             human_pred[method]['colour_difference']['Witt1999'],
             human_pred[method]['colour_discrimination']['MacAdam1942'],
             human_pred[method]['colour_difference']['MacAdam1974'],
+            human_pred[method]['colour_discrimination']['Gegenfurtner'],
             human_pred[method]['colour_difference']['TeamK'],
         ])
 
