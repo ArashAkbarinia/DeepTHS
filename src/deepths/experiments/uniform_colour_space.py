@@ -615,7 +615,7 @@ def plot_human_vs_method(method_prediction, data, ylabel=None, docorr=True,
                 colour = 'brown'
                 marker = '^'
                 db_label = 'Gegenfurtner-1992'
-                vis_w = 0.6
+                vis_w = 1.2
             elif 'MacAdam1974' in db:
                 colour = 'magenta'
                 marker = 'p'
