@@ -703,7 +703,11 @@ def scatter2d(points, colours, axs, axis_names, fontsize=14, axs_range=None):
     return axs
 
 
-def sample_rgb(cube_samples=1000):
+def sample_rgb(cube_samples=1000, achromatic=False):
+    if achromatic:
+        return np.expand_dims(
+            np.stack([np.linspace(0, 1, 101) for _ in range(3)]), axis=1
+        ).transpose(2, 1, 0)
     num_samples = round(cube_samples ** (1 / 3))
     linspace_vals = np.linspace(0, 1, num_samples)
     r_pts = np.tile(linspace_vals, (num_samples ** 2, 1)).T.reshape(-1, 1)
@@ -1078,10 +1082,10 @@ def optimise_points(args, points, out_dir):
     }, '%s/model.pth' % out_dir)
 
 
-def rgb_mapping(model, cube_samples=1000):
+def rgb_mapping(model, cube_samples=1000, achromatic=False):
     if isinstance(model, str):
         model = load_model(model)
-    rgb_pts = sample_rgb(cube_samples)
+    rgb_pts = sample_rgb(cube_samples, achromatic)
     rgb_squeezed = rgb_pts.copy().squeeze()
     rgb_pts_pred = pred_model(model, rgb_squeezed)
     rgb_pts_pred = np.expand_dims(rgb_pts_pred, axis=1)
