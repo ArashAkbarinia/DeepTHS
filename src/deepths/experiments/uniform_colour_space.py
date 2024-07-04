@@ -454,7 +454,8 @@ def summary_plot_all_nets_layers(results_dir, test_dir, ins_name='bg128_i0'):
         'witt': 'witt_srgb',
         'macadam1942': 'macadam1942_srgb_d65',
         'macadam1974': 'macadam1974_srgb_d65',
-        'teamk_m2': 'teamk_srgb_m2'
+        'karl': 'karl_srgb',
+        'teamk_m2j2': 'teamk_srgb_m2j2'
     }
 
     metrics_networks = {'pearson': dict(), 'spearman': dict(), 'stress': dict()}
